@@ -12,6 +12,7 @@ from pathlib import Path
 
 from textual.content import Content
 from textual.widgets import Input, OptionList, Static
+import pytest
 from PIL import Image as PILImage
 from textual_image._geometry import CellSize
 from textual_image.widget import Image, get_cell_size
@@ -21,7 +22,24 @@ from tarkon import app as app_module
 from tarkon import config, fetch, web
 from tarkon.app import TarkonApp
 
-board_module.TUI_REPO_ALIASES["billing-reconciliation-service"] = "brs"
+
+
+@pytest.fixture(autouse=True, scope="session")
+def madrid():
+    os.environ["TZ"] = "Europe/Madrid"
+    time.tzset()
+
+
+@pytest.fixture(autouse=True)
+def settings():
+    config.use(config.Settings(**SETTINGS))
+    yield
+    config.use(None)
+
+
+@pytest.fixture(autouse=True)
+def aliases(monkeypatch):
+    monkeypatch.setitem(board_module.TUI_REPO_ALIASES, "billing-reconciliation-service", "brs")
 
 PR_ONE = {"url": "https://github.com/acme/app/pull/1", "repo": "app", "number": 1, "title": "[ACME-1] First change",
           "author": {"login": "alice"}, "isDraft": False, "reviewDecision": "", "reviews": [], "reviewRequests": [{}],
@@ -57,9 +75,6 @@ def board(prs):
 SETTINGS = {"team": ["alice", "bob"], "jira_project": "ACME", "github_user": "alice", "github_org": "acme",
             "jira_url": "https://acme.atlassian.net"}
 
-results = []
-
-
 def settings_file(cache, settings=SETTINGS):
     path = cache.with_name("config.json")
     path.write_text(json.dumps(settings))
@@ -67,8 +82,7 @@ def settings_file(cache, settings=SETTINGS):
 
 
 def check(name, ok):
-    results.append(ok)
-    print("PASS" if ok else "FAIL", name)
+    assert ok, name
 
 
 async def main(cache):
@@ -232,7 +246,7 @@ ADF = {"type": "doc", "content": [
     {"type": "codeBlock", "content": [{"type": "text", "text": "x = 1\ny = 2"}]}]}
 
 
-def ticket_detail_edges():
+def test_ticket_detail_edges():
     ticket = {"key": "ACME-1", "summary": "Ticket one", "status": "En proceso", **TICKET_DETAIL, "epic": None, "comments": [],
               "description": "\n".join(f"line {n}" for n in range(1, 15))}
     lines = Content.from_markup(app_module.ticket_entry(ticket, []).detail).plain.splitlines()
@@ -249,7 +263,7 @@ def ticket_detail_edges():
           [e.group for e in app_module.entries(shuffled)["mine_tickets"]] == ["Todo", "In Progress", "In Progress"])
 
 
-def ticket_links():
+def test_ticket_links():
     ticket = {"key": "ACME-1", "summary": "Ticket one", "status": "En proceso", **TICKET_DETAIL,
               "links": [*TICKET_DETAIL["links"], {"relation": "relates to", "key": "ACME-3", "summary": "Third", "status": "Backlog"}]}
     lines = Content.from_markup(app_module.ticket_entry(ticket, []).detail).plain.splitlines()
@@ -259,7 +273,7 @@ def ticket_links():
           and not any(line.startswith("link ") for line in lines))
 
 
-def adf_rendering():
+def test_adf_rendering():
     check("jira rich text reads as plain text", fetch.adf_text(ADF) ==
           "Context\n\nUse `reason` only.\nAsk @Bob\n\n- one\n- two\n\na | b\n1 | 2\n\n    x = 1\n    y = 2")
 
@@ -282,7 +296,7 @@ ADF_MORE = {"type": "doc", "content": [
     {"type": "panel", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "in a panel"}]}]}]}
 
 
-def adf_more_nodes():
+def test_adf_more_nodes():
     check("lists, quotes, cards, emoji, statuses, dates, media and panels read as plain text", fetch.adf_text(ADF_MORE) ==
           "1. first\n  - nested\n2. second\n\n> quoted\n\n---\n\nhttps://example.com/a [link] :tada: DONE 2026-10-22\n\n[attachment]\n\nin a panel")
 
@@ -300,7 +314,7 @@ def ticket_view(key):
                                   "body": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Looks good"}]}]}}]}}}
 
 
-def my_tickets_fetch():
+def test_my_tickets_fetch():
     items = [{"key": "ACME-6", "fields": {"summary": "Next", "status": {"name": "Tareas por hacer"}}},
              {"key": "ACME-5", "fields": {"summary": "Review me", "status": {"name": "En revisión"}}},
              {"key": "OPS-7", "fields": {"summary": "Odd status", "status": {"name": "Blocked"}}},
@@ -322,7 +336,7 @@ def my_tickets_fetch():
     check("my tickets carry their detail", tickets[0] == {"key": "ACME-3", "summary": "Later", "status": "Backlog", **TICKET_DETAIL})
 
 
-def sparse_ticket_detail():
+def test_sparse_ticket_detail():
     view = {"key": "OPS-9", "fields": {
         "summary": "S", "issuetype": {"name": "Task"}, "priority": None, "labels": [], "creator": None,
         "created": "2026-10-08T16:12:45.341+0200", "updated": "2026-10-21T17:42:10.834+0200", "parent": None, "issuelinks": [],
@@ -340,7 +354,7 @@ def sparse_ticket_detail():
         "comments": [{"id": "11", "author": "unknown", "created": "2026-10-20T10:00:00.000+0200", "body": ""}]})
 
 
-def html_mine():
+def test_html_mine():
     page = web.mine([], [], [{"key": "ACME-1", "summary": "Ticket one", "status": "En proceso"}])
     check("html lists my open tickets with their status in English",
           "My open tickets" in page and "In Progress" in page and "En proceso" not in page and "in status" not in page)
@@ -349,7 +363,7 @@ def html_mine():
           "In Progress" in row and "En proceso" not in row and row.count("<span") == 3)
 
 
-def status_labels():
+def test_status_labels():
     labels = {status: fetch.status_label(status) for status in
               ["Tareas por hacer", "En proceso", "En revisión", "Finalizado", "Backlog", "Developing", "Blocked"]}
     check("Spanish statuses read in English, the rest as Jira names them", labels == {
@@ -527,7 +541,7 @@ async def edit_cancel(cache):
         check("cancel goes to the board", str(app.query_one("#panel-prs").border_title) == "[4] team prs 1")
 
 
-def quit_while_refreshing(cache):
+def test_quit_while_refreshing(cache):
     started, release, finished, loads = threading.Event(), threading.Event(), threading.Event(), []
 
     def load():
@@ -614,7 +628,7 @@ def quit_script(cache, mode):
     return result.returncode, len(done.read_text()) if done.exists() else 0
 
 
-def quit_drops_queued_fetches(cache):
+def test_quit_drops_queued_fetches(cache):
     code, finished = quit_script(cache, "running")
     check("quitting mid-refresh drops the fetches still queued", code == 0 and finished < 40)
     code, finished = quit_script(cache, "failed")
@@ -623,7 +637,7 @@ def quit_drops_queued_fetches(cache):
     check("the app's exit code reaches the shell", code == 3)
 
 
-def settings_used():
+def test_settings_used():
     config.use(config.Settings(team=["alice"], jira_project="ACME", github_user="me", github_org="acme",
                                jira_url="https://acme.atlassian.net/"))
     check("jira links use the configured site", 'href="https://acme.atlassian.net/browse/ACME-9"' in board_module.jira_link("ACME-9"))
@@ -651,7 +665,7 @@ def settings_used():
         {"key": "ACME-2", "summary": "Older", "status": "Developing", "owner": "Ana"}])
 
 
-def epic_changes():
+def test_epic_changes():
     epic_one, epic_two = {"key": "ACME-100", "summary": "Epic one"}, {"key": "ACME-200", "summary": "Epic two"}
     one, two, three = ({"key": key, "summary": f"Ticket {key}", "status": "En proceso"} for key in ("ACME-1", "ACME-2", "ACME-3"))
     summaries = {t["key"]: t["summary"] for t in (one, two, three)}
@@ -678,7 +692,7 @@ def epic_changes():
     check("a saved state without epics still reports new tickets", [c["label"] for c in found] == ["En proceso"])
 
 
-def state_write():
+def test_state_write():
     with tempfile.TemporaryDirectory() as scratch:
         state_dir, state_path = board_module.STATE_DIR, board_module.STATE_PATH
         board_module.STATE_DIR = Path(scratch)
@@ -708,7 +722,7 @@ def state_write():
           saved == {"snapshot": {"tickets": {}}, "changes": []} and leftovers == ["state.json"])
 
 
-def collect_prs():
+def test_collect_prs():
     one, two = {**PR_ONE, "headRefOid": "a1"}, {**PR_TWO, "headRefOid": "b2"}
     three = {**PR_THREE, "headRefOid": "c3", "url": "https://github.com/acme/renamed/pull/3"}
     by_item = {("acme/app", 1): one, ("acme/billing-reconciliation-service", 2): two, ("acme/app", 3): three}
@@ -736,7 +750,7 @@ def collect_prs():
           [pr["number"] for pr in found["review_prs"]] == [3, 1])
 
 
-def data_paths():
+def test_data_paths():
     home = Path.home()
     check("state lives in ~/.local/state/tarkon", board_module.STATE_PATH == home / ".local/state/tarkon/state.json")
     check("the html page lives next to the state", web.OUT == home / ".local/state/tarkon/board.html")
@@ -756,7 +770,7 @@ def data_paths():
     check("nothing scans ~/projects or calls herdr", not hasattr(fetch, "fetch_worktrees") and not hasattr(fetch, "herdr_workspaces"))
 
 
-def missing_tools():
+def test_missing_tools():
     for args in ([], ["html"]):
         try:
             result = subprocess.run([sys.executable, "-m", "tarkon", *args], capture_output=True, text=True,
@@ -768,7 +782,7 @@ def missing_tools():
               and "acli not found" in result.stderr and "brew install acli" in result.stderr and "Traceback" not in result.stderr)
 
 
-def escaping():
+def test_escaping():
     check("tui links keep a title ending in a backslash",
           Content.from_markup(app_module.link("https://github.com/acme/app/pull/1", "Fix path\\")).plain.rstrip(app_module.ZERO_WIDTH_SPACE)
           == "Fix path\\")
@@ -796,14 +810,14 @@ REPLY = {**NOTE, "author": {"__typename": "User", "login": "bob"}, "body": "Than
 CHANGES = {"submittedAt": "2026-10-22T09:00:00Z", "state": "CHANGES_REQUESTED", "body": "Please split this", "author": {"login": "carol"}}
 
 
-def pr_rows():
+def test_pr_rows():
     row = lambda pr: app_module.cell_row(app_module.pr_entry(pr, {}), app_module.PR_WIDTHS).plain
     check("team pr row shows the title's ticket code and the author", "[ACME-1]" in row(PR_ONE) and "alice" in row(PR_ONE))
     check("team pr row without a ticket code shows no code", "[" not in row({**PR_ONE, "title": "No ticket"})
           and "alice" in row({**PR_ONE, "title": "No ticket"}))
 
 
-def pr_comments():
+def test_pr_comments():
     review = {"submittedAt": "2026-10-22T09:00:00Z", "state": "CHANGES_REQUESTED", "body": "Please split this", "author": {"login": "carol"}}
     pr = {**PR_TWO, "reviews": [*PR_TWO["reviews"], review], "commits": [{"committedDate": "2026-10-23T08:00:00Z"}], "threads": [THREAD]}
     detail = Content.from_markup(app_module.pr_entry(pr, {}).detail).plain
@@ -815,7 +829,7 @@ def pr_comments():
     check("pr detail without comments has no comments line", "comments" not in Content.from_markup(app_module.pr_entry(PR_ONE, {}).detail).plain)
 
 
-def conversation_comments():
+def test_conversation_comments():
     pr = {**PR_TWO, "reviews": [CHANGES], "threads": [THREAD], "conversation": [NOTE, REPLY]}
     items = app_module.review_items(pr)
     check("conversation comments sit with the reviews by date, before the code threads",
@@ -828,7 +842,7 @@ def conversation_comments():
           "comments 4 · c to open" in Content.from_markup(app_module.pr_entry(pr, {}).detail).plain)
 
 
-def diff_rendering():
+def test_diff_rendering():
     diff = app_module.diff_text(HUNK, "app/models/order.rb")
     lines = diff.plain.splitlines()
     check("diff keeps the hunk header", lines[0].strip() == "@@ -1,5 +1,5 @@")
@@ -905,7 +919,7 @@ def pr_node(number, rollup):
         "comments": {"nodes": [*bots, NOTE]}}}
 
 
-def pr_fetch():
+def test_pr_fetch():
     rollups = [{"state": "FAILURE"}, {"state": "PENDING"}, {"state": "SUCCESS"}, None]
     seen, run_json = [], fetch.run_json
 
@@ -945,7 +959,7 @@ def pr_fetch():
           all(re.search(rf"\b{name}\b", query) for name in ("login", "body", "createdAt", "diffHunk", "url")))
 
 
-def logo_fit():
+def test_logo_fit():
     source = PILImage.open(app_module.LOGO)
     for cell in (CellSize(8, 17), CellSize(10, 20), CellSize(9, 21)):
         image, columns = app_module.logo_image(2, cell)
@@ -954,7 +968,7 @@ def logo_fit():
               abs(image.width / image.height - box) < 0.02 and image.height == source.height and image.width >= source.width)
 
 
-def html_logo():
+def test_html_logo():
     with tempfile.TemporaryDirectory() as scratch:
         found = {**board([PR_ONE]), "merged_by_ticket": {}, "now": {"prs": {}}}
         collect, path = web.collect, web.OUT
@@ -968,7 +982,7 @@ def html_logo():
     check("html headers show the logo instead of the rocket", page.count(f'src="{logo}"') == 2 and "rotate(45 16 16)" not in page)
 
 
-def html_without_config():
+def test_html_without_config():
     with tempfile.TemporaryDirectory() as home:
         result = subprocess.run([sys.executable, "-m", "tarkon", "html"], capture_output=True, text=True,
                                 cwd=Path(__file__).parent, env={**os.environ, "HOME": home})
@@ -976,38 +990,12 @@ def html_without_config():
           result.returncode == 1 and "Run `python -m tarkon config` first" in result.stderr)
 
 
-if __name__ == "__main__":
-    os.environ["TZ"] = "Europe/Madrid"
-    time.tzset()
-    settings_used()
-    escaping()
-    config.use(config.Settings(**SETTINGS))
-    epic_changes()
-    pr_rows()
-    adf_rendering()
-    adf_more_nodes()
-    ticket_links()
-    ticket_detail_edges()
-    my_tickets_fetch()
-    sparse_ticket_detail()
-    html_mine()
-    status_labels()
-    pr_comments()
-    pr_fetch()
-    conversation_comments()
-    diff_rendering()
-    data_paths()
-    state_write()
-    collect_prs()
-    logo_fit()
-    html_logo()
-    html_without_config()
-    missing_tools()
-    for test in (main, reopen, throttle_across_runs, running, failure, unmapped_status, first_run, first_run_cancel, edit, edit_cancel, review_popup):
-        with tempfile.TemporaryDirectory() as scratch:
-            asyncio.run(test(Path(scratch) / "cache.json"))
-    with tempfile.TemporaryDirectory() as scratch:
-        quit_while_refreshing(Path(scratch) / "cache.json")
-    with tempfile.TemporaryDirectory() as scratch:
-        quit_drops_queued_fetches(Path(scratch) / "cache.json")
-    sys.exit(0 if all(results) else 1)
+@pytest.fixture
+def cache(tmp_path):
+    return tmp_path / "cache.json"
+
+
+@pytest.mark.parametrize("scenario", [main, reopen, throttle_across_runs, running, failure, unmapped_status, first_run, first_run_cancel,
+                                      edit, edit_cancel, review_popup], ids=lambda scenario: scenario.__name__)
+def test_tui(scenario, cache):
+    asyncio.run(scenario(cache))

@@ -74,6 +74,7 @@ Epics are not configured: the board shows every epic of the project in Developin
 
 ```bash
 python3.12 -m venv .venv
-.venv/bin/pip install -e .
-.venv/bin/python test_tarkon.py
+.venv/bin/pip install -e '.[dev]'
+.venv/bin/pytest
+.venv/bin/python scripts/profile_refresh.py  # one real refresh, timed per call; leaves your files alone
 ```
