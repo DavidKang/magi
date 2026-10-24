@@ -155,14 +155,36 @@ def search_team_prs():
     return found
 
 
+DISCUSSION_QUERY = """query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) { pullRequest(number: $number) {
+    reviewThreads(first: 100) { nodes { isResolved isOutdated path line
+      comments(first: 50) { nodes { author { login } body createdAt diffHunk url } } } }
+    comments(first: 100) { nodes { author { __typename login } body createdAt url } } } } }"""
+
+
 def fetch_pr(repo, number):
-    with ThreadPoolExecutor(max_workers=1) as pool:
+    with ThreadPoolExecutor(max_workers=2) as pool:
         ci = pool.submit(fetch_ci, repo, number)
+        discussion = pool.submit(fetch_discussion, repo, number)
         pr = run_json(["gh", "pr", "view", str(number), "--repo", repo, "--json",
                        "number,title,url,headRefName,headRefOid,author,isDraft,createdAt,reviewDecision,reviewRequests,reviews,mergeable,commits"])
         pr["ci"] = ci.result()
+        pr["threads"], pr["conversation"] = discussion.result()
     pr["repo"] = repo.split("/")[1]
     return pr
+
+
+def is_bot(author):
+    return author["__typename"] == "Bot" or author["login"].lower().endswith("bot")
+
+
+def fetch_discussion(repo, number):
+    owner, name = repo.split("/")
+    data = run_json(["gh", "api", "graphql", "-F", f"owner={owner}", "-F", f"name={name}", "-F", f"number={number}",
+                     "-f", f"query={DISCUSSION_QUERY}"])
+    pr = data["data"]["repository"]["pullRequest"]
+    threads = [{**thread, "comments": thread["comments"]["nodes"]} for thread in pr["reviewThreads"]["nodes"] if not thread["isResolved"]]
+    return threads, [comment for comment in pr["comments"]["nodes"] if comment["author"] and not is_bot(comment["author"])]
 
 
 def fetch_ci(repo, number):

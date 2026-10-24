@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo.png" alt="Tarkon logo" width="160"></p>
+
 # Tarkon
 
 Your team's board in one screen: the PRs that need you, the team's open PRs, what changed in the last 24 hours and the progress of every epic in Developing or Rollout. It reads Jira through `acli` and GitHub through `gh`, and runs in the terminal or as a browser page.
@@ -44,6 +46,7 @@ Epics are not configured: the board shows every epic of the project in Developin
 | `1`-`4` | Jump to attention, team PRs, changes, epics |
 | `j` / `k` | Move down / up |
 | `enter` | Open the selected item in the browser |
+| `c` | Open the selected PR's comments, reviews and code threads with their diff (`j`/`k` move, `enter` opens on GitHub, `esc` closes) |
 | `/` | Filter the current box (`escape` clears it) |
 | `y` | Copy the selected link (the key, for an epic) |
 | `r` | Refresh (once a minute at most; it also refreshes every 20 minutes) |
@@ -57,6 +60,7 @@ Epics are not configured: the board shows every epic of the project in Developin
 | `~/.local/state/tarkon/state.json` | Last snapshot, used to detect changes |
 | `~/.local/state/tarkon/board.html` | The browser page |
 | `~/.cache/tarkon/cache.json` | Last board, shown while the next refresh runs |
+| `~/.cache/tarkon/last-refresh` | When the last refresh started, so reopening the app or pressing `r` waits a minute |
 
 ## Limits
 

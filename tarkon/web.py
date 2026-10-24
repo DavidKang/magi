@@ -1,5 +1,6 @@
 """Render the board as an html page, the browser version of Tarkon."""
 
+import base64
 import datetime as dt
 import re
 import sys
@@ -12,6 +13,7 @@ from .board import (CHANGES_HOURS, CI_LABELS, STATE_DIR, TUI_CI, TUI_REVIEW, TUI
 from .fetch import COLUMNS, days_since
 
 URGENT_PR_DAYS = 3
+LOGO = "data:image/png;base64," + base64.b64encode(Path(__file__).with_name("logo.png").read_bytes()).decode()
 def ci_pills(pr):
     tone, label = CI_LABELS[pr["ci"]]
     conflict = ' <span class="pill changes">Conflicts</span>' if pr["mergeable"] == "CONFLICTING" else ""
@@ -267,6 +269,7 @@ def render(epics, tickets_by_epic, prs, merged_by_ticket, review_prs, my_tickets
             .replace("{{PRS}}", pr_tables(prs))
             .replace("{{TEAM}}", ", ".join(config.settings.team))
             .replace("{{ORG}}", esc(config.settings.github_org))
+            .replace("{{LOGO}}", LOGO)
             .replace("{{BOARDS}}", boards))
 
 
