@@ -2,7 +2,7 @@
 
 # Tarkon
 
-Your team's board in one screen: the PRs that need you, the team's open PRs, what changed in the last 24 hours and the progress of every epic in Developing or Rollout. It reads Jira through `acli` and GitHub through `gh`, and runs in the terminal or as a browser page.
+Your team's board in one screen: the PRs that need you, the team's open PRs, what changed in the last 24 hours, the progress of every epic in Developing or Rollout, and your own open PRs and Jira tickets. It reads Jira through `acli` and GitHub through `gh`, and runs in the terminal or as a browser page.
 
 ## Quick path
 
@@ -43,10 +43,12 @@ Epics are not configured: the board shows every epic of the project in Developin
 
 | Key | Action |
 |-----|--------|
-| `1`-`4` | Jump to attention, team PRs, changes, epics |
+| `1` / `2` | Switch to the `Overview` tab or the `Mine` tab |
+| `3`-`6` | Jump to the `Overview` tab's boxes: attention, team PRs, changes, epics |
+| `7`-`8` | Jump to the `Mine` tab's boxes: your open PRs, your Jira tickets not done, grouped by status |
 | `j` / `k` | Move down / up |
 | `enter` | Open the selected item in the browser |
-| `c` | Open the selected PR's comments, reviews and code threads with their diff (`j`/`k` move, `enter` opens on GitHub, `esc` closes) |
+| `c` | Open the selected PR's comments, reviews and code threads with their diff, or the selected ticket's description and comments (`j`/`k` move, `enter` opens it in the browser, `esc` closes) |
 | `/` | Filter the current box (`escape` clears it) |
 | `y` | Copy the selected link (the key, for an epic) |
 | `r` | Refresh (once a minute at most; it also refreshes every 20 minutes) |

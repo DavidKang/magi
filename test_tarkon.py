@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from pathlib import Path
 
 from textual.content import Content
@@ -34,13 +35,20 @@ PR_THREE = {**PR_ONE, "url": "https://github.com/acme/app/pull/3", "number": 3, 
             "createdAt": "2026-10-23T10:00:00Z"}
 TICKETS = [{"key": "ACME-1", "summary": "Ticket one", "status": "En proceso", "column": "doing", "assignee": "Ana", "updated": None, "prs": []},
            {"key": "ACME-2", "summary": "Ticket two", "status": "Finalizado", "column": "done", "assignee": "Ana", "updated": None, "prs": []}]
+TICKET_DETAIL = {"type": "Story", "priority": "Low", "labels": ["blocked"], "creator": "Bob",
+                 "created": "2026-10-08T16:12:45.341+0200", "updated": "2026-10-21T17:42:10.834+0200",
+                 "epic": {"key": "ACME-100", "summary": "Epic one"},
+                 "links": [{"relation": "is blocked by", "key": "ACME-2", "summary": "Ticket two", "status": "En revisión"}],
+                 "description": "Context\n\nUse the new reason column.",
+                 "comments": [{"id": "10", "author": "Carol", "created": "2026-10-20T10:00:00.000+0200", "body": "Looks good"}]}
 LINK = '<a href="https://github.com/acme/app/pull/1" title="app#1">[ACME-1]</a> First change'
 
 
 def board(prs):
     return {"epics": [{"key": "ACME-100", "summary": "Epic one", "status": "Developing", "owner": "Ana"}],
             "tickets_by_epic": {"ACME-100": TICKETS}, "by_key": {t["key"]: t for t in TICKETS}, "prs": prs, "review_prs": [],
-            "my_prs": [PR_ONE], "my_tickets": [{"key": "ACME-1", "summary": "Ticket one", "status": "En proceso", "days_in_status": 2}],
+            "my_prs": [PR_ONE], "my_tickets": [{"key": "OPS-7", "summary": "Ticket seven", "status": "Tareas por hacer"},
+                                             {"key": "ACME-1", "summary": "Ticket one", "status": "En proceso", **TICKET_DETAIL}],
             "attention": [(LINK, "Open for review, but the ticket is still In progress. Move it to In review?")],
             "changes": [{"at": "2026-10-24T02:04", "tone": "commented", "label": "New PR", "text": LINK, "item": PR_ONE["url"]}],
             "out": Path("board.html")}
@@ -73,7 +81,10 @@ async def main(cache):
         detail = lambda: str(app.query_one("#detail", Static).render())
         title = lambda key: str(app.query_one(f"#panel-{key}").border_title)
         focused = lambda key: app.focused is app.query_one(f"#list-{key}")
-        check("there is no tab bar", not app.query("TabbedContent"))
+        check("the tab bar shows Overview and Mine, Overview first", [tab.label.plain for tab in app.query("Tab")] == ["[1] Overview", "[2] Mine"]
+              and app.query_one("Tabs").active == "tab-overview")
+        check("the tab bar spans the whole width", app.query_one("Tabs").region.width == app.screen.region.width)
+        check("details starts level with the first box", app.query_one("#detail").parent.region.y == app.query_one("#panel-attention").region.y)
         check("the header shows the logo instead of the rocket", isinstance(app.query_one("#top #logo"), Image)
               and "🚀" not in str(app.query_one("#top .brand").render()) and app.query_one("#top").outer_size.height == 1)
         logo, cell = app.query_one("#logo"), get_cell_size()
@@ -88,7 +99,7 @@ async def main(cache):
         check("there is no my desk or worktrees box", not app.query("#panel-desk") and not app.query("#panel-worktrees"))
         titles = [str(panel.border_title) for panel in app.query(".panel")]
         check("overview numbers its boxes next to details",
-              titles == ["[1] attention 1", "[2] team prs 2", "[3] changes 1", "[4] epics 1", "details"])
+              titles == ["[3] attention 1", "[4] team prs 2", "[5] changes 1", "[6] epics 1", "[7] my prs 1", "[8] my tickets 2", "details"])
         check("overview starts on the attention box", "Move it to In review?" in detail())
         heights = {key: app.query_one(f"#panel-{key}").outer_size.height for key in ("attention", "prs", "changes", "epics")}
         check("attention box fits its items", heights["attention"] == 5)
@@ -101,8 +112,8 @@ async def main(cache):
         await pilot.press("enter")
         check("enter opens the item of the focused box", opened == [PR_ONE["url"]])
         opened.clear()
-        await pilot.press("2")
-        check("2 focuses the team prs box", focused("prs") and "Second change" in detail())
+        await pilot.press("4")
+        check("4 focuses the team prs box", focused("prs") and "Second change" in detail())
         await pilot.press("k")
         check("k moves up, detail keeps the ticket prefix", "[ACME-1] First change" in detail())
         await pilot.press("j")
@@ -124,27 +135,151 @@ async def main(cache):
         check("filter narrows the list", app.query_one("#list-prs", OptionList).option_count == 1)
         await pilot.press("escape")
         check("escape clears the filter", app.query_one("#list-prs", OptionList).option_count == 2 and focused("prs"))
-        await pilot.press("1")
-        check("1 focuses the attention box", focused("attention") and "Move it to In review?" in detail())
-        await pilot.press("4")
-        check("4 focuses the epics box", focused("epics") and "Epic one" in detail())
         await pilot.press("3")
-        check("3 focuses the changes box", focused("changes"))
-        await pilot.press("4")
+        check("3 focuses the attention box", focused("attention") and "Move it to In review?" in detail())
+        await pilot.press("6")
+        check("6 focuses the epics box", focused("epics") and "Epic one" in detail())
+        await pilot.press("5")
+        check("5 focuses the changes box", focused("changes"))
+        await pilot.press("6")
         await pilot.press("y")
         check("y copies the epic key", copied == ["ACME-100"])
         now[0] += 30
         await pilot.press("r")
         await app.workers.wait_for_complete()
         await pilot.pause()
-        check("refresh within a minute is skipped", title("prs") == "[2] team prs 2")
+        check("refresh within a minute is skipped", title("prs") == "[4] team prs 2")
         check("skipped refresh says when the next one is allowed", any("next refresh in 30s" in n.message for n in app._notifications))
         now[0] += 31
         await pilot.press("r")
         await app.workers.wait_for_complete()
         await pilot.pause()
-        check("refresh reloads the board", title("prs") == "[2] team prs 3")
+        check("refresh reloads the board", title("prs") == "[4] team prs 3")
         check("refresh keeps the focused box", focused("epics"))
+        tabs = app.query_one("Tabs")
+        await pilot.press("7")
+        await pilot.pause()
+        check("7 opens the mine tab on my open prs", tabs.active == "tab-mine" and focused("mine_prs") and "First change" in detail())
+        await pilot.press("8")
+        await pilot.pause()
+        tickets = app.query_one("#list-mine_tickets", OptionList)
+        prompts = [str(tickets.get_option_at_index(i).prompt) for i in range(tickets.option_count)]
+        check("my tickets are grouped under their status", len(prompts) == 4 and prompts[0].startswith("── Todo (1)")
+              and "OPS-7" in prompts[1] and prompts[2].startswith("── In Progress (1)") and "ACME-1" in prompts[3])
+        check("8 focuses my tickets on the first ticket", focused("mine_tickets") and "Ticket seven" in detail())
+        await pilot.press("j")
+        check("j skips the status line to the next ticket, with its PRs", "Ticket one" in detail() and "app#1" in detail())
+        check("my ticket detail names the status in English", "In Progress" in detail() and "En proceso" not in detail())
+        await pilot.press("enter")
+        check("enter opens the ticket in Jira", opened[-1] == "https://acme.atlassian.net/browse/ACME-1")
+        check("my ticket detail shows type, priority, epic, creator, dates and labels",
+              all(text in detail() for text in ["Story", "Low", "ACME-100", "Epic one", "creator", "Bob", "Oct 08", "updated", "blocked"]))
+        check("my ticket detail shows its links with the other ticket's status",
+              "is blocked by" in detail() and "ACME-2" in detail() and "In review" in detail())
+        check("my ticket detail previews the description and counts the comments",
+              "Use the new reason column." in detail() and "comments 1 · c to open" in detail())
+        await pilot.press("c")
+        await pilot.pause()
+        popup = app.screen
+        listing = popup.query_one(OptionList)
+        prompts = [str(listing.get_option_at_index(i).prompt) for i in range(listing.option_count)]
+        check("c opens the ticket's description and comments", isinstance(popup, app_module.ReviewScreen) and len(prompts) == 2
+              and prompts[0].splitlines()[:2] == ["description", "Bob"] and prompts[1].splitlines() == ["comment", "Carol", "Looks good"])
+        check("the ticket popup is titled with the key and summary", "ACME-1 · Ticket one" in str(popup.query_one("#review").border_title))
+        check("the ticket popup shows the whole description", "Use the new reason column." in str(popup.query_one("#review-comments", Static).render()))
+        await pilot.press("j", "enter")
+        check("enter on a ticket comment opens that comment in Jira", opened[-1] == "https://acme.atlassian.net/browse/ACME-1?focusedCommentId=10")
+        await pilot.press("escape")
+        await pilot.press("1")
+        await pilot.pause()
+        check("1 goes back to the overview tab", tabs.active == "tab-overview" and focused("attention"))
+        await pilot.press("2")
+        await pilot.pause()
+        check("2 opens the mine tab", tabs.active == "tab-mine" and focused("mine_prs"))
+        await pilot.press("1")
+        await pilot.pause()
+        await pilot.click("#tab-mine")
+        await pilot.pause()
+        check("clicking the mine tab focuses my prs", tabs.active == "tab-mine" and focused("mine_prs"))
+
+
+ADF = {"type": "doc", "content": [
+    {"type": "heading", "attrs": {"level": 2}, "content": [{"type": "text", "text": "Context"}]},
+    {"type": "paragraph", "content": [{"type": "text", "text": "Use "}, {"type": "text", "text": "reason", "marks": [{"type": "code"}]},
+                                      {"type": "text", "text": " only."}, {"type": "hardBreak"}, {"type": "text", "text": "Ask "},
+                                      {"type": "mention", "attrs": {"text": "@Bob"}}]},
+    {"type": "bulletList", "content": [{"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "one"}]}]},
+                                       {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "two"}]}]}]},
+    {"type": "table", "content": [
+        {"type": "tableRow", "content": [{"type": "tableHeader", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "a"}]}]},
+                                         {"type": "tableHeader", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "b"}]}]}]},
+        {"type": "tableRow", "content": [{"type": "tableCell", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "1"}]}]},
+                                         {"type": "tableCell", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "2"}]}]}]}]},
+    {"type": "codeBlock", "content": [{"type": "text", "text": "x = 1\ny = 2"}]}]}
+
+
+def ticket_links():
+    ticket = {"key": "ACME-1", "summary": "Ticket one", "status": "En proceso", **TICKET_DETAIL,
+              "links": [*TICKET_DETAIL["links"], {"relation": "relates to", "key": "ACME-3", "summary": "Third", "status": "Backlog"}]}
+    lines = Content.from_markup(app_module.ticket_entry(ticket, []).detail).plain.splitlines()
+    start = lines.index("── links ──")
+    check("ticket links are a list, one item per link with its title below",
+          lines[start + 1:start + 5] == ["• is blocked by ACME-2 (In review)", "  Ticket two", "• relates to ACME-3 (Backlog)", "  Third"]
+          and not any(line.startswith("link ") for line in lines))
+
+
+def adf_rendering():
+    check("jira rich text reads as plain text", fetch.adf_text(ADF) ==
+          "Context\n\nUse `reason` only.\nAsk @Bob\n\n- one\n- two\n\na | b\n1 | 2\n\n    x = 1\n    y = 2")
+
+
+def ticket_view(key):
+    return {"key": key, "fields": {
+        "summary": "S", "issuetype": {"name": "Story"}, "priority": {"name": "Low"}, "labels": ["blocked"], "creator": {"displayName": "Bob"},
+        "created": "2026-10-08T16:12:45.341+0200", "updated": "2026-10-21T17:42:10.834+0200",
+        "parent": {"key": "ACME-100", "fields": {"summary": "Epic one"}},
+        "issuelinks": [{"type": {"inward": "is blocked by", "outward": "blocks"},
+                        "inwardIssue": {"key": "ACME-2", "fields": {"summary": "Ticket two", "status": {"name": "En revisión"}}}}],
+        "description": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Context"}]},
+                                                   {"type": "paragraph", "content": [{"type": "text", "text": "Use the new reason column."}]}]},
+        "comment": {"comments": [{"id": "10", "author": {"displayName": "Carol"}, "created": "2026-10-20T10:00:00.000+0200",
+                                  "body": {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Looks good"}]}]}}]}}}
+
+
+def my_tickets_fetch():
+    items = [{"key": "ACME-6", "fields": {"summary": "Next", "status": {"name": "Tareas por hacer"}}},
+             {"key": "ACME-5", "fields": {"summary": "Review me", "status": {"name": "En revisión"}}},
+             {"key": "OPS-7", "fields": {"summary": "Odd status", "status": {"name": "Blocked"}}},
+             {"key": "ACME-1", "fields": {"summary": "Doing", "status": {"name": "En proceso"}}},
+             {"key": "ACME-3", "fields": {"summary": "Later", "status": {"name": "Backlog"}}},
+             {"key": "ACME-4", "fields": {"summary": "Doing too", "status": {"name": "En proceso"}}}]
+    seen, run_json = [], fetch.run_json
+    fetch.run_json = lambda cmd: seen.append(cmd) or (items if cmd[3] == "search" else ticket_view(cmd[4]))
+    try:
+        tickets = fetch.fetch_my_tickets()
+    finally:
+        fetch.run_json = run_json
+    check("my tickets are every assigned ticket not done, in one search",
+          [cmd[3] for cmd in seen].count("search") == 1
+          and "assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC" in seen[0])
+    check("each ticket's detail comes from one view", sorted(cmd[4] for cmd in seen if cmd[3] == "view") == sorted(i["key"] for i in items))
+    check("my tickets come in board order, each status together, unknown statuses last, latest update first within a status",
+          [t["key"] for t in tickets] == ["ACME-3", "ACME-6", "ACME-1", "ACME-4", "ACME-5", "OPS-7"])
+    check("my tickets carry their detail", tickets[0] == {"key": "ACME-3", "summary": "Later", "status": "Backlog", **TICKET_DETAIL})
+
+
+def html_mine():
+    page = web.mine([], [], [{"key": "ACME-1", "summary": "Ticket one", "status": "En proceso"}])
+    check("html lists my open tickets with their status in English",
+          "My open tickets" in page and "In Progress" in page and "En proceso" not in page and "in status" not in page)
+
+
+def status_labels():
+    labels = {status: fetch.status_label(status) for status in
+              ["Tareas por hacer", "En proceso", "En revisión", "Finalizado", "Backlog", "Developing", "Blocked"]}
+    check("Spanish statuses read in English, the rest as Jira names them", labels == {
+        "Tareas por hacer": "Todo", "En proceso": "In Progress", "En revisión": "In review", "Finalizado": "Done",
+        "Backlog": "Backlog", "Developing": "Developing", "Blocked": "Blocked"})
 
 
 def failing_load():
@@ -162,13 +297,13 @@ async def reopen(cache):
         await app.workers.wait_for_complete()
         await pilot.pause()
         check("reopening within a minute does not refresh", calls == [])
-        check("reopening within a minute shows the saved board", str(app.query_one("#panel-prs").border_title) == "[2] team prs 1")
+        check("reopening within a minute shows the saved board", str(app.query_one("#panel-prs").border_title) == "[4] team prs 1")
     app = TarkonApp(load=load, opener=print, copier=print, clock=lambda: 1090.0, cache=cache, config_path=settings_file(cache))
     async with app.run_test(size=(160, 40)) as pilot:
         await app.workers.wait_for_complete()
         await pilot.pause()
         check("reopening after a minute refreshes once", calls == [1])
-        check("refreshed board replaces the saved one", str(app.query_one("#panel-prs").border_title) == "[2] team prs 3")
+        check("refreshed board replaces the saved one", str(app.query_one("#panel-prs").border_title) == "[4] team prs 3")
         check("successful refresh saves the board", json.loads(cache.read_text())["at"] == 1090.0)
 
 
@@ -243,9 +378,8 @@ async def first_run(cache):
         check("first run opens the config panel with the five fields", sorted(inputs) == sorted(SETTINGS))
         check("config fields start empty with a placeholder", all(not i.value and i.placeholder for i in inputs.values()))
         check("board waits until the config is saved", calls == [])
-        check("config panel hides the board keys and cancel on first run",
-              not app.check_action("focus_filter", ()) and not app.check_action("refresh", ())
-              and not app.screen.check_action("cancel", ()) and app.screen.check_action("save", ()))
+        check("config panel hides the board keys on first run",
+              not app.check_action("focus_filter", ()) and not app.check_action("refresh", ()) and app.screen.check_action("save", ()))
         inputs["team"].value = "alice, bob"
         await pilot.click("#config-save")
         await pilot.pause()
@@ -259,7 +393,7 @@ async def first_run(cache):
         await app.workers.wait_for_complete()
         await pilot.pause()
         check("saving writes the config", json.loads(path.read_text()) == SETTINGS)
-        check("saving opens the board", calls == [1] and str(app.query_one("#panel-prs").border_title) == "[2] team prs 1")
+        check("saving opens the board", calls == [1] and str(app.query_one("#panel-prs").border_title) == "[4] team prs 1")
         check("the TUI cache is written into a folder created on demand", cache.exists())
 
 
@@ -276,7 +410,45 @@ async def edit(cache):
         await app.workers.wait_for_complete()
         await pilot.pause()
         check("config command saves the changes", json.loads(path.read_text())["team"] == ["alice", "bob", "carol"])
-        check("config command then opens the board", str(app.query_one("#panel-prs").border_title) == "[2] team prs 1")
+        check("config command then opens the board", str(app.query_one("#panel-prs").border_title) == "[4] team prs 1")
+
+
+async def first_run_cancel(cache):
+    path, calls = cache.with_name("config.json"), []
+    app = TarkonApp(load=lambda: calls.append(1), opener=print, copier=print, cache=cache, config_path=path)
+    async with app.run_test(size=(160, 40)) as pilot:
+        await pilot.pause()
+        await pilot.click("#config-cancel")
+        await pilot.pause()
+        check("cancel on first run quits without saving or loading", not app.is_running and not path.exists() and calls == [])
+
+
+async def edit_cancel(cache):
+    path = settings_file(cache)
+    app = TarkonApp(load=lambda: board([PR_ONE]), opener=print, copier=print, cache=cache, config_path=path, edit_config=True)
+    async with app.run_test(size=(160, 40)) as pilot:
+        await pilot.pause()
+        app.screen.query_one("#config-team", Input).value = "zed"
+        await pilot.click("#config-cancel")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        check("cancel keeps the saved config", json.loads(path.read_text()) == SETTINGS)
+        check("cancel goes to the board", str(app.query_one("#panel-prs").border_title) == "[4] team prs 1")
+
+
+def quit_while_refreshing(cache):
+    release = threading.Event()
+    async def run():
+        app = TarkonApp(load=lambda: release.wait(10) or board([PR_ONE]), opener=print, copier=print, cache=cache,
+                             config_path=settings_file(cache))
+        async with app.run_test(size=(160, 40)) as pilot:
+            await pilot.pause()
+            await pilot.press("q")
+    started = time.monotonic()
+    asyncio.run(run())
+    elapsed = time.monotonic() - started
+    release.set()
+    check("quitting does not wait for a running refresh", elapsed < 5)
 
 
 def settings_used():
@@ -374,7 +546,7 @@ def escaping():
                                jira_url='https://acme.atlassian.net/"><b>site</b>'))
     epic = {"key": "ACME-100", "summary": "Epic one", "status": "Developing", "owner": "Ana"}
     rendered = (board_module.jira_link("ACME-9<i>") + web.tui_epic(epic, TICKETS)["detail"]
-                + web.tui_ticket({**TICKETS[0], "days_in_status": 2}, [])["detail"])
+                + web.tui_ticket(TICKETS[0], [])["detail"])
     check("jira links escape the site and the key", "<b>" not in rendered and "<i>" not in rendered)
 
 
@@ -453,7 +625,7 @@ async def review_popup(cache):
         await app.workers.wait_for_complete()
         await pilot.pause()
         text = lambda selector: str(app.screen.query_one(selector, Static).render())
-        await pilot.press("2", "j", "c")
+        await pilot.press("4", "j", "c")
         check("c opens the review comments of the selected PR", isinstance(app.screen, app_module.ReviewScreen))
         check("the popup lists the review and every open thread", app.screen.query_one(OptionList).option_count == 3)
         check("the popup title names the PR", "brs#2" in str(app.screen.query_one("#review").border_title))
@@ -549,6 +721,11 @@ if __name__ == "__main__":
     config.use(config.Settings(**SETTINGS))
     epic_changes()
     pr_rows()
+    adf_rendering()
+    ticket_links()
+    my_tickets_fetch()
+    html_mine()
+    status_labels()
     pr_comments()
     pr_threads_fetch()
     conversation_comments()
@@ -558,7 +735,9 @@ if __name__ == "__main__":
     html_logo()
     html_without_config()
     missing_tools()
-    for test in (main, reopen, throttle_across_runs, running, failure, first_run, edit, review_popup):
+    for test in (main, reopen, throttle_across_runs, running, failure, first_run, first_run_cancel, edit, edit_cancel, review_popup):
         with tempfile.TemporaryDirectory() as scratch:
             asyncio.run(test(Path(scratch) / "cache.json"))
+    with tempfile.TemporaryDirectory() as scratch:
+        quit_while_refreshing(Path(scratch) / "cache.json")
     sys.exit(0 if all(results) else 1)

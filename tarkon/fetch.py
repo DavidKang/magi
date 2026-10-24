@@ -18,6 +18,7 @@ COLUMNS = [
     ("done", "Done", {"Finalizado"}),
 ]
 DISCARDED = {"Rejected / Cancelled"}
+STATUS_LABELS = {"Tareas por hacer": "Todo", "En proceso": "In Progress", "En revisión": "In review", "Finalizado": "Done"}
 EPIC_STATUSES = ["Developing", "Rollout"]
 TODAY = dt.date.today()
 
@@ -51,6 +52,10 @@ def column_for(status):
     if status in DISCARDED:
         return None
     sys.exit(f"Unmapped Jira status: {status}")
+
+
+def status_label(status):
+    return STATUS_LABELS.get(status, status)
 
 
 def days_since(iso):
@@ -118,30 +123,67 @@ def search_review_requested_from_me():
 
 def fetch_my_tickets():
     items = run_json(["acli", "jira", "workitem", "search", "--jql",
-                      'assignee = currentUser() AND statusCategory = "In Progress" ORDER BY updated DESC',
+                      "assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC",
                       "--limit", "100", "--json"])
+    order = {status: i for i, (_, _, statuses) in enumerate(COLUMNS) for status in statuses}
     tickets = [{"key": i["key"], "summary": i["fields"]["summary"], "status": i["fields"]["status"]["name"]} for i in items]
-    for t, days in zip(tickets, parallel(days_in_status, [t["key"] for t in tickets])):
-        t["days_in_status"] = days
-    return tickets
+    for ticket, detail in zip(tickets, parallel(fetch_ticket_detail, [t["key"] for t in tickets])):
+        ticket.update(detail)
+    return sorted(tickets, key=lambda t: (order.get(t["status"], len(COLUMNS)), t["status"]))
 
 
-def status_changed_since(key, days_ago):
-    return bool(run_json(["acli", "jira", "workitem", "search", "--jql",
-                          f"key = {key} AND status CHANGED AFTER startOfDay(-{days_ago})", "--limit", "1", "--json"]))
+TICKET_FIELDS = "summary,status,description,creator,comment,parent,issuelinks,priority,labels,issuetype,created,updated"
 
 
-def days_in_status(key):
-    entered_category = run_json(["acli", "jira", "workitem", "view", key, "--fields", "statuscategorychangedate",
-                                 "--json"])["fields"]["statuscategorychangedate"]
-    low, high = 0, days_since(entered_category)
-    while low < high:
-        mid = (low + high) // 2
-        if status_changed_since(key, mid):
-            high = mid
-        else:
-            low = mid + 1
-    return low
+def fetch_ticket_detail(key):
+    fields = run_json(["acli", "jira", "workitem", "view", key, "--fields", TICKET_FIELDS, "--json"])["fields"]
+    parent = fields.get("parent")
+    return {"type": fields["issuetype"]["name"], "priority": (fields.get("priority") or {}).get("name"), "labels": fields["labels"],
+            "creator": fields["creator"]["displayName"], "created": fields["created"], "updated": fields["updated"],
+            "epic": {"key": parent["key"], "summary": parent["fields"]["summary"]} if parent else None,
+            "links": [linked_ticket(link) for link in fields["issuelinks"]],
+            "description": adf_text(fields["description"]) if fields["description"] else "",
+            "comments": [{"id": c["id"], "author": c["author"]["displayName"], "created": c["created"], "body": adf_text(c["body"])}
+                         for c in fields["comment"]["comments"]]}
+
+
+def linked_ticket(link):
+    other = link.get("outwardIssue") or link["inwardIssue"]
+    return {"relation": link["type"]["outward" if "outwardIssue" in link else "inward"], "key": other["key"],
+            "summary": other["fields"]["summary"], "status": other["fields"]["status"]["name"]}
+
+
+def adf_text(node):
+    kind, children = node.get("type"), node.get("content", [])
+    if kind == "text":
+        return f'`{node["text"]}`' if any(mark["type"] == "code" for mark in node.get("marks", [])) else node["text"]
+    if kind == "hardBreak":
+        return "\n"
+    if kind in {"mention", "emoji", "status", "date"}:
+        return node["attrs"].get("text") or node["attrs"].get("shortName", "")
+    if kind == "inlineCard":
+        return node["attrs"]["url"]
+    if kind in {"media", "mediaSingle", "mediaGroup"}:
+        return "[attachment]"
+    if kind == "rule":
+        return "---"
+    if kind in {"bulletList", "orderedList"}:
+        return "\n".join(("- " if kind == "bulletList" else f"{n}. ") + adf_text(item) for n, item in enumerate(children, 1))
+    if kind == "listItem":
+        return "\n  ".join("\n".join(adf_text(child) for child in children).splitlines())
+    if kind == "codeBlock":
+        return "\n".join(f"    {line}" for line in "".join(adf_text(child) for child in children).splitlines())
+    if kind == "blockquote":
+        return "\n".join(f"> {line}" for line in "\n\n".join(adf_text(child) for child in children).splitlines())
+    if kind == "table":
+        return "\n".join(adf_text(row) for row in children)
+    if kind == "tableRow":
+        return " | ".join(adf_text(cell) for cell in children)
+    if kind in {"tableCell", "tableHeader"}:
+        return " ".join(adf_text(child) for child in children)
+    if kind in {"paragraph", "heading"}:
+        return "".join(adf_text(child) for child in children)
+    return "\n\n".join(adf_text(child) for child in children)
 
 
 def search_team_prs():

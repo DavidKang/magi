@@ -1,8 +1,10 @@
+import asyncio
 import datetime as dt
 import json
 import math
 import re
 import subprocess
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,7 +17,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen, Screen
-from textual.widgets import Button, Footer, Input, OptionList, Static
+from textual.widgets import Button, ContentSwitcher, Footer, Input, OptionList, Static, Tab, Tabs
 from textual.widgets.option_list import Option
 from textual_image.widget import Image, get_cell_size
 
@@ -29,6 +31,7 @@ REFRESH_COOLDOWN = 60
 CACHE = Path.home() / ".cache" / "tarkon" / "cache.json"
 LOGO = Path(__file__).with_name("logo.png")
 LOGO_ROWS = 1
+DESCRIPTION_LINES = 12
 PR_WIDTHS = [15, 9, 10, 17, 4, 10, 4]
 DIFF_BACKGROUNDS = {"+": "#12261e", "-": "#2d1418", " ": "#0d1117"}
 DIFF_SIGNS = {"+": COLORS["ok"], "-": COLORS["bad"], " ": COLORS["dim"]}
@@ -38,8 +41,12 @@ NO_CHANGES = f"no changes in the last {g.CHANGES_HOURS} h"
 SECTIONS = {"attention": ("attention", "nothing to flag", [2, None]),
             "prs": ("team prs", "no open prs", PR_WIDTHS),
             "changes": ("changes", NO_CHANGES, CHANGE_WIDTHS),
-            "epics": ("epics", "no epics", [9, 20, 6, None])}
-NUMBERS = {key: n for n, key in enumerate(SECTIONS, 1)}
+            "epics": ("epics", "no epics", [9, 20, 6, None]),
+            "mine_prs": ("my prs", "no open prs", PR_WIDTHS),
+            "mine_tickets": ("my tickets", "no open tickets", [10, None])}
+TABS = {"overview": ["attention", "prs", "changes", "epics"], "mine": ["mine_prs", "mine_tickets"]}
+NUMBERS = {key: n for n, key in enumerate(SECTIONS, len(TABS) + 1)}
+TAB_OF = {key: tab for tab, keys in TABS.items() for key in keys}
 
 
 @dataclass
@@ -49,7 +56,8 @@ class Entry:
     url: str
     copy: str
     search: str
-    pr: dict = None
+    popup: tuple = None
+    group: str = None
 
 
 ZERO_WIDTH_SPACE = "\u200b"
@@ -108,10 +116,12 @@ def pr_entry(pr, by_key):
              field("merge", "conflicts" if pr["mergeable"] == "CONFLICTING" else "clean")]
     lines += [field("ticket", f'{link(config.settings.jira_browse + t["key"], t["key"])} {colored("dim", f"({t['status']})")} {escape(t["summary"])}')
               for t in tickets] or [field("ticket", "—")]
-    lines += comments_field(pr)
+    items = review_items(pr)
+    lines += comments_field(len(items)) if items else []
     lines += ["", separator("activity")] + [f'{colored("dim", g.local_time(at))}  {what}' for at, what in sorted(events, reverse=True)[:10]]
     return Entry(cells, "\n".join(lines), pr["url"], pr["url"],
-                 f'{pr["repo"]} {g.tui_repo(pr)} {pr["number"]} {pr["title"]} {pr["author"]["login"]}', pr)
+                 f'{pr["repo"]} {g.tui_repo(pr)} {pr["number"]} {pr["title"]} {pr["author"]["login"]}',
+                 (f'{g.tui_repo(pr)}#{pr["number"]} · {pr["title"]}', items))
 
 
 def state_label(review):
@@ -149,17 +159,17 @@ def preview(row, body):
     return row
 
 
-def conversation_row(comment):
-    row = Text("comment", COLORS["blue"])
-    row.append("\n" + comment["author"]["login"])
-    return preview(row, comment["body"])
+def note_row(kind, author, body):
+    row = Text(kind, COLORS["blue"])
+    row.append("\n" + author)
+    return preview(row, body)
 
 
 def review_items(pr):
     reviews = [(r["submittedAt"], {"row": review_row(r), "place": f'{escape(r["author"]["login"])} {state_label(r)}', "hunk": None,
                                    "path": None, "comments": indented(r["body"]), "url": pr["url"]})
                for r in pr["reviews"] if r["body"].strip()]
-    notes = [(c["createdAt"], {"row": conversation_row(c), "place": f'{escape(c["author"]["login"])} {colored("blue", "commented")}',
+    notes = [(c["createdAt"], {"row": note_row("comment", c["author"]["login"], c["body"]), "place": f'{escape(c["author"]["login"])} {colored("blue", "commented")}',
                                "hunk": None, "path": None, "url": c["url"],
                                "comments": [colored("dim", g.local_time(c["createdAt"])), *indented(c["body"])]})
              for c in pr.get("conversation", [])]
@@ -176,9 +186,19 @@ def review_items(pr):
     return items
 
 
-def comments_field(pr):
-    count = len(review_items(pr))
-    return [field("comments", f"[{ACCENT} underline @click=app.open_review(0)]{count} · c to open[/]")] if count else []
+def comments_field(count):
+    return [field("comments", f"[{ACCENT} underline @click=app.open_review(0)]{count} · c to open[/]")]
+
+
+def ticket_items(ticket):
+    url = config.settings.jira_browse + ticket["key"]
+    description = [{"row": note_row("description", ticket["creator"], ticket["description"]), "hunk": None, "path": None, "url": url,
+                    "place": f'{escape(ticket["creator"])} {colored("blue", "description")}', "comments": indented(ticket["description"])}
+                   ] if ticket.get("description") else []
+    return description + [{"row": note_row("comment", c["author"], c["body"]), "hunk": None, "path": None,
+                           "place": f'{escape(c["author"])} {colored("blue", "commented")}', "url": f'{url}?focusedCommentId={c["id"]}',
+                           "comments": [colored("dim", g.local_time(c["created"])), *indented(c["body"])]}
+                          for c in ticket.get("comments", [])]
 
 
 def diff_text(hunk, path):
@@ -239,12 +259,44 @@ def change_entry(change):
                  "\n".join(lines), url, url, f'{text} {change["label"]}')
 
 
+def ticket_entry(ticket, prs):
+    linked = [pr for pr in prs if ticket["key"] in g.title_keys_in(pr)]
+    url = config.settings.jira_browse + ticket["key"]
+    status = fetch.status_label(ticket["status"])
+    kind = " · ".join(escape(value) for value in (ticket.get("type"), ticket.get("priority")) if value)
+    lines = [heading(ticket["summary"]), "", field("ticket", link(url, ticket["key"]) + (f" {colored('dim', '·')} {kind}" if kind else "")),
+             field("status", escape(status))]
+    # Tickets cached before the detail fetch existed carry only key, summary and status.
+    if "comments" in ticket:
+        epic = ticket["epic"]
+        lines += [field("epic", f'{link(config.settings.jira_browse + epic["key"], epic["key"])} {escape(epic["summary"])}' if epic else "—"),
+                  field("creator", escape(ticket["creator"])),
+                  field("created", f'{g.local_time(ticket["created"])} {colored("dim", "updated")} {fetch.days_since(ticket["updated"])}d ago'),
+                  field("labels", escape(", ".join(ticket["labels"])) or "—")]
+    lines += [field("pr", f'{link(pr["url"], f"{g.tui_repo(pr)}#{pr['number']}")} {escape(g.review_state(pr)[1])}') for pr in linked] or [field("pr", "—")]
+    items = ticket_items(ticket)
+    lines += comments_field(len(ticket["comments"])) if items else []
+    if ticket.get("links"):
+        lines += ["", separator("links")]
+        for other in ticket["links"]:
+            lines += [f'• {colored("dim", other["relation"])} {link(config.settings.jira_browse + other["key"], other["key"])} '
+                      f'{colored("dim", f"({fetch.status_label(other["status"])})")}', f'  {escape(other["summary"])}']
+    if ticket.get("description"):
+        shown = ticket["description"].splitlines()
+        lines += ["", separator("description"), *(escape(line) for line in shown[:DESCRIPTION_LINES])]
+        lines += [colored("dim", "… c to read it all")] if len(shown) > DESCRIPTION_LINES else []
+    return Entry([(ticket["key"], ""), (ticket["summary"], "")], "\n".join(lines), url, ticket["key"],
+                 f'{ticket["key"]} {ticket["summary"]} {status}', (f'{ticket["key"]} · {ticket["summary"]}', items), group=status)
+
+
 def entries(board):
     prs, by_key = board["prs"], board["by_key"]
     return {"attention": [attention_entry(*item) for item in board["attention"]],
             "prs": [pr_entry(pr, by_key) for pr in sorted(prs, key=lambda p: p["createdAt"])],
             "changes": [change_entry(c) for c in board["changes"]],
-            "epics": [epic_entry(e, board["tickets_by_epic"][e["key"]]) for e in board["epics"]]}
+            "epics": [epic_entry(e, board["tickets_by_epic"][e["key"]]) for e in board["epics"]],
+            "mine_prs": [pr_entry(pr, by_key) for pr in sorted(board["my_prs"], key=lambda p: p["createdAt"])],
+            "mine_tickets": [ticket_entry(t, prs) for t in board["my_tickets"]]}
 
 
 def cell_row(entry, widths):
@@ -297,15 +349,15 @@ def logo():
 
 class ThreadList(OptionList):
     BINDINGS = [Binding("j", "cursor_down", "thread", key_display="j/k"), Binding("k", "cursor_up", show=False),
-                Binding("enter", "screen.open", "open on GitHub")]
+                Binding("enter", "screen.open", "open")]
 
 
 class ReviewScreen(ModalScreen):
     BINDINGS = [Binding("y", "copy", "copy link"), Binding("escape", "close", "close"), Binding("q", "close", show=False)]
 
-    def __init__(self, pr, items, start):
+    def __init__(self, heading, items, start):
         super().__init__()
-        self.pr, self.items, self.start = pr, items, start
+        self.heading, self.items, self.start = heading, items, start
 
     def compose(self) -> ComposeResult:
         with Vertical(id="review"):
@@ -321,7 +373,7 @@ class ReviewScreen(ModalScreen):
         yield Footer()
 
     def on_mount(self):
-        self.query_one("#review").border_title = f'{g.tui_repo(self.pr)}#{self.pr["number"]} · {escape(self.pr["title"])}'
+        self.query_one("#review").border_title = escape(self.heading)
         listing = self.query_one(ThreadList)
         listing.highlighted = self.start
         listing.focus()
@@ -357,7 +409,7 @@ CONFIG_FIELDS = {"team": ("GitHub users of your team", "alice, bob, carol"),
                  "github_org": ("GitHub organization", "acme"),
                  "jira_url": ("Jira site", "https://acme.atlassian.net")}
 
-BOARD_ACTIONS = {"focus_box", "focus_filter", "clear_filter", "copy_current", "refresh", "open_review"}
+BOARD_ACTIONS = {"focus_tab", "focus_box", "focus_filter", "clear_filter", "copy_current", "refresh", "open_review"}
 
 
 class ConfigScreen(Screen):
@@ -376,7 +428,9 @@ class ConfigScreen(Screen):
             for name, (label, placeholder) in CONFIG_FIELDS.items():
                 yield Static(label, classes="label")
                 yield Input(value=self.shown(name), placeholder=placeholder, id=f"config-{name}")
-            yield Button("save", id="config-save")
+            with Horizontal(id="config-buttons"):
+                yield Button("save", id="config-save")
+                yield Button("cancel", id="config-cancel")
         yield Footer()
 
     def shown(self, name):
@@ -386,7 +440,10 @@ class ConfigScreen(Screen):
         return ", ".join(value) if isinstance(value, list) else value
 
     def on_button_pressed(self, event):
-        self.action_save()
+        if event.button.id == "config-save":
+            self.action_save()
+        else:
+            self.action_cancel()
 
     def action_save(self):
         values = {name: self.query_one(f"#config-{name}", Input).value.strip() for name in config.FIELDS}
@@ -397,11 +454,11 @@ class ConfigScreen(Screen):
         values["team"] = values["team"].replace(",", " ").split()
         self.dismiss(config.Settings(**values))
 
-    def check_action(self, action, parameters):
-        return action != "cancel" or self.current is not None
-
     def action_cancel(self):
-        self.dismiss(self.current)
+        if self.current is None:
+            self.app.exit()
+        else:
+            self.dismiss(self.current)
 
 
 class TarkonApp(App):
@@ -416,7 +473,8 @@ class TarkonApp(App):
     #top .brand { color: #21cfac; text-style: bold; width: auto; }
     #status { width: 1fr; text-align: right; color: #21cfac; }
     .pane { height: 1fr; }
-    .column { width: 1fr; height: 1fr; }
+    #panes { width: 1fr; height: 1fr; }
+    #panes > Vertical { height: 1fr; }
     #panel-attention, #panel-epics { height: auto; max-height: 12; }
     #list-attention, #list-epics { height: auto; }
     .panel { border: round #30363d; border-title-color: #21cfac; padding: 0 1; height: 1fr; width: 1fr; background: #0d1117; }
@@ -436,7 +494,8 @@ class TarkonApp(App):
     #config .brand { color: #21cfac; text-style: bold; }
     #config .masthead { margin-bottom: 1; }
     #config .label { color: #6e7a87; margin-top: 1; }
-    #config Button { margin-top: 2; }
+    #config-buttons { height: auto; margin-top: 2; }
+    #config Button { margin-right: 2; }
     ReviewScreen { align: center middle; background: #01040980; }
     #review { width: 94%; height: 90%; border: round #21cfac; border-title-color: #21cfac; border-title-style: bold;
               background: #0d1117; padding: 0 1; }
@@ -449,7 +508,8 @@ class TarkonApp(App):
     #review-diff { width: auto; }
     #review-comments-box { height: 1fr; margin-top: 1; }
     """
-    BINDINGS = [*(Binding(str(n), f"focus_box({n})", "boxes", key_display="1-4", show=n == 1) for n in NUMBERS.values()),
+    BINDINGS = [*(Binding(str(n), f"focus_tab({n})", "tabs", key_display="1-2", show=n == 1) for n in range(1, len(TABS) + 1)),
+                *(Binding(str(n), f"focus_box({n})", "boxes", key_display="3-8", show=n == 3) for n in NUMBERS.values()),
                 Binding("slash", "focus_filter", "filter", key_display="/"),
                 Binding("escape", "clear_filter", "clear", show=False),
                 Binding("c", "open_review", "comments"),
@@ -473,13 +533,16 @@ class TarkonApp(App):
             yield logo()
             yield Static("Tarkon", classes="brand")
             yield Static("loading…", id="status")
+        yield Tabs(*(Tab(f"[{n}] {tab.capitalize()}", id=f"tab-{tab}") for n, tab in enumerate(TABS, 1)))
         with Horizontal(classes="pane"):
-            with Vertical(classes="column"):
-                for key in SECTIONS:
-                    with Vertical(id=f"panel-{key}", classes="panel") as panel:
-                        panel.border_title = f"[{NUMBERS[key]}] {SECTIONS[key][0]}"
-                        yield Input(placeholder="/ filter", id=f"filter-{key}", classes="filter")
-                        yield Board(key, id=f"list-{key}")
+            with ContentSwitcher(initial=f"pane-{next(iter(TABS))}", id="panes"):
+                for tab, keys in TABS.items():
+                    with Vertical(id=f"pane-{tab}"):
+                        for key in keys:
+                            with Vertical(id=f"panel-{key}", classes="panel") as panel:
+                                panel.border_title = f"[{NUMBERS[key]}] {SECTIONS[key][0]}"
+                                yield Input(placeholder="/ filter", id=f"filter-{key}", classes="filter")
+                                yield Board(key, id=f"list-{key}")
             with VerticalScroll(classes="panel") as panel:
                 panel.border_title = "details"
                 yield Static(id="detail")
@@ -536,17 +599,29 @@ class TarkonApp(App):
         self.query_one("#status", Static).update("refreshing…")
         self.fetch(self.last_refresh)
 
-    @work(thread=True, exclusive=True, exit_on_error=False)
-    def fetch(self, started):
-        fetch.TODAY = dt.date.today()
-        try:
-            board = self.load()
-        except Exception as error:
-            self.call_from_thread(self.failed, error)
+    @work(exclusive=True, exit_on_error=False)
+    async def fetch(self, started):
+        loop = asyncio.get_running_loop()
+        outcome = loop.create_future()
+
+        def load():
+            fetch.TODAY = dt.date.today()
+            try:
+                found = (self.load(), None)
+            except Exception as error:
+                found = (None, error)
+            if not loop.is_closed():
+                loop.call_soon_threadsafe(lambda: outcome.done() or outcome.set_result(found))
+
+        # A daemon thread, not the loop's executor: quitting must not wait for acli and gh to finish.
+        threading.Thread(target=load, daemon=True).start()
+        board, error = await outcome
+        if error:
+            self.failed(error)
             return
         self.cache.parent.mkdir(parents=True, exist_ok=True)
         self.cache.write_text(json.dumps({"at": started, "board": board}, default=str, ensure_ascii=False))
-        self.call_from_thread(self.show_board, board, started)
+        self.show_board(board, started)
 
     def failed(self, error):
         self.refreshing = False
@@ -575,9 +650,13 @@ class TarkonApp(App):
         query = self.query_one(f"#filter-{key}", Input).value.lower()
         _, empty, widths = SECTIONS[key]
         board.clear_options()
-        for i, entry in enumerate(self.sections[key]):
-            if query not in entry.search.lower():
-                continue
+        shown = [(i, entry) for i, entry in enumerate(self.sections[key]) if query in entry.search.lower()]
+        group = None
+        for i, entry in shown:
+            if entry.group and entry.group != group:
+                group = entry.group
+                size = sum(1 for _, other in shown if other.group == group)
+                board.add_option(Option(Text(f"── {group} ({size}) ──", COLORS["dim"]), disabled=True))
             board.add_option(Option(cell_row(entry, widths), id=str(i)))
         if not self.sections[key]:
             board.add_option(Option(Text(empty, COLORS["dim"]), disabled=True))
@@ -609,8 +688,26 @@ class TarkonApp(App):
     def filter_submitted(self, event):
         self.query_one(f"#list-{event.input.id.removeprefix('filter-')}", Board).focus()
 
+    def action_focus_tab(self, number):
+        tab = list(TABS)[number - 1]
+        if TAB_OF[self.current_section] != tab:
+            self.action_focus_box(NUMBERS[TABS[tab][0]])
+
     def action_focus_box(self, number):
-        self.query_one(f"#list-{list(SECTIONS)[number - 1]}", Board).focus()
+        key = list(SECTIONS)[number - NUMBERS["attention"]]
+        self.show_tab(TAB_OF[key])
+        self.query_one(f"#list-{key}", Board).focus()
+
+    def show_tab(self, tab):
+        self.query_one(Tabs).active = f"tab-{tab}"
+        self.query_one(ContentSwitcher).current = f"pane-{tab}"
+
+    @on(Tabs.TabActivated)
+    def tab_activated(self, event):
+        tab = event.tab.id.removeprefix("tab-")
+        self.query_one(ContentSwitcher).current = f"pane-{tab}"
+        if TAB_OF[self.current_section] != tab:
+            self.query_one(f"#list-{TABS[tab][0]}", Board).focus()
 
     def action_focus_filter(self):
         self.query_one(f"#filter-{self.current_section}", Input).focus()
@@ -628,11 +725,11 @@ class TarkonApp(App):
 
     def action_open_review(self, index=0):
         entry = self.current()
-        items = review_items(entry.pr) if entry and entry.pr else []
+        heading, items = entry.popup if entry and entry.popup else (None, [])
         if not items:
             self.notify("no review comments", timeout=2)
             return
-        self.push_screen(ReviewScreen(entry.pr, items, index))
+        self.push_screen(ReviewScreen(heading, items, index))
 
     def action_open_link(self, url):
         self.opener(url)

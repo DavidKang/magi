@@ -10,7 +10,7 @@ from . import config
 from .board import (CHANGES_HOURS, CI_LABELS, STATE_DIR, TUI_CI, TUI_REVIEW, TUI_REVIEW_EVENTS, attention_items,
                     collect, esc, github_link, jira_link, local_time, plain, pr_titled, review_state,
                     ticket_keys_in, title_keys_in, tui_repo)
-from .fetch import COLUMNS, days_since
+from .fetch import COLUMNS, days_since, status_label
 
 URGENT_PR_DAYS = 3
 LOGO = "data:image/png;base64," + base64.b64encode(Path(__file__).with_name("logo.png").read_bytes()).decode()
@@ -104,13 +104,12 @@ def mine(my_prs, review_prs, my_tickets):
             for pr in sorted(prs, key=lambda p: p["createdAt"])) + "</ul>"
 
     tickets = ("<ul class='mine-list'>" + "".join(
-        f'<li>{jira_link(t["key"])} {esc(t["summary"])}<div class="pills"><span class="pill draft">{esc(t["status"])}</span>'
-        f'<span class="age">{t["days_in_status"]} d in status</span></div></li>'
+        f'<li>{jira_link(t["key"])} {esc(t["summary"])}<div class="pills"><span class="pill draft">{esc(status_label(t["status"]))}</span></div></li>'
         for t in my_tickets) + "</ul>") if my_tickets else '<p class="empty">None.</p>'
     return ('<div class="mine">'
             f'<div class="mine-box"><h3>Review requested from me <span class="count">{len(review_prs)}</span></h3>{pr_items(review_prs)}</div>'
             f'<div class="mine-box"><h3>My open PRs <span class="count">{len(my_prs)}</span></h3>{pr_items(my_prs)}</div>'
-            f'<div class="mine-box"><h3>My tickets in progress <span class="count">{len(my_tickets)}</span></h3>{tickets}</div>'
+            f'<div class="mine-box"><h3>My open tickets <span class="count">{len(my_tickets)}</span></h3>{tickets}</div>'
             '</div>')
 
 
@@ -140,7 +139,7 @@ def changes_section(changes, ci_by_url):
 
 TUI_GRIDS = {"attention": "2ch minmax(0,1fr)", "team prs": "22ch 18ch 6ch 11ch 4ch", "my desk": "22ch 18ch 6ch 11ch 4ch",
              "epics": "9ch 20ch 6ch minmax(0,1fr)", "changes": "12ch 18ch minmax(0,1fr)"}
-TUI_TICKET_GRID = "22ch 18ch 6ch minmax(0,1fr)"
+TUI_TICKET_GRID = "22ch 18ch minmax(0,1fr)"
 
 
 def tui_field(name, value):
@@ -183,11 +182,11 @@ def tui_pr(pr, by_key, group=None):
 
 def tui_ticket(ticket, prs):
     linked = [pr for pr in prs if ticket["key"] in ticket_keys_in(pr)]
-    row = (f'<span>{esc(ticket["key"])}</span><span class="warn">{esc(ticket["status"].lower())}</span>'
-           f'<span class="dim r">{ticket["days_in_status"]}d</span><span class="dim ell">{esc(ticket["summary"])}</span>')
+    row = (f'<span>{esc(ticket["key"])}</span><span class="warn">{esc(status_label(ticket["status"]))}</span>'
+           f'<span class="dim ell">{esc(ticket["summary"])}</span>')
     detail = (f'<div class="h">{esc(ticket["summary"])}</div>'
               + tui_field("ticket", f'<a href="{esc(config.settings.jira_browse)}{esc(ticket["key"])}">{esc(ticket["key"])}</a>')
-              + tui_field("status", f'{esc(ticket["status"])} <span class="dim">for</span> {ticket["days_in_status"]}d')
+              + tui_field("status", esc(status_label(ticket["status"])))
               + ("".join(tui_field("pr", f'<a href="{esc(pr["url"])}">{esc(tui_repo(pr))}#{pr["number"]}</a> {review_state(pr)[1]}')
                          for pr in linked) or tui_field("pr", "—")))
     return tui_entry(row, detail, config.settings.jira_browse + ticket["key"], ticket["key"], f'{ticket["key"]} {ticket["summary"]}',
