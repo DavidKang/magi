@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from . import config
-from .fetch import (column_for, days_since, fetch_children, fetch_epics, fetch_my_tickets, fetch_pr, fetch_updated,
+from .fetch import (column_for, days_since, fetch_children, fetch_epics, fetch_my_tickets, fetch_prs, fetch_updated,
                     parallel, run_json, search_merged_prs, search_open_prs,
                     search_review_requested_from_me, search_team_prs)
 
@@ -207,6 +207,14 @@ def local_time(iso):
     return dt.datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone().strftime("%b %d %H:%M")
 
 
+def save_state(snapshot, changes):
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    # Written aside and renamed, so quitting mid-write never leaves a truncated state.
+    staged = STATE_PATH.with_suffix(".tmp")
+    staged.write_text(json.dumps({"snapshot": snapshot, "changes": changes}, ensure_ascii=False, indent=1))
+    staged.replace(STATE_PATH)
+
+
 def collect():
     pool = ThreadPoolExecutor(max_workers=8)
     team_prs = pool.submit(search_team_prs)
@@ -223,7 +231,7 @@ def collect():
     merged_prs = pool.submit(search_merged_prs, active_keys)
     prs = []
     candidates = search_open_prs(search_keys) | team_prs.result()
-    for pr in parallel(lambda candidate: fetch_pr(*candidate), candidates.values()):
+    for pr in fetch_prs(candidates.values()):
         linked = [k for k in ticket_keys_in(pr) if k in by_key]
         if not linked and pr["author"]["login"] not in config.settings.team:
             continue
@@ -239,7 +247,10 @@ def collect():
                 merged_by_ticket.setdefault(k, []).append(label)
 
     known = {pr["url"]: pr for pr in prs}
-    review_prs = parallel(lambda item: known.get(item[0]) or fetch_pr(*item[1]), review_requested.result().items())
+    requested = review_requested.result()
+    missing = [url for url in requested if url not in known]
+    fetched = dict(zip(missing, fetch_prs(requested[url] for url in missing)))
+    review_prs = [known.get(url) or fetched[url] for url in requested]
     my_tickets = my_tickets.result()
     updated.result()
 
@@ -248,8 +259,7 @@ def collect():
     stamp = dt.datetime.now()
     changes = recent_changes(state, now, {k: t["summary"] for k, t in by_key.items()}, stamp)
 
-    STATE_DIR.mkdir(parents=True, exist_ok=True)
-    STATE_PATH.write_text(json.dumps({"snapshot": now, "changes": changes or []}, ensure_ascii=False, indent=1))
+    save_state(now, changes or [])
     pool.shutdown()
     return {"epics": epics, "tickets_by_epic": tickets_by_epic, "by_key": by_key, "prs": prs, "review_prs": review_prs,
             "my_prs": [pr for pr in prs if pr["author"]["login"] == config.settings.github_user], "my_tickets": my_tickets,

@@ -167,6 +167,20 @@ async def main(cache):
         check("my tickets are grouped under their status", len(prompts) == 4 and prompts[0].startswith("── Todo (1)")
               and "OPS-7" in prompts[1] and prompts[2].startswith("── In Progress (1)") and "ACME-1" in prompts[3])
         check("8 focuses my tickets on the first ticket", focused("mine_tickets") and "Ticket seven" in detail())
+        check("a ticket cached before the detail fetch shows no detail fields", "creator" not in detail() and "epic" not in detail())
+        await pilot.press("c")
+        await pilot.pause()
+        check("c on a ticket with nothing to read says so", not isinstance(app.screen, app_module.ReviewScreen)
+              and any("no review comments" in n.message for n in app._notifications))
+        await pilot.press("slash", *"seven")
+        await pilot.pause()
+        prompts = [str(tickets.get_option_at_index(i).prompt) for i in range(tickets.option_count)]
+        check("filtering my tickets drops the groups with no match", len(prompts) == 2 and prompts[0].startswith("── Todo (1)") and "OPS-7" in prompts[1])
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.press("2")
+        await pilot.pause()
+        check("2 on the mine tab keeps the focused box", tabs.active == "tab-mine" and focused("mine_tickets") and "Ticket seven" in detail())
         await pilot.press("j")
         check("j skips the status line to the next ticket, with its PRs", "Ticket one" in detail() and "app#1" in detail())
         check("my ticket detail names the status in English", "In Progress" in detail() and "En proceso" not in detail())
@@ -218,6 +232,23 @@ ADF = {"type": "doc", "content": [
     {"type": "codeBlock", "content": [{"type": "text", "text": "x = 1\ny = 2"}]}]}
 
 
+def ticket_detail_edges():
+    ticket = {"key": "ACME-1", "summary": "Ticket one", "status": "En proceso", **TICKET_DETAIL, "epic": None, "comments": [],
+              "description": "\n".join(f"line {n}" for n in range(1, 15))}
+    lines = Content.from_markup(app_module.ticket_entry(ticket, []).detail).plain.splitlines()
+    check("a ticket without an epic shows a dash", "epic     —" in lines)
+    check("a long description is cut with a hint to open it",
+          "line 12" in lines and "line 13" not in lines and "… c to read it all" in lines)
+    check("a ticket without comments shows no comments line", not any(line.startswith("comments") for line in lines))
+    cached = app_module.ticket_entry({"key": "OPS-7", "summary": "Ticket seven", "status": "Tareas por hacer"}, [])
+    check("a ticket cached before the detail fetch has nothing to open", cached.popup[1] == [])
+    shuffled = {**board([]), "my_tickets": [{"key": "A-1", "summary": "a", "status": "En proceso"},
+                                            {"key": "A-2", "summary": "b", "status": "Tareas por hacer"},
+                                            {"key": "A-3", "summary": "c", "status": "En proceso"}]}
+    check("my tickets from an older cache are regrouped by status",
+          [e.group for e in app_module.entries(shuffled)["mine_tickets"]] == ["Todo", "In Progress", "In Progress"])
+
+
 def ticket_links():
     ticket = {"key": "ACME-1", "summary": "Ticket one", "status": "En proceso", **TICKET_DETAIL,
               "links": [*TICKET_DETAIL["links"], {"relation": "relates to", "key": "ACME-3", "summary": "Third", "status": "Backlog"}]}
@@ -231,6 +262,29 @@ def ticket_links():
 def adf_rendering():
     check("jira rich text reads as plain text", fetch.adf_text(ADF) ==
           "Context\n\nUse `reason` only.\nAsk @Bob\n\n- one\n- two\n\na | b\n1 | 2\n\n    x = 1\n    y = 2")
+
+
+ADF_MORE = {"type": "doc", "content": [
+    {"type": "orderedList", "content": [
+        {"type": "listItem", "content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": "first"}]},
+            {"type": "bulletList", "content": [{"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "nested"}]}]}]}]},
+        {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "second"}]}]}]},
+    {"type": "blockquote", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "quoted"}]}]},
+    {"type": "rule"},
+    {"type": "paragraph", "content": [
+        {"type": "inlineCard", "attrs": {"url": "https://example.com/a"}}, {"type": "text", "text": " "},
+        {"type": "inlineCard", "attrs": {"data": {"name": "Card"}}}, {"type": "text", "text": " "},
+        {"type": "emoji", "attrs": {"shortName": ":tada:"}}, {"type": "text", "text": " "},
+        {"type": "status", "attrs": {"text": "DONE"}}, {"type": "text", "text": " "},
+        {"type": "date", "attrs": {"timestamp": "1792627200000"}}]},
+    {"type": "mediaSingle", "content": [{"type": "media", "attrs": {}}]},
+    {"type": "panel", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "in a panel"}]}]}]}
+
+
+def adf_more_nodes():
+    check("lists, quotes, cards, emoji, statuses, dates, media and panels read as plain text", fetch.adf_text(ADF_MORE) ==
+          "1. first\n  - nested\n2. second\n\n> quoted\n\n---\n\nhttps://example.com/a [link] :tada: DONE 2026-10-22\n\n[attachment]\n\nin a panel")
 
 
 def ticket_view(key):
@@ -268,10 +322,31 @@ def my_tickets_fetch():
     check("my tickets carry their detail", tickets[0] == {"key": "ACME-3", "summary": "Later", "status": "Backlog", **TICKET_DETAIL})
 
 
+def sparse_ticket_detail():
+    view = {"key": "OPS-9", "fields": {
+        "summary": "S", "issuetype": {"name": "Task"}, "priority": None, "labels": [], "creator": None,
+        "created": "2026-10-08T16:12:45.341+0200", "updated": "2026-10-21T17:42:10.834+0200", "parent": None, "issuelinks": [],
+        "description": None, "comment": {"comments": [{"id": "11", "created": "2026-10-20T10:00:00.000+0200",
+                                                       "body": {"type": "doc", "content": []}}]}}}
+    run_json = fetch.run_json
+    fetch.run_json = lambda cmd: view
+    try:
+        detail = fetch.fetch_ticket_detail("OPS-9")
+    finally:
+        fetch.run_json = run_json
+    check("a ticket with empty jira fields still loads", detail == {
+        "type": "Task", "priority": None, "labels": [], "creator": "unknown", "created": "2026-10-08T16:12:45.341+0200",
+        "updated": "2026-10-21T17:42:10.834+0200", "epic": None, "links": [], "description": "",
+        "comments": [{"id": "11", "author": "unknown", "created": "2026-10-20T10:00:00.000+0200", "body": ""}]})
+
+
 def html_mine():
     page = web.mine([], [], [{"key": "ACME-1", "summary": "Ticket one", "status": "En proceso"}])
     check("html lists my open tickets with their status in English",
           "My open tickets" in page and "In Progress" in page and "En proceso" not in page and "in status" not in page)
+    row = web.tui_ticket({"key": "ACME-1", "summary": "Ticket one", "status": "En proceso"}, [])["row"]
+    check("the html tui mirror shows my ticket's status in English in three columns",
+          "In Progress" in row and "En proceso" not in row and row.count("<span") == 3)
 
 
 def status_labels():
@@ -284,6 +359,22 @@ def status_labels():
 
 def failing_load():
     raise subprocess.CalledProcessError(1, ["gh", "search", "prs", "--json", "number"], stderr="API rate limit exceeded\n")
+
+
+def unmapped_load():
+    fetch.column_for("Blocked")
+
+
+async def unmapped_status(cache):
+    app = TarkonApp(load=unmapped_load, opener=print, copier=print, cache=cache, config_path=settings_file(cache))
+    async with app.run_test(size=(160, 40)) as pilot:
+        try:
+            await asyncio.wait_for(app.workers.wait_for_complete(), 5)
+        except TimeoutError:
+            pass
+        await pilot.pause()
+        check("an unmapped jira status fails the refresh instead of leaving it running",
+              not app.refreshing and any("Unmapped Jira status: Blocked" in n.message for n in app._notifications))
 
 
 async def reopen(cache):
@@ -437,18 +528,99 @@ async def edit_cancel(cache):
 
 
 def quit_while_refreshing(cache):
-    release = threading.Event()
+    started, release, finished, loads = threading.Event(), threading.Event(), threading.Event(), []
+
+    def load():
+        loads.append(threading.current_thread())
+        started.set()
+        release.wait(10)
+        finished.set()
+        return board([PR_ONE])
+
     async def run():
-        app = TarkonApp(load=lambda: release.wait(10) or board([PR_ONE]), opener=print, copier=print, cache=cache,
-                             config_path=settings_file(cache))
+        app = TarkonApp(load=load, opener=print, copier=print, cache=cache, config_path=settings_file(cache))
         async with app.run_test(size=(160, 40)) as pilot:
-            await pilot.pause()
+            await asyncio.to_thread(started.wait, 5)
             await pilot.press("q")
-    started = time.monotonic()
     asyncio.run(run())
-    elapsed = time.monotonic() - started
-    release.set()
-    check("quitting does not wait for a running refresh", elapsed < 5)
+    check("quitting does not wait for a running refresh", started.is_set() and not finished.is_set())
+    errors, hook = [], threading.excepthook
+    threading.excepthook = errors.append
+    try:
+        release.set()
+        for thread in loads:
+            thread.join(5)
+    finally:
+        threading.excepthook = hook
+    check("a refresh that ends after quitting finishes quietly", finished.is_set() and errors == [])
+
+
+QUIT_SCRIPT = """
+import asyncio, sys, threading, time
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from tarkon import app as app_module, fetch
+
+cache, done, mode = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
+started = threading.Event()
+
+
+def item(_):
+    started.set()
+    time.sleep(0.5)
+    with done.open("a") as out:
+        out.write("x")
+
+
+def load():
+    if mode == "running":
+        return fetch.parallel(item, range(40))
+    if mode == "failed":
+        pool = ThreadPoolExecutor(max_workers=8)
+        for n in range(40):
+            pool.submit(item, n)
+        started.wait(5)
+    raise RuntimeError("gh failed")
+
+
+async def run():
+    app = app_module.TarkonApp(load=load, opener=print, copier=print, cache=cache, config_path=cache.with_name("config.json"))
+    async with app.run_test(size=(160, 40)) as pilot:
+        if mode == "running":
+            await asyncio.to_thread(started.wait, 5)
+        else:
+            await app.workers.wait_for_complete()
+        await pilot.pause()
+        if mode == "code":
+            app.exit(return_code=3)
+        else:
+            await pilot.press("q")
+    return app
+
+
+app_module.leave(asyncio.run(run()))
+"""
+
+
+def quit_script(cache, mode):
+    cache = cache.parent / mode / cache.name
+    cache.parent.mkdir()
+    settings_file(cache)
+    done = cache.with_name("done")
+    try:
+        result = subprocess.run([sys.executable, "-c", QUIT_SCRIPT, str(cache), str(done), mode], capture_output=True, text=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        return None, 40
+    return result.returncode, len(done.read_text()) if done.exists() else 0
+
+
+def quit_drops_queued_fetches(cache):
+    code, finished = quit_script(cache, "running")
+    check("quitting mid-refresh drops the fetches still queued", code == 0 and finished < 40)
+    code, finished = quit_script(cache, "failed")
+    check("quitting after a failed refresh drops the fetches it left queued", code == 0 and finished < 40)
+    code, _ = quit_script(cache, "code")
+    check("the app's exit code reaches the shell", code == 3)
 
 
 def settings_used():
@@ -504,6 +676,64 @@ def epic_changes():
     legacy = {key: value for key, value in before.items() if key != "epics"}
     found = board_module.changes_between(legacy, grown, summaries)
     check("a saved state without epics still reports new tickets", [c["label"] for c in found] == ["En proceso"])
+
+
+def state_write():
+    with tempfile.TemporaryDirectory() as scratch:
+        state_dir, state_path = board_module.STATE_DIR, board_module.STATE_PATH
+        board_module.STATE_DIR = Path(scratch)
+        board_module.STATE_PATH = Path(scratch) / "state.json"
+        board_module.STATE_PATH.write_text('{"snapshot": {}, "changes": []}')
+        write_text = Path.write_text
+
+        def crash(path, text, **options):
+            path.open("w").close()
+            raise OSError("disk full")
+        Path.write_text = crash
+        try:
+            board_module.save_state({"tickets": {}}, [])
+        except OSError:
+            pass
+        finally:
+            Path.write_text = write_text
+        kept = board_module.STATE_PATH.read_text()
+        try:
+            board_module.save_state({"tickets": {}}, [])
+            saved = json.loads(board_module.STATE_PATH.read_text())
+            leftovers = sorted(path.name for path in Path(scratch).iterdir())
+        finally:
+            board_module.STATE_DIR, board_module.STATE_PATH = state_dir, state_path
+    check("a write cut off midway keeps the previous state", kept == '{"snapshot": {}, "changes": []}')
+    check("a full write replaces the state and leaves no temp file",
+          saved == {"snapshot": {"tickets": {}}, "changes": []} and leftovers == ["state.json"])
+
+
+def collect_prs():
+    one, two = {**PR_ONE, "headRefOid": "a1"}, {**PR_TWO, "headRefOid": "b2"}
+    three = {**PR_THREE, "headRefOid": "c3", "url": "https://github.com/acme/renamed/pull/3"}
+    by_item = {("acme/app", 1): one, ("acme/billing-reconciliation-service", 2): two, ("acme/app", 3): three}
+    asked = []
+    fakes = {"search_team_prs": lambda: {PR_TWO["url"]: ("acme/billing-reconciliation-service", 2)},
+             "search_review_requested_from_me": lambda: {PR_THREE["url"]: ("acme/app", 3), PR_ONE["url"]: ("acme/app", 1)},
+             "fetch_my_tickets": lambda: [], "search_merged_prs": lambda keys: [], "fetch_updated": lambda ticket: None,
+             "fetch_epics": lambda: [{"key": "ACME-100", "summary": "Epic one", "status": "Developing", "owner": "Ana"}],
+             "fetch_children": lambda key: [{**t, "prs": []} for t in TICKETS],
+             "search_open_prs": lambda keys: {PR_ONE["url"]: ("acme/app", 1)},
+             "fetch_prs": lambda items: asked.append(list(items)) or [by_item[item] for item in asked[-1]]}
+    saved = {name: getattr(board_module, name) for name in [*fakes, "STATE_DIR", "STATE_PATH"]}
+    with tempfile.TemporaryDirectory() as scratch:
+        for name, fake in fakes.items():
+            setattr(board_module, name, fake)
+        board_module.STATE_DIR, board_module.STATE_PATH = Path(scratch), Path(scratch) / "state.json"
+        try:
+            found = board_module.collect()
+        finally:
+            for name, value in saved.items():
+                setattr(board_module, name, value)
+    check("the board fetches the open and team prs together", sorted(asked[0]) == [("acme/app", 1), ("acme/billing-reconciliation-service", 2)])
+    check("review requests reuse the prs already fetched", asked[1] == [("acme/app", 3)])
+    check("review requests keep their order, even when github names a pr by another url",
+          [pr["number"] for pr in found["review_prs"]] == [3, 1])
 
 
 def data_paths():
@@ -663,23 +893,54 @@ async def review_popup(cache):
         check("escape closes the popup", not isinstance(app.screen, app_module.ReviewScreen))
 
 
-def pr_threads_fetch():
+def pr_node(number, rollup):
     resolved = {**THREAD, "isResolved": True, "path": "app/old.rb"}
-    nodes = [{**t, "comments": {"nodes": t["comments"]}} for t in (THREAD, resolved)]
     bots = [{**NOTE, "author": {"__typename": "Bot", "login": "github-actions"}}, {**NOTE, "author": {"__typename": "User", "login": "deploybot"}}]
-    graph = {"data": {"repository": {"pullRequest": {"reviewThreads": {"nodes": nodes}, "comments": {"nodes": [*bots, NOTE]}}}}}
-    seen, run_json, fetch_ci = [], fetch.run_json, fetch.fetch_ci
-    fetch.run_json = lambda cmd: seen.append(cmd) or (graph if "graphql" in cmd else {"number": 2, "title": "x"})
-    fetch.fetch_ci = lambda repo, number: "passing"
+    return {"pullRequest": {
+        "number": number, "title": "x", "url": f"https://github.com/acme/app/pull/{number}", "author": {"login": "alice"},
+        "reviewRequests": {"nodes": [{"requestedReviewer": {"__typename": "User"}}]}, "reviews": {"nodes": [CHANGES]},
+        "commits": {"nodes": [{"commit": {"committedDate": "2026-10-21T10:00:00Z"}}, {"commit": {"committedDate": "2026-10-22T10:00:00Z"}}]},
+        "head": {"nodes": [{"commit": {"statusCheckRollup": rollup}}]},
+        "reviewThreads": {"nodes": [{**t, "comments": {"nodes": t["comments"]}} for t in (THREAD, resolved)]},
+        "comments": {"nodes": [*bots, NOTE]}}}
+
+
+def pr_fetch():
+    rollups = [{"state": "FAILURE"}, {"state": "PENDING"}, {"state": "SUCCESS"}, None]
+    seen, run_json = [], fetch.run_json
+
+    def graph(cmd):
+        seen.append(cmd)
+        query = next(arg for arg in cmd if arg.startswith("query="))
+        numbers = [int(n) for n in re.findall(r"pullRequest\(number: (\d+)\)", query)]
+        return {"data": {f"pr{i}": pr_node(n, rollups[n % 4]) for i, n in enumerate(numbers)}}
+
+    fetch.run_json = graph
     try:
-        pr = fetch.fetch_pr("acme/app", 2)
+        prs = fetch.fetch_prs([("acme/app", 2), ("acme/app", 3)])
+        many = fetch.fetch_prs([("acme/app", n) for n in range(25)])
     finally:
-        fetch.run_json, fetch.fetch_ci = run_json, fetch_ci
-    check("pr fetch keeps only unresolved review threads", pr["threads"] == [THREAD])
-    check("pr fetch keeps conversation comments from people, not bots", pr["conversation"] == [NOTE])
-    check("pr fetch asks for the threads of that pr", any("graphql" in cmd and "owner=acme" in cmd and "name=app" in cmd and "number=2" in cmd
-                                                          for cmd in seen))
-    query = next(arg for cmd in seen if "graphql" in cmd for arg in cmd if arg.startswith("query="))
+        fetch.run_json = run_json
+    query = next(arg for arg in seen[0] if arg.startswith("query="))
+    check("prs come from one graphql call per batch of 20", len(seen) == 3 and all("graphql" in cmd for cmd in seen) and len(many) == 25)
+    check("pr fetch asks for each pr by repo and number", 'owner: "acme"' in query and 'name: "app"' in query
+          and "pullRequest(number: 2)" in query and "pullRequest(number: 3)" in query)
+    check("pr fetch keeps the order it was asked", [pr["number"] for pr in many] == list(range(25)))
+    check("pr fetch keeps only unresolved review threads", prs[0]["threads"] == [THREAD])
+    check("pr fetch keeps conversation comments from people, not bots", prs[0]["conversation"] == [NOTE])
+    check("pr fetch flattens reviews, review requests and commits", prs[0]["reviews"] == [CHANGES] and len(prs[0]["reviewRequests"]) == 1
+          and [c["committedDate"] for c in prs[0]["commits"]] == ["2026-10-21T10:00:00Z", "2026-10-22T10:00:00Z"])
+    check("pr ci comes from the last commit's check rollup", [pr["ci"] for pr in many[:4]] == ["failing", "running", "passing", "none"])
+    check("pr fetch names the repo", prs[0]["repo"] == "app")
+    check("pr fetch asks for the check rollup of the head commit only",
+          "commits(last: 100) { nodes { commit { committedDate } } }" in query
+          and "head: commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }" in query)
+    node = pr_node(5, None)["pullRequest"]
+    ghost = {**node, "author": None, "reviews": {"nodes": [{**CHANGES, "author": None}]},
+             "reviewThreads": {"nodes": [{**THREAD, "comments": {"nodes": [{**THREAD["comments"][0], "author": None}]}}]}}
+    pr = fetch.pr_from_graph(ghost, "acme/app")
+    check("a deleted account reads as ghost", pr["author"] == {"login": "ghost"} and pr["reviews"][0]["author"] == {"login": "ghost"}
+          and pr["threads"][0]["comments"][0]["author"] == {"login": "ghost"})
     check("pr fetch asks for every comment field the popup shows",
           all(re.search(rf"\b{name}\b", query) for name in ("login", "body", "createdAt", "diffHunk", "url")))
 
@@ -716,28 +977,37 @@ def html_without_config():
 
 
 if __name__ == "__main__":
+    os.environ["TZ"] = "Europe/Madrid"
+    time.tzset()
     settings_used()
     escaping()
     config.use(config.Settings(**SETTINGS))
     epic_changes()
     pr_rows()
     adf_rendering()
+    adf_more_nodes()
     ticket_links()
+    ticket_detail_edges()
     my_tickets_fetch()
+    sparse_ticket_detail()
     html_mine()
     status_labels()
     pr_comments()
-    pr_threads_fetch()
+    pr_fetch()
     conversation_comments()
     diff_rendering()
     data_paths()
+    state_write()
+    collect_prs()
     logo_fit()
     html_logo()
     html_without_config()
     missing_tools()
-    for test in (main, reopen, throttle_across_runs, running, failure, first_run, first_run_cancel, edit, edit_cancel, review_popup):
+    for test in (main, reopen, throttle_across_runs, running, failure, unmapped_status, first_run, first_run_cancel, edit, edit_cancel, review_popup):
         with tempfile.TemporaryDirectory() as scratch:
             asyncio.run(test(Path(scratch) / "cache.json"))
     with tempfile.TemporaryDirectory() as scratch:
         quit_while_refreshing(Path(scratch) / "cache.json")
+    with tempfile.TemporaryDirectory() as scratch:
+        quit_drops_queued_fetches(Path(scratch) / "cache.json")
     sys.exit(0 if all(results) else 1)

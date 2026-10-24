@@ -2,8 +2,10 @@ import asyncio
 import datetime as dt
 import json
 import math
+import os
 import re
 import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -275,7 +277,7 @@ def ticket_entry(ticket, prs):
                   field("labels", escape(", ".join(ticket["labels"])) or "—")]
     lines += [field("pr", f'{link(pr["url"], f"{g.tui_repo(pr)}#{pr['number']}")} {escape(g.review_state(pr)[1])}') for pr in linked] or [field("pr", "—")]
     items = ticket_items(ticket)
-    lines += comments_field(len(ticket["comments"])) if items else []
+    lines += comments_field(len(ticket["comments"])) if ticket.get("comments") else []
     if ticket.get("links"):
         lines += ["", separator("links")]
         for other in ticket["links"]:
@@ -296,7 +298,7 @@ def entries(board):
             "changes": [change_entry(c) for c in board["changes"]],
             "epics": [epic_entry(e, board["tickets_by_epic"][e["key"]]) for e in board["epics"]],
             "mine_prs": [pr_entry(pr, by_key) for pr in sorted(board["my_prs"], key=lambda p: p["createdAt"])],
-            "mine_tickets": [ticket_entry(t, prs) for t in board["my_tickets"]]}
+            "mine_tickets": [ticket_entry(t, prs) for t in sorted(board["my_tickets"], key=fetch.ticket_order)]}
 
 
 def cell_row(entry, widths):
@@ -608,10 +610,12 @@ class TarkonApp(App):
             fetch.TODAY = dt.date.today()
             try:
                 found = (self.load(), None)
-            except Exception as error:
+            except (Exception, SystemExit) as error:
                 found = (None, error)
-            if not loop.is_closed():
+            try:
                 loop.call_soon_threadsafe(lambda: outcome.done() or outcome.set_result(found))
+            except RuntimeError:  # the app quit and closed its loop while the refresh ran
+                pass
 
         # A daemon thread, not the loop's executor: quitting must not wait for acli and gh to finish.
         threading.Thread(target=load, daemon=True).start()
@@ -745,4 +749,13 @@ class TarkonApp(App):
 
 
 def main(edit_config=False):
-    TarkonApp(edit_config=edit_config).run()
+    app = TarkonApp(edit_config=edit_config)
+    app.run()
+    leave(app)
+
+
+def leave(app):
+    # Skip the interpreter's shutdown: it joins the pool workers of a running or failed refresh, after every queued acli and gh call.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(app.return_code or 0)

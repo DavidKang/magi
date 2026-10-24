@@ -18,6 +18,7 @@ COLUMNS = [
     ("done", "Done", {"Finalizado"}),
 ]
 DISCARDED = {"Rejected / Cancelled"}
+STATUS_RANK = {status: i for i, (_, _, statuses) in enumerate(COLUMNS) for status in statuses}
 STATUS_LABELS = {"Tareas por hacer": "Todo", "En proceso": "In Progress", "En revisión": "In review", "Finalizado": "Done"}
 EPIC_STATUSES = ["Developing", "Rollout"]
 TODAY = dt.date.today()
@@ -125,11 +126,14 @@ def fetch_my_tickets():
     items = run_json(["acli", "jira", "workitem", "search", "--jql",
                       "assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC",
                       "--limit", "100", "--json"])
-    order = {status: i for i, (_, _, statuses) in enumerate(COLUMNS) for status in statuses}
     tickets = [{"key": i["key"], "summary": i["fields"]["summary"], "status": i["fields"]["status"]["name"]} for i in items]
     for ticket, detail in zip(tickets, parallel(fetch_ticket_detail, [t["key"] for t in tickets])):
         ticket.update(detail)
-    return sorted(tickets, key=lambda t: (order.get(t["status"], len(COLUMNS)), t["status"]))
+    return sorted(tickets, key=ticket_order)
+
+
+def ticket_order(ticket):
+    return STATUS_RANK.get(ticket["status"], len(COLUMNS)), ticket["status"]
 
 
 TICKET_FIELDS = "summary,status,description,creator,comment,parent,issuelinks,priority,labels,issuetype,created,updated"
@@ -139,11 +143,11 @@ def fetch_ticket_detail(key):
     fields = run_json(["acli", "jira", "workitem", "view", key, "--fields", TICKET_FIELDS, "--json"])["fields"]
     parent = fields.get("parent")
     return {"type": fields["issuetype"]["name"], "priority": (fields.get("priority") or {}).get("name"), "labels": fields["labels"],
-            "creator": fields["creator"]["displayName"], "created": fields["created"], "updated": fields["updated"],
+            "creator": (fields["creator"] or {}).get("displayName", "unknown"), "created": fields["created"], "updated": fields["updated"],
             "epic": {"key": parent["key"], "summary": parent["fields"]["summary"]} if parent else None,
             "links": [linked_ticket(link) for link in fields["issuelinks"]],
             "description": adf_text(fields["description"]) if fields["description"] else "",
-            "comments": [{"id": c["id"], "author": c["author"]["displayName"], "created": c["created"], "body": adf_text(c["body"])}
+            "comments": [{"id": c["id"], "author": (c.get("author") or {}).get("displayName", "unknown"), "created": c["created"], "body": adf_text(c["body"])}
                          for c in fields["comment"]["comments"]]}
 
 
@@ -159,10 +163,12 @@ def adf_text(node):
         return f'`{node["text"]}`' if any(mark["type"] == "code" for mark in node.get("marks", [])) else node["text"]
     if kind == "hardBreak":
         return "\n"
-    if kind in {"mention", "emoji", "status", "date"}:
+    if kind == "date":
+        return dt.datetime.fromtimestamp(int(node["attrs"]["timestamp"]) / 1000, dt.timezone.utc).strftime("%Y-%m-%d")
+    if kind in {"mention", "emoji", "status"}:
         return node["attrs"].get("text") or node["attrs"].get("shortName", "")
     if kind == "inlineCard":
-        return node["attrs"]["url"]
+        return node["attrs"].get("url", "[link]")
     if kind in {"media", "mediaSingle", "mediaGroup"}:
         return "[attachment]"
     if kind == "rule":
@@ -197,48 +203,50 @@ def search_team_prs():
     return found
 
 
-DISCUSSION_QUERY = """query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) { pullRequest(number: $number) {
-    reviewThreads(first: 100) { nodes { isResolved isOutdated path line
-      comments(first: 50) { nodes { author { login } body createdAt diffHunk url } } } }
-    comments(first: 100) { nodes { author { __typename login } body createdAt url } } } } }"""
+PR_FIELDS = """number title url headRefName headRefOid isDraft createdAt reviewDecision mergeable author { login }
+  reviewRequests(first: 20) { nodes { requestedReviewer { __typename } } }
+  reviews(first: 100) { nodes { author { login } body state submittedAt } }
+  commits(last: 100) { nodes { commit { committedDate } } }
+  head: commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+  reviewThreads(first: 100) { nodes { isResolved isOutdated path line
+    comments(first: 50) { nodes { author { login } body createdAt diffHunk url } } } }
+  comments(first: 100) { nodes { author { __typename login } body createdAt url } }"""
+PRS_PER_QUERY = 20
+GHOST = {"login": "ghost"}
+CI_STATES = {"SUCCESS": "passing", "FAILURE": "failing", "ERROR": "failing", "PENDING": "running", "EXPECTED": "running"}
 
 
-def fetch_pr(repo, number):
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        ci = pool.submit(fetch_ci, repo, number)
-        discussion = pool.submit(fetch_discussion, repo, number)
-        pr = run_json(["gh", "pr", "view", str(number), "--repo", repo, "--json",
-                       "number,title,url,headRefName,headRefOid,author,isDraft,createdAt,reviewDecision,reviewRequests,reviews,mergeable,commits"])
-        pr["ci"] = ci.result()
-        pr["threads"], pr["conversation"] = discussion.result()
-    pr["repo"] = repo.split("/")[1]
-    return pr
+def fetch_prs(candidates):
+    candidates = list(candidates)
+    batches = [candidates[start:start + PRS_PER_QUERY] for start in range(0, len(candidates), PRS_PER_QUERY)]
+    return [pr for batch in parallel(fetch_pr_batch, batches) for pr in batch]
+
+
+def fetch_pr_batch(batch):
+    query = "query { " + " ".join(
+        f'pr{i}: repository(owner: {json.dumps(repo.split("/")[0])}, name: {json.dumps(repo.split("/")[1])}) '
+        f'{{ pullRequest(number: {int(number)}) {{ {PR_FIELDS} }} }}' for i, (repo, number) in enumerate(batch)) + " }"
+    data = run_json(["gh", "api", "graphql", "-f", f"query={query}"])["data"]
+    return [pr_from_graph(data[f"pr{i}"]["pullRequest"], repo) for i, (repo, _) in enumerate(batch)]
+
+
+def pr_from_graph(pr, repo):
+    head = pr.pop("head")["nodes"]
+    rollup = head[0]["commit"]["statusCheckRollup"] if head else None
+    return {**pr, "repo": repo.split("/")[1], "ci": CI_STATES[rollup["state"]] if rollup else "none", "author": pr["author"] or GHOST,
+            "reviewRequests": pr["reviewRequests"]["nodes"], "reviews": with_authors(pr["reviews"]["nodes"]),
+            "commits": [node["commit"] for node in pr["commits"]["nodes"]],
+            "threads": [{**thread, "comments": with_authors(thread["comments"]["nodes"])} for thread in pr["reviewThreads"]["nodes"]
+                        if not thread["isResolved"]],
+            "conversation": [comment for comment in pr["comments"]["nodes"] if comment["author"] and not is_bot(comment["author"])]}
+
+
+def with_authors(nodes):
+    # GraphQL gives a deleted account a null author.
+    return [{**node, "author": node["author"] or GHOST} for node in nodes]
 
 
 def is_bot(author):
     return author["__typename"] == "Bot" or author["login"].lower().endswith("bot")
-
-
-def fetch_discussion(repo, number):
-    owner, name = repo.split("/")
-    data = run_json(["gh", "api", "graphql", "-F", f"owner={owner}", "-F", f"name={name}", "-F", f"number={number}",
-                     "-f", f"query={DISCUSSION_QUERY}"])
-    pr = data["data"]["repository"]["pullRequest"]
-    threads = [{**thread, "comments": thread["comments"]["nodes"]} for thread in pr["reviewThreads"]["nodes"] if not thread["isResolved"]]
-    return threads, [comment for comment in pr["comments"]["nodes"] if comment["author"] and not is_bot(comment["author"])]
-
-
-def fetch_ci(repo, number):
-    result = subprocess.run(["gh", "pr", "checks", str(number), "--repo", repo, "--json", "bucket"],
-                            capture_output=True, text=True)
-    if "no checks reported" in result.stderr:
-        return "none"
-    buckets = {check["bucket"] for check in json.loads(result.stdout)}
-    if "fail" in buckets:
-        return "failing"
-    if "pending" in buckets:
-        return "running"
-    return "passing"
 
 
