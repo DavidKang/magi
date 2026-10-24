@@ -1,0 +1,19 @@
+[project]
+name = "tarkon"
+version = "0.1.0"
+description = "Team board of Jira epics and GitHub PRs, in the terminal or the browser."
+requires-python = ">=3.12"
+dependencies = ["textual>=8.2"]
+
+[project.scripts]
+tarkon = "tarkon.cli:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["tarkon"]
+
+[tool.setuptools.package-data]
+tarkon = ["tablero-template.html"]
