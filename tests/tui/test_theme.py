@@ -301,3 +301,21 @@ def test_an_unknown_theme_keeps_the_current_one():
     with pytest.raises(KeyError):
         theme.use_theme("gone")
     assert (theme.current, theme.COLORS["accent"]) == ("okuda", theme.THEMES["okuda"]["accent"]), "an unknown theme changes nothing"
+
+
+@pytest.mark.parametrize("name", ["default", "okuda", "nerv"])
+def test_no_logo_without_graphics(cache, monkeypatch, default_theme, name):
+    monkeypatch.setattr(screens, "GRAPHICS", False)
+
+    async def run():
+        app = TarkonApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
+                        config_path=settings_file(cache))
+        async with app.run_test(size=(160, 40)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            await pick_theme(pilot, name)
+            assert not any(app.query_one(logo).display for logo in ("#top #logo", "#nerv-logo", "#elbow-logo")), \
+                "a terminal without Sixel or Kitty graphics shows no logo"
+            assert app.query_one("#top .brand").display, "a terminal without Sixel or Kitty graphics shows the name instead"
+
+    asyncio.run(run())

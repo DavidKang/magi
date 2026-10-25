@@ -5,6 +5,7 @@ from textual.widgets import Input
 from textual_image.widget import Image
 
 from builders import PR_ONE, SETTINGS, board, settings_file
+from tarkon.tui import screens
 from tarkon.tui.app import TarkonApp
 
 
@@ -102,3 +103,16 @@ async def edit_cancel(cache):
 
 def test_edit_cancel(cache):
     asyncio.run(edit_cancel(cache))
+
+
+def test_config_panel_without_graphics(cache, monkeypatch):
+    monkeypatch.setattr(screens, "GRAPHICS", False)
+
+    async def run():
+        app = TarkonApp(load=lambda: board([PR_ONE]), opener=print, copier=print, cache=cache, config_path=cache.with_name("config.json"))
+        async with app.run_test(size=(160, 40)) as pilot:
+            await pilot.pause()
+            assert not app.screen.query_one("#logo").display, "a terminal without Sixel or Kitty graphics shows no logo"
+            assert app.screen.query_one(".brand").display, "a terminal without Sixel or Kitty graphics shows the name instead"
+
+    asyncio.run(run())

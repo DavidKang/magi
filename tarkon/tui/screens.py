@@ -8,6 +8,9 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen, Screen
 from textual.widgets import Button, Footer, Input, OptionList, Static
 from textual.widgets.option_list import Option
+from textual_image.renderable import Image as Renderable
+from textual_image.renderable.sixel import Image as SixelRenderable
+from textual_image.renderable.tgp import Image as TGPRenderable
 from textual_image.widget import Image, get_cell_size
 
 from .. import config
@@ -17,6 +20,8 @@ LOGO = Path(__file__).parent.parent / "logo.png"
 LOGO_BLACK = Path(__file__).parent.parent / "logo-black.png"
 LOGO_WHITE = Path(__file__).parent.parent / "logo-white.png"
 LOGO_ROWS = 1
+# Without Sixel or Kitty graphics the logo falls back to half blocks, two pixels a row: unreadable at its size.
+GRAPHICS = Renderable in (SixelRenderable, TGPRenderable)
 
 
 def logo_image(rows, cell, path=LOGO):

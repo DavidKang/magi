@@ -111,6 +111,8 @@ ReviewScreen { align: center middle; background: $tk-veil; }
 .nerv #review-diff-box { border: heavy $tk-line; }
 .nerv #top #nerv-logo { display: block; }
 .nerv #top .brand { display: none; }
+.no-graphics #logo, .no-graphics #nerv-logo, .no-graphics #elbow-logo { display: none !important; }
+.no-graphics.nerv #top .brand { display: block; }
 .nerv .pane { padding: 0 1; }
 .nerv #foot { padding: 0 1; }
 .nerv FooterKey .footer-key--description { padding: 0 1; }

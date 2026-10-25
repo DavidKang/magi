@@ -19,7 +19,7 @@ from ..adapters import paths, storage
 from ..application.refresh import saved_board
 from ..domain import changes
 from ..domain.review import CONDITIONS, condition
-from . import theme
+from . import screens, theme
 from .entries import cell_row, entries, escape
 from .screens import LOGO_BLACK, LOGO_WHITE, ConfigScreen, ReviewScreen, ThemeScreen, logo
 from .system import leave, open_in_browser, pbcopy
@@ -231,6 +231,7 @@ class TarkonApp(App):
         return not isinstance(self.screen, (ConfigScreen, ReviewScreen, ThemeScreen)) or action not in BOARD_ACTIONS
 
     def on_mount(self):
+        self.set_class(not screens.GRAPHICS, "no-graphics")
         found = config.load(self.config_path)
         # The saved theme may since have been dropped.
         self.saved = found and replace(found, theme=theme.offered(found.theme))
