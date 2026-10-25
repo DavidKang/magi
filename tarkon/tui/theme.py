@@ -20,6 +20,8 @@ THEMES = {"default": {"ok": "#56d364", "bad": "#ff7b72", "warn": "#e3b341", "blu
 LCARS = ["okuda", "picard"]
 # The themes that draw their own frame instead of the default layout.
 FRAMES = {**{name: "lcars" for name in LCARS}, "nerv": "nerv", "eva01": "nerv"}
+# Themes no longer offered, read as the closest one still offered so an old config still starts.
+DROPPED = {"lcars": "okuda", "voyager": "okuda", "magi": "nerv"}
 COLORS = dict(THEMES["default"])
 # use_theme rebinds this name, so read it as theme.current: a from-import would keep "default".
 current = "default"
@@ -33,7 +35,12 @@ def lcars():
     return frame() == "lcars"
 
 
+def offered(name):
+    name = DROPPED.get(name, name)
+    return name if name in THEMES else "default"
+
+
 def use_theme(name):
     global current
-    current = name
     COLORS.update(THEMES[name])
+    current = name

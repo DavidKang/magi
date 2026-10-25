@@ -231,7 +231,9 @@ class TarkonApp(App):
         return not isinstance(self.screen, (ConfigScreen, ReviewScreen, ThemeScreen)) or action not in BOARD_ACTIONS
 
     def on_mount(self):
-        self.saved = config.load(self.config_path)
+        found = config.load(self.config_path)
+        # The saved theme may since have been dropped.
+        self.saved = found and replace(found, theme=theme.offered(found.theme))
         if self.saved is None or self.edit_config:
             self.push_screen(ConfigScreen(self.saved), self.configured)
         else:
@@ -242,7 +244,6 @@ class TarkonApp(App):
         self.start(found, force=found != self.saved)
 
     def start(self, found, force=False):
-        config.use(found)
         self.settings = found
         self.apply_theme(found.theme)
         saved = storage.read(self.cache)
@@ -421,7 +422,6 @@ class TarkonApp(App):
             return
         found = replace(self.settings, theme=name)
         config.save(found, self.config_path)
-        config.use(found)
         self.settings = found
         self.apply_theme(found.theme)
         if self.board:

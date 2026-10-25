@@ -12,7 +12,7 @@ from ..domain.attention import STALE_PR_DAYS
 from ..domain.ages import days_since
 from ..domain.status import COLUMNS, status_label, ticket_order
 from . import theme
-from .theme import COLORS, THEMES
+from .theme import COLORS
 
 DESCRIPTION_LINES = 12
 DIFF_BACKGROUNDS = {"+": "#12261e", "-": "#2d1418"}

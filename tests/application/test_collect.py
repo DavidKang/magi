@@ -4,12 +4,10 @@ import types
 from dataclasses import replace
 
 from builders import EPIC, PR_ONE, PR_THREE, PR_TWO, STATED, TICKETS, TICKET_DETAIL, board, light_node
-from tarkon import config
 from tarkon.adapters import github, paths, storage
 from tarkon.application.refresh import Refresh, saved_board
 from tarkon.domain import attention
 from tarkon.domain.entities import Ticket, TicketDetail
-from tarkon.tui import app as app_module
 
 
 class FakeStore:
@@ -48,12 +46,10 @@ def refresh_with(tickets=None, pull_requests=None, at=1600.0):
 
 
 def test_cached_board_reads_back(tmp_path):
-    def shown(found):
-        return {key: [(e.detail, e.url, e.search) for e in found_entries] for key, found_entries in app_module.entries(found, STATED).items()}
-    found = board([PR_ONE, PR_TWO])
+    found = {key: value for key, value in board([PR_ONE, PR_TWO]).items() if key != "out"}
     storage.write(tmp_path / "cache.json", {"board": found})
     again = saved_board(storage.read(tmp_path / "cache.json")["board"])
-    assert shown(again) == shown(found), "a cached board reads back as the same board"
+    assert again == found, "a cached board reads back as the same board"
 
 
 def test_state_write():
@@ -129,7 +125,6 @@ def test_collect():
     pull_requests = types.SimpleNamespace(search_prs=search, fetch_prs=details_of, fetch_pr_states=lambda urls: {},
                                           search_terms=github.search_terms)
     refresh, store, _ = refresh_with(tickets, pull_requests)
-    config.use(None)
     found = refresh.collect(STATED)
     assert "is:pr is:open archived:false org:acme author:alice author:bob" in queries, "the team's prs come from one search naming every author"
     assert "is:pr is:open archived:false org:acme user-review-requested:@me" in queries, "review requests and ticket keys are searched too"

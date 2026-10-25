@@ -9,14 +9,13 @@ from pathlib import Path
 from .. import config, rows
 from ..adapters.paths import STATE_DIR
 from ..domain.ages import days_since
-from ..domain.attention import attention_items
+from ..domain.attention import STALE_PR_DAYS
 from ..domain.changes import CHANGES_HOURS, change_text, subject_text
 from ..domain.keys import title_keys_in, title_parts
 from ..domain.review import CI_LABELS, CONDITIONS, condition, review_state
 from ..domain.status import COLUMNS, UnmappedStatus, status_label
 from ..rows import TUI_CI, TUI_REVIEW, TUI_REVIEW_EVENTS, local_time
 
-URGENT_PR_DAYS = 3
 LOGO = "data:image/png;base64," + base64.b64encode((Path(__file__).parent.parent / "logo.png").read_bytes()).decode()
 LOGO_LCARS = "data:image/png;base64," + base64.b64encode((Path(__file__).parent.parent / "logo-black.png").read_bytes()).decode()
 
@@ -112,11 +111,11 @@ def board(epic, tickets, settings):
 
 
 def pr_tables(prs, settings):
-    recent = [pr for pr in prs if days_since(pr.created_at) <= URGENT_PR_DAYS]
-    urgent = [pr for pr in prs if days_since(pr.created_at) > URGENT_PR_DAYS]
+    recent = [pr for pr in prs if days_since(pr.created_at) <= STALE_PR_DAYS]
+    urgent = [pr for pr in prs if days_since(pr.created_at) > STALE_PR_DAYS]
     return ('<div class="pr-grid">'
-            f'<div><h3>Up to {URGENT_PR_DAYS} days <span class="count">{len(recent)}</span></h3>{pr_table(recent, settings)}</div>'
-            f'<div class="urgent"><h3>Over {URGENT_PR_DAYS} days, urgent <span class="count">{len(urgent)}</span></h3>'
+            f'<div><h3>Up to {STALE_PR_DAYS} days <span class="count">{len(recent)}</span></h3>{pr_table(recent, settings)}</div>'
+            f'<div class="urgent"><h3>Over {STALE_PR_DAYS} days, urgent <span class="count">{len(urgent)}</span></h3>'
             f'{pr_table(urgent, settings)}</div></div>')
 
 
@@ -297,12 +296,11 @@ def tui(attention_found, prs, review_prs, my_prs, my_tickets, epics, tickets_by_
     return nav, "".join(tui_pane(n, *tab) for n, tab in enumerate(tabs, 1))
 
 
-def render(epics, tickets_by_epic, prs, merged_by_ticket, review_prs, my_tickets, changes, now, template, settings):
-    all_tickets = [t for ts in tickets_by_epic.values() for t in ts]
-    attention_found = attention_items(all_tickets, prs, merged_by_ticket, settings)
-    my_prs = [pr for pr in prs if pr.author["login"] == settings.github_user]
+def render(found, template, settings):
+    epics, tickets_by_epic, prs, my_prs, review_prs, my_tickets, changes, attention_found = (
+        found[name] for name in ("epics", "tickets_by_epic", "prs", "my_prs", "review_prs", "my_tickets", "changes", "attention"))
     tui_tabs, tui_panes = tui(attention_found, prs, review_prs, my_prs, my_tickets, epics, tickets_by_epic,
-                              changes, {t.key: t for t in all_tickets}, settings)
+                              changes, found["by_key"], settings)
 
     boards = "".join(board(e, tickets_by_epic[e.key], settings) for e in epics)
     when, level = dt.datetime.now(), condition(prs, settings.github_user)
@@ -312,7 +310,7 @@ def render(epics, tickets_by_epic, prs, merged_by_ticket, review_prs, my_tickets
             .replace("{{CONDITION}}", CONDITIONS[level])
             .replace("{{CONDITION_TONE}}", level)
             .replace("{{MINE}}", mine(my_prs, review_prs, my_tickets, settings))
-            .replace("{{CHANGES}}", changes_section(changes, {url: pr["ci"] for url, pr in now["prs"].items()}, settings))
+            .replace("{{CHANGES}}", changes_section(changes, {url: pr["ci"] for url, pr in found["now"]["prs"].items()}, settings))
             .replace("{{CHANGES_HOURS}}", str(CHANGES_HOURS))
             .replace("{{ATTENTION}}", attention(attention_found, settings))
             .replace("{{TUI_TABS}}", tui_tabs)
@@ -332,8 +330,7 @@ def build(collect, settings):
     found = collect(settings)
     template = (Path(__file__).with_name("template.html")).read_text()
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(render(found["epics"], found["tickets_by_epic"], found["prs"], found["merged_by_ticket"], found["review_prs"],
-                          found["my_tickets"], found["changes"], found["now"], template, settings))
+    OUT.write_text(render(found, template, settings))
     return {**found, "out": OUT}
 
 

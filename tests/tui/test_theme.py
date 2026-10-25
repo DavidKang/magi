@@ -161,7 +161,7 @@ async def lcars_theme(cache):
         assert "refresh failed" in str(app.query_one("#status").render()), "switching the theme keeps a failed refresh visible"
 
 
-@pytest.mark.usefixtures("settings", "default_theme")
+@pytest.mark.usefixtures("default_theme")
 def test_lcars_theme(cache):
     asyncio.run(lcars_theme(cache))
 
@@ -178,7 +178,7 @@ async def lcars_edit(cache):
         assert json.loads(path.read_text())["theme"] == "okuda", "editing the config keeps the saved theme"
 
 
-@pytest.mark.usefixtures("settings", "default_theme")
+@pytest.mark.usefixtures("default_theme")
 def test_lcars_edit(cache):
     asyncio.run(lcars_edit(cache))
 
@@ -270,6 +270,34 @@ async def theme_picker(cache):
         assert (theme.current, json.loads(path.read_text())["theme"]) == ("picard", "picard"), "enter applies the highlighted theme and saves it"
 
 
-@pytest.mark.usefixtures("settings", "default_theme")
+@pytest.mark.usefixtures("default_theme")
 def test_theme_picker(cache):
     asyncio.run(theme_picker(cache))
+
+
+def test_every_theme_is_offered_by_one_name():
+    assert screens.THEME_LABELS.keys() == theme.THEMES.keys(), "the picker offers every theme, each under its own label"
+    assert set(theme.DROPPED.values()) <= theme.THEMES.keys(), "a dropped theme reads as one still offered"
+
+
+async def saved_theme_start(cache, saved):
+    path = settings_file(cache, {**SETTINGS, "theme": saved})
+    app = TarkonApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=path)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        return theme.current, app.settings.theme
+
+
+@pytest.mark.usefixtures("default_theme")
+@pytest.mark.parametrize("saved, started", [("lcars", "okuda"), ("voyager", "okuda"), ("magi", "nerv"), ("nerv", "nerv"),
+                                            ("picard", "picard"), ("gone", "default")])
+def test_a_saved_theme_starts_in_one_still_offered(cache, saved, started):
+    assert asyncio.run(saved_theme_start(cache, saved)) == (started, started), "an old or unknown saved theme still starts"
+
+
+@pytest.mark.usefixtures("default_theme")
+def test_an_unknown_theme_keeps_the_current_one():
+    theme.use_theme("okuda")
+    with pytest.raises(KeyError):
+        theme.use_theme("gone")
+    assert (theme.current, theme.COLORS["accent"]) == ("okuda", theme.THEMES["okuda"]["accent"]), "an unknown theme changes nothing"

@@ -48,7 +48,7 @@ async def eva01(cache, pr):
             stripe.plain[:8], [stripe.get_style_at_offset(Console(), n).color.triplet.hex for n in range(8)]
 
 
-@pytest.mark.usefixtures("settings", "default_theme")
+@pytest.mark.usefixtures("default_theme")
 @pytest.mark.parametrize("pr, label, tone", [
     (make_pr(review_decision="APPROVED", ci="passing", mergeable="MERGEABLE"), "SYNC STABLE", "ok"),
     (make_pr(ci="passing", mergeable="MERGEABLE"), "SYNC UNSTABLE", "warn"),

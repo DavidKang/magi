@@ -1,7 +1,6 @@
 import asyncio
 import json
 
-import pytest
 from textual.widgets import Input
 from textual_image.widget import Image
 
@@ -20,6 +19,7 @@ async def first_run(cache):
         await pilot.pause()
         assert isinstance(app.screen.query_one("#logo"), Image), "the config panel shows the logo instead of the rocket"
         assert all("🚀" not in str(brand.render()) for brand in app.screen.query(".brand")), "the config panel shows the logo instead of the rocket"
+        assert str(app.screen.query_one(".brand").render()) == "TARKON config", "the config panel is branded TARKON"
         inputs = {i.id.removeprefix("config-"): i for i in app.screen.query(Input)}
         assert sorted(inputs) == sorted(SETTINGS), "first run opens the config panel with the five fields"
         assert all(not i.value and i.placeholder for i in inputs.values()), "config fields start empty with a placeholder"
@@ -46,7 +46,6 @@ async def first_run(cache):
         assert cache.exists(), "the TUI cache is written into a folder created on demand"
 
 
-@pytest.mark.usefixtures("settings")
 def test_first_run(cache):
     asyncio.run(first_run(cache))
 
@@ -68,7 +67,6 @@ async def edit(cache):
         assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 1", "config command then opens the board"
 
 
-@pytest.mark.usefixtures("settings")
 def test_edit(cache):
     asyncio.run(edit(cache))
 
@@ -85,7 +83,6 @@ async def first_run_cancel(cache):
         assert calls == [], "cancel on first run quits without saving or loading"
 
 
-@pytest.mark.usefixtures("settings")
 def test_first_run_cancel(cache):
     asyncio.run(first_run_cancel(cache))
 
@@ -103,6 +100,5 @@ async def edit_cancel(cache):
         assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 1", "cancel goes to the board"
 
 
-@pytest.mark.usefixtures("settings")
 def test_edit_cancel(cache):
     asyncio.run(edit_cancel(cache))

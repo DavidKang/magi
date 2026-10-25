@@ -76,7 +76,7 @@ async def nerv(cache):
         assert "▕ AWAITING REVIEW   ▏" in prompts[1], "nerv outlines its badges, keeping their padding"
 
 
-@pytest.mark.usefixtures("settings", "default_theme")
+@pytest.mark.usefixtures("default_theme")
 def test_nerv_frame(cache):
     asyncio.run(nerv(cache))
 
@@ -104,7 +104,7 @@ async def nerv_review(cache):
         assert app.screen.query_one("#review-diff-box").styles.border_top[0] == "heavy", "nerv draws the diff box with a heavy line"
 
 
-@pytest.mark.usefixtures("settings", "default_theme")
+@pytest.mark.usefixtures("default_theme")
 def test_nerv_review_popup(cache):
     asyncio.run(nerv_review(cache))
 
@@ -119,7 +119,7 @@ async def nerv_condition(cache, pr):
         return shown.plain, [(span.style.foreground, span.style.bold) for span in shown.spans], app.query_one("#bar").styles.color
 
 
-@pytest.mark.usefixtures("settings", "default_theme")
+@pytest.mark.usefixtures("default_theme")
 @pytest.mark.parametrize("pr, label, tone", [
     (make_pr(review_decision="APPROVED", ci="passing", mergeable="MERGEABLE"), "NORMAL", "ok"),
     (make_pr(ci="passing", mergeable="MERGEABLE"), "PATTERN ORANGE", "warn"),
@@ -157,7 +157,7 @@ async def switched(cache, names):
         return states
 
 
-@pytest.mark.usefixtures("settings", "default_theme")
+@pytest.mark.usefixtures("default_theme")
 @pytest.mark.parametrize("names", [("nerv", "okuda", "default"), ("okuda", "nerv", "okuda"), ("nerv", "eva01", "nerv")])
 def test_switching_themes_leaves_no_frame_behind(cache, names):
     fresh = {name: asyncio.run(started_on(cache, name)) for name in set(names)}

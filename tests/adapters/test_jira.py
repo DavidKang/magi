@@ -1,10 +1,7 @@
-import pytest
-
 from builders import TICKET_DETAIL, ticket_view
 from tarkon import config
 from tarkon.adapters import jira, process
 from tarkon.domain.entities import Epic, Ticket, TicketDetail
-from tarkon.html import page as web
 
 
 ADF = {"type": "doc", "content": [
@@ -92,18 +89,15 @@ def test_sparse_ticket_detail():
         "a ticket with empty jira fields still loads"
 
 
-@pytest.mark.usefixtures("settings")
 def test_settings_used():
-    config.use(config.Settings(team=["alice"], jira_project="ACME", github_user="me", github_org="acme",
-                               jira_url="https://acme.atlassian.net/"))
-    assert 'href="https://acme.atlassian.net/browse/ACME-9"' in web.jira_link("ACME-9", config.settings), "jira links use the configured site"
+    site = config.Settings(team=["alice"], jira_project="ACME", github_user="me", github_org="acme", jira_url="https://acme.atlassian.net/")
     seen, run_json = [], process.run_json
     items = [{"key": "ACME-9", "fields": {"summary": "Newer", "status": {"name": "Rollout"}, "assignee": None}},
              {"key": "ACME-2", "fields": {"summary": "Older", "status": {"name": "Developing"},
                                           "assignee": {"displayName": "Ana"}}}]
     process.run_json = lambda cmd: seen.append(cmd) or items
     try:
-        epics = jira.fetch_epics(config.settings)
+        epics = jira.fetch_epics(site)
     finally:
         process.run_json = run_json
     jql = seen[0][seen[0].index("--jql") + 1]

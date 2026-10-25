@@ -62,7 +62,7 @@ async def review_popup(cache):
         assert not isinstance(app.screen, app_module.ReviewScreen), "escape closes the popup"
 
 
-@pytest.mark.usefixtures("settings", "aliases")
+@pytest.mark.usefixtures("aliases")
 def test_review_popup(cache):
     asyncio.run(review_popup(cache))
 
@@ -87,6 +87,6 @@ async def long_diff(cache):
         assert (box.max_scroll_x, max(len(line) for line in lines)) == (0, width), "a narrower terminal wraps the diff again to the new width"
 
 
-@pytest.mark.usefixtures("settings", "default_theme")
+@pytest.mark.usefixtures("default_theme")
 def test_long_diff_lines_wrap(cache):
     asyncio.run(long_diff(cache))

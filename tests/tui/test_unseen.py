@@ -57,7 +57,7 @@ async def unseen(cache):
         assert not any(any(row) for row in marked(app).values()), "a seen change stays seen after a restart"
 
 
-@pytest.mark.usefixtures("settings", "default_theme")
+@pytest.mark.usefixtures("default_theme")
 def test_unseen_changes(cache):
     asyncio.run(unseen(cache))
 
@@ -72,7 +72,7 @@ async def first_run(cache):
         "the first run takes every change as seen"
 
 
-@pytest.mark.usefixtures("settings", "default_theme")
+@pytest.mark.usefixtures("default_theme")
 def test_first_run_marks_nothing(cache):
     asyncio.run(first_run(cache))
 
@@ -88,7 +88,7 @@ async def lcars_unseen(cache):
         assert "●" in str(app.query_one("#pill-mine .seg").render()), "LCARS marks a tab pill with unseen rows"
 
 
-@pytest.mark.usefixtures("settings", "default_theme")
+@pytest.mark.usefixtures("default_theme")
 def test_lcars_unseen_changes(cache):
     asyncio.run(lcars_unseen(cache))
 
@@ -115,7 +115,7 @@ async def refresh_on_a_row(cache):
     assert PR_TWO.url not in storage.read(cache.with_name("seen.json"))["seen"], "a change the refresh brought stays unseen"
 
 
-@pytest.mark.usefixtures("settings", "default_theme")
+@pytest.mark.usefixtures("default_theme")
 def test_a_refresh_keeps_new_changes_unseen(cache):
     asyncio.run(refresh_on_a_row(cache))
 
@@ -133,7 +133,7 @@ async def changed_again(cache):
         "leaving the row saves its latest change as seen"
 
 
-@pytest.mark.usefixtures("settings", "default_theme")
+@pytest.mark.usefixtures("default_theme")
 def test_a_seen_item_that_changes_again_is_marked(cache):
     asyncio.run(changed_again(cache))
 
@@ -153,7 +153,7 @@ async def moving_between(cache):
         assert marked(app)["prs"] == [False, False], "leaving a row for another box marks it seen"
 
 
-@pytest.mark.usefixtures("settings", "default_theme")
+@pytest.mark.usefixtures("default_theme")
 def test_moving_between_rows_and_boxes(cache):
     asyncio.run(moving_between(cache))
 
@@ -168,6 +168,6 @@ async def filtering(cache):
         assert marked(app)["prs"] == [True, False], "a filter that hides the cursor's row does not mark it seen"
 
 
-@pytest.mark.usefixtures("settings", "default_theme")
+@pytest.mark.usefixtures("default_theme")
 def test_a_filter_keeps_the_row_unseen(cache):
     asyncio.run(filtering(cache))

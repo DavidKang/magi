@@ -27,7 +27,6 @@ def test_html_mine():
     assert row.count("<span") == 3, "the html tui mirror shows my ticket's status in English in three columns"
 
 
-@pytest.mark.usefixtures("settings")
 def test_html_unmapped_status_exits_cleanly(monkeypatch):
     monkeypatch.setattr(config, "load", lambda: STATED)
     given = []
@@ -42,7 +41,6 @@ def test_html_unmapped_status_exits_cleanly(monkeypatch):
 
 
 
-@pytest.mark.usefixtures("settings")
 def test_html_logo():
     with tempfile.TemporaryDirectory() as scratch:
         found = {**board([PR_ONE]), "merged_by_ticket": {}, "now": {"prs": {}}}
@@ -76,7 +74,6 @@ def test_html_without_config():
     assert "Run `python -m tarkon config` first" in result.stderr, "html without config asks to configure first"
 
 
-@pytest.mark.usefixtures("settings")
 def test_html_lcars_masthead_and_log():
     with tempfile.TemporaryDirectory() as scratch:
         found = {**board([PR_ONE]), "merged_by_ticket": {}, "now": {"prs": {}}}
@@ -97,7 +94,6 @@ def test_html_lcars_masthead_and_log():
     assert ':root[data-design="lcars"] .masthead::after { content: "04-1701";' in page, "the LCARS elbow carries a panel code"
 
 
-@pytest.mark.usefixtures("settings")
 @pytest.mark.parametrize("pr, tone, label", [
     (make_pr(review_decision="APPROVED", ci="passing", mergeable="MERGEABLE"), "green", "CONDITION GREEN"),
     (make_pr(ci="running", mergeable="MERGEABLE"), "yellow", "YELLOW ALERT"),
@@ -112,3 +108,21 @@ def test_html_condition_tones(pr, tone, label):
             web.OUT = path
     assert f'<p class="condition condition-{tone} lcars-only">{label}</p>' in page, "the alert level carries its tone"
     assert f':root[data-design="lcars"] .condition-{tone} {{ color: var(--' in page, "every tone has its LCARS colour"
+
+
+def test_html_shows_what_collect_found():
+    found = board([PR_ONE])
+    found = {**found, "attention": [{**found["attention"][0], "reason": "Flagged by the refresh only."}], "merged_by_ticket": {},
+             "now": {"prs": {}}}
+    with tempfile.TemporaryDirectory() as scratch:
+        path, web.OUT = web.OUT, Path(scratch) / "board.html"
+        try:
+            page = web.build(lambda settings: found, STATED)["out"].read_text()
+        finally:
+            web.OUT = path
+    assert page.count("Flagged by the refresh only.") == 2, "the page and its tui mirror show the attention the refresh found"
+
+
+def test_html_jira_links_use_the_configured_site():
+    site = config.Settings(team=["alice"], jira_project="ACME", github_user="me", github_org="acme", jira_url="https://acme.atlassian.net/")
+    assert 'href="https://acme.atlassian.net/browse/ACME-9"' in web.jira_link("ACME-9", site), "jira links use the configured site"

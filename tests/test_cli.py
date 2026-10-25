@@ -1,8 +1,6 @@
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from builders import PR_ONE, ROOT, STATED, board
 from tarkon import config
 from tarkon.adapters import paths, process
@@ -13,10 +11,10 @@ from tarkon.tui import app as app_module
 def test_brand():
     template = (Path(web.__file__).with_name("template.html")).read_text()
     assert "<title>TARKON</title>" in template, "the page is branded TARKON"
+    assert "LCARS</h1>" not in template and "<b>LCARS</b>" not in template, "the page is branded TARKON"
     assert "tarkon = \"tarkon.cli:main\"" in (ROOT / "pyproject.toml").read_text(), "the command is tarkon"
 
 
-@pytest.mark.usefixtures("settings")
 def test_data_paths():
     home = Path.home()
     assert paths.REFRESH_FILES["state"] == home / ".local/state/tarkon/state.json", "state lives in ~/.local/state/tarkon"

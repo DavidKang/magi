@@ -192,7 +192,7 @@ async def main(cache):
         assert focused("mine_prs"), "clicking the mine tab focuses my prs"
 
 
-@pytest.mark.usefixtures("settings", "aliases")
+@pytest.mark.usefixtures("aliases")
 def test_main(cache):
     asyncio.run(main(cache))
 
@@ -214,7 +214,6 @@ async def unmapped_status(cache):
             "an unmapped jira status fails the refresh instead of leaving it running"
 
 
-@pytest.mark.usefixtures("settings")
 def test_unmapped_status(cache):
     asyncio.run(unmapped_status(cache))
 
@@ -240,7 +239,6 @@ async def reopen(cache):
         assert storage.read(cache)["at"] == 1090.0, "successful refresh saves the board"
 
 
-@pytest.mark.usefixtures("settings")
 def test_reopen(cache):
     asyncio.run(reopen(cache))
 
@@ -257,7 +255,6 @@ async def stale_cache(cache):
         assert calls == [1], "a cache from an older version is ignored and the board refreshes"
 
 
-@pytest.mark.usefixtures("settings")
 def test_stale_cache(cache):
     asyncio.run(stale_cache(cache))
 
@@ -288,7 +285,6 @@ async def throttle_across_runs(cache):
         assert calls == [1], "reopening after 30 seconds refreshes"
 
 
-@pytest.mark.usefixtures("settings")
 def test_throttle_across_runs(cache):
     asyncio.run(throttle_across_runs(cache))
 
@@ -313,7 +309,6 @@ async def running(cache):
         assert len(calls) == 1, "only one load ran"
 
 
-@pytest.mark.usefixtures("settings")
 def test_running(cache):
     asyncio.run(running(cache))
 
@@ -328,12 +323,10 @@ async def failure(cache):
         assert not cache.exists(), "failed refresh saves nothing"
 
 
-@pytest.mark.usefixtures("settings")
 def test_failure(cache):
     asyncio.run(failure(cache))
 
 
-@pytest.mark.usefixtures("settings")
 def test_quit_while_refreshing(cache):
     started, release, finished, loads = threading.Event(), threading.Event(), threading.Event(), []
 

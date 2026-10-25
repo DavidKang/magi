@@ -7,7 +7,7 @@ import pytest
 from textual.content import Content
 
 from builders import EPIC, PR_ONE, PR_TWO, STATED, TICKETS
-from tarkon import config, rows
+from tarkon import rows
 from tarkon.domain import ages
 from tarkon.tui import app as app_module
 from tarkon.tui import entries, theme
@@ -17,7 +17,6 @@ def test_rows_view_model():
     from tarkon import rows
     from tarkon.html import page
     from tarkon.tui import app as tui_app
-    config.use(None)
     ticket = TICKETS[0]
     row = rows.pr_row(PR_ONE, {ticket.key: ticket}, STATED)
     assert row["ref"] == "app#1", "a pr row is plain data built from the settings passed in"

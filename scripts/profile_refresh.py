@@ -49,11 +49,11 @@ def rate_used():
     return resources["graphql"]["used"], resources["search"]["used"]
 
 
-def profile(title, refresh):
+def profile(title, refresh, settings):
     calls.clear()
     graphql_before, search_before = rate_used()
     started = time.perf_counter()
-    collect = refresh.collect(config.settings)
+    collect = refresh.collect(settings)
     total = time.perf_counter() - started
     graphql_after, search_after = rate_used()
     print(f"\n== {title}: {total:.2f}s | epics {len(collect['epics'])}, tickets {len(collect['by_key'])}, prs {len(collect['prs'])}")
@@ -70,15 +70,15 @@ def profile(title, refresh):
 
 
 def main():
-    config.use(config.load())
+    settings = config.load()
     scratch = Path(tempfile.mkdtemp())
     if paths.REFRESH_FILES["state"].exists():
         shutil.copy(paths.REFRESH_FILES["state"], scratch / "state.json")
     refresh = Refresh(jira, github, JsonFiles({name: scratch / path.name for name, path in paths.REFRESH_FILES.items()}),
                       SystemClock(), process.parallel)
     process.run_json = timed_run_json
-    profile("first refresh, no pr cache", refresh)
-    profile("next refresh, pr cache warm", refresh)
+    profile("first refresh, no pr cache", refresh, settings)
+    profile("next refresh, pr cache warm", refresh, settings)
     shutil.rmtree(scratch)
 
 

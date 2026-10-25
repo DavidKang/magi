@@ -3,7 +3,6 @@ from dataclasses import replace
 import pytest
 
 from builders import EPIC, PR_ONE, PR_TWO, STATED
-from tarkon import config
 from tarkon.domain import changes, keys
 from tarkon.domain.entities import Ticket
 
@@ -56,8 +55,7 @@ def test_vanished_prs_need_their_state():
         changes.changes_between(changes.snapshot([], {}, [gone], STATED), changes.snapshot([], {}, [], STATED), {}, {}, STATED)
 
 
-def test_domain_reads_no_global_settings(monkeypatch):
-    monkeypatch.setattr(config, "settings", None)
+def test_domain_takes_the_settings_it_is_given():
     pr = replace(PR_ONE, head_ref_oid="a1")
     found = changes.changes_between(changes.snapshot([], {}, [], STATED), changes.snapshot([], {}, [pr], STATED), {}, {}, STATED)
     assert [c["label"] for c in found] == ["New PR"], "changes take the settings they are given"
