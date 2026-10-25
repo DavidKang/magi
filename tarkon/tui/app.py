@@ -20,7 +20,7 @@ from ..application.refresh import saved_board
 from ..domain import changes
 from ..domain.review import CONDITIONS, condition
 from . import theme
-from .entries import cell_row, entries
+from .entries import cell_row, entries, escape
 from .screens import LOGO_BLACK, ConfigScreen, ReviewScreen, ThemeScreen, logo
 from .system import leave, open_in_browser, pbcopy
 from .theme import COLORS, use_theme
@@ -46,6 +46,10 @@ TAB_OF = {key: tab for tab, keys in TABS.items() for key in keys}
 LEFT_CAP, RIGHT_CAP = "\ue0b6", "\ue0b4"
 # Star Trek's running in-joke number, drawn in blocks: a terminal cell cannot grow its font.
 FORTY_SEVEN = "█ █ ███\n█ █   █\n███   █\n  █   █\n  █   █"
+
+
+def seen_mark(change):
+    return f'{change["at"]} {change["label"]}'
 
 
 def panel_title(key, count):
@@ -129,6 +133,10 @@ class TarkonApp(App):
         self.load = load or (lambda: collect(self.settings))
         self.opener, self.copier, self.clock, self.cache = opener, copier, clock, cache
         self.stamp = cache.with_name("last-refresh")
+        self.seen_path = cache.with_name("seen.json")
+        self.seen = None
+        self.news = {}
+        self.passing = None
         self.refreshing = False
         self.last_refresh = None
         self.sections = {key: [] for key in SECTIONS}
@@ -281,8 +289,13 @@ class TarkonApp(App):
         self.query_one("#status", Static).update(rows.stardate(when) if theme.lcars() else f"updated {when:%H:%M}")
 
     def title_panels(self):
+        for n, (tab, keys) in enumerate(TABS.items(), 1):
+            dot = " ●" if any(entry.url in self.news for key in keys for entry in self.sections[key]) else ""
+            self.query_one(f"#tab-{tab}", Tab).label = f"[{n}] {tab.capitalize()}{dot}"
+            self.query_one(f"#pill-{tab} .seg", Static).update(f" {n:02d} {tab.upper()}{dot} ")
         for key in SECTIONS:
-            count = len(self.sections[key]) if self.board else None
+            new = sum(1 for entry in self.sections[key] if entry.url in self.news)
+            count = (f"{len(self.sections[key])} · {new} new" if new else len(self.sections[key])) if self.board else None
             self.query_one(f"#panel-{key}").border_title = panel_title(key, count)
             self.query_one(f"#panel-{key} PanelTitle", PanelTitle).show(f"{NUMBERS[key]:02d}", LCARS_NAMES.get(key, SECTIONS[key][0]).upper(),
                                                                        "" if count is None else str(count))
@@ -293,6 +306,7 @@ class TarkonApp(App):
     def fill_sections(self, board):
         self.board = board
         self.sections = entries(board, self.settings)
+        self.find_news(board["changes"])
         self.level = condition(board["prs"], self.settings.github_user)
         tone = COLORS[CONDITION_TONES[self.level]]
         self.query_one("#condition", Static).update(Text.assemble((LEFT_CAP, tone), (f" {CONDITIONS[self.level]} ", f"bold {COLORS['title']} on {tone}"),
@@ -301,6 +315,35 @@ class TarkonApp(App):
         self.title_panels()
         for key in SECTIONS:
             self.fill(key)
+
+    def find_news(self, changes):
+        """The changes not seen yet, by item; the first run takes every change as seen."""
+        saved = storage.read(self.seen_path) if self.seen is None else {"seen": self.seen}
+        current = {change["item"]: change for change in changes}
+        self.seen = {item: mark for item, mark in saved["seen"].items() if item in current} if saved else \
+            {item: seen_mark(change) for item, change in current.items()}
+        if not saved:
+            storage.write(self.seen_path, {"seen": self.seen})
+        self.news = {item: change for item, change in current.items() if self.seen.get(item) != seen_mark(change)}
+
+    def pass_by(self, url):
+        if self.passing in self.news and self.passing != url:
+            self.mark_seen(self.passing)
+        self.passing = url
+
+    def mark_seen(self, url):
+        self.seen[url] = seen_mark(self.news.pop(url))
+        storage.write(self.seen_path, {"seen": self.seen})
+        for key in SECTIONS:
+            board = self.query_one(f"#list-{key}", Board)
+            for index in range(board.option_count):
+                option_id = board.get_option_at_index(index).id
+                if option_id and self.sections[key][int(option_id)].url == url:
+                    board.replace_option_prompt_at_index(index, self.row(key, self.sections[key][int(option_id)]))
+        self.title_panels()
+
+    def row(self, key, entry):
+        return Text.assemble(("● ", COLORS["accent"]) if entry.url in self.news else "  ", cell_row(entry, SECTIONS[key][2]))
 
     def apply_theme(self, name):
         use_theme(name)
@@ -355,10 +398,13 @@ class TarkonApp(App):
                 group = entry.group
                 size = sum(1 for _, other in shown if other.group == group)
                 board.add_option(Option(Text(f"── {group} ({size}) ──", COLORS["dim"]), disabled=True))
-            board.add_option(Option(cell_row(entry, widths), id=str(i)))
+            board.add_option(Option(self.row(key, entry), id=str(i)))
         if not self.sections[key]:
             board.add_option(Option(Text(empty, COLORS["dim"]), disabled=True))
         first = next((i for i in range(board.option_count) if not board.get_option_at_index(i).disabled), None)
+        # A rebuild moves the cursor to the first row: that is not the reader passing by.
+        if key == self.current_section:
+            self.passing = None
         board.highlighted = first
         self.show_detail(board)
 
@@ -373,7 +419,10 @@ class TarkonApp(App):
         if self.current_section != board.section:
             return
         entry = self.entry(board)
-        self.query_one("#detail", Static).update(entry.detail if entry else "")
+        self.pass_by(entry.url if entry else None)
+        news = self.news.get(entry.url) if entry else None
+        heading = f'[{COLORS["accent"]}]● {escape(news["label"])} · {news["at"][11:16]}[/]\n\n' if news else ""
+        self.query_one("#detail", Static).update(heading + entry.detail if entry else "")
 
     def on_option_list_option_highlighted(self, event):
         self.show_detail(event.option_list)

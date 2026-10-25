@@ -41,6 +41,8 @@ Epics are not configured: the board shows every epic of the project in Developin
 
 The browser page has three designs, picked from the switch in its header and remembered by the browser: `Console`, `Terminal` and `LCARS`.
 
+In the TUI, a change you have not seen yet puts a `●` on its rows in every box, a `N new` count in the box title and a `●` on its tab; the detail opens with the change and its time. Moving the cursor off the row marks it seen. The first start marks nothing.
+
 ## Keys
 
 | Key | Action |
@@ -69,6 +71,7 @@ The browser page has three designs, picked from the switch in its header and rem
 | `~/.cache/tarkon/prs.json` | Comments, reviews and threads of the PRs on the board, reused until a PR changes |
 | `~/.cache/tarkon/updated.json` | When each in-progress ticket last changed, refetched only for tickets Jira reports as changed |
 | `~/.cache/tarkon/my-tickets.json` | Details of your own tickets, refetched only for tickets Jira reports as changed |
+| `~/.cache/tarkon/seen.json` | The last change you saw on each PR or ticket, so new ones stay marked until you pass them |
 | `~/.cache/tarkon/last-refresh` | When the last refresh started, so reopening the app or pressing `r` waits 30 seconds |
 
 ## Limits

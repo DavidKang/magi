@@ -21,13 +21,20 @@ def looks_ready_but_blocked(pr):
     return review_state(pr)[0] == "approved" and (pr.ci == "failing" or pr.mergeable == "CONFLICTING")
 
 
+def verdicts(reviews):
+    """Each reviewer's latest approval or change request: a later comment does not undo it."""
+    return set({review["author"]["login"]: review["state"] for review in reviews if review["state"] in ("APPROVED", "CHANGES_REQUESTED")}.values())
+
+
 def review_state(pr):
+    """Approved once someone approves and nobody asks for changes, even while GitHub still requires more reviews."""
     if pr.is_draft:
         return "draft", "Draft"
-    if pr.review_decision == "APPROVED":
-        return "approved", "Approved"
-    if pr.review_decision == "CHANGES_REQUESTED":
+    given = verdicts(pr.reviews)
+    if pr.review_decision == "CHANGES_REQUESTED" or "CHANGES_REQUESTED" in given:
         return "changes", "Changes requested"
+    if pr.review_decision == "APPROVED" or "APPROVED" in given:
+        return "approved", "Approved"
     if pr.reviews:
         return "commented", "Commented"
     return "waiting", "Awaiting review"
