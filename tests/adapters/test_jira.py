@@ -70,6 +70,19 @@ def test_my_tickets_fetch():
     assert tickets[0] == Ticket(key="ACME-3", summary="Later", status="Backlog", detail=TICKET_DETAIL), "my tickets carry their detail"
 
 
+def test_fetch_ticket():
+    view = ticket_view("ACME-9")
+    view["fields"]["status"] = {"name": "En revisión"}
+    run_json = process.run_json
+    process.run_json = lambda cmd: view
+    try:
+        ticket, detail = jira.fetch_ticket("ACME-9"), jira.fetch_ticket_detail("ACME-9")
+    finally:
+        process.run_json = run_json
+    assert ticket == Ticket(key="ACME-9", summary="S", status="En revisión", detail=detail), \
+        "a ticket fetched on its own carries its summary, status and detail"
+
+
 def test_sparse_ticket_detail():
     view = {"key": "OPS-9", "fields": {
         "summary": "S", "issuetype": {"name": "Task"}, "priority": None, "labels": [], "creator": None,

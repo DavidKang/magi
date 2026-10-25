@@ -57,7 +57,19 @@ TICKET_FIELDS = "summary,status,description,creator,comment,parent,issuelinks,pr
 
 
 def fetch_ticket_detail(key):
-    fields = process.run_json(["acli", "jira", "workitem", "view", key, "--fields", TICKET_FIELDS, "--json"])["fields"]
+    return detail_from(view(key))
+
+
+def fetch_ticket(key):
+    fields = view(key)
+    return Ticket(key=key, summary=fields["summary"], status=fields["status"]["name"], detail=detail_from(fields))
+
+
+def view(key):
+    return process.run_json(["acli", "jira", "workitem", "view", key, "--fields", TICKET_FIELDS, "--json"])["fields"]
+
+
+def detail_from(fields):
     parent = fields.get("parent")
     return TicketDetail(
         type=fields["issuetype"]["name"], priority=(fields.get("priority") or {}).get("name"), labels=fields["labels"],

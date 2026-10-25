@@ -121,6 +121,13 @@ def test_lcars_pills_fit_their_text():
         assert label in row(), f"LCARS pads {label} inside its pill and gives the cell room for all of it"
 
 
+def test_pr_ticket_keys():
+    titled = make_pr(title="[ACME-99] Fix it", head_ref_name="ACME-100-fix")
+    assert rows.pr_row(titled, {}, STATED)["keys"] == ["ACME-99", "ACME-100"], "a pr's ticket is the one its title names, before its branch's"
+    branched = make_pr(title="Fix it", head_ref_name="ACME-100-and-ACME-99")
+    assert rows.pr_row(branched, {}, STATED)["keys"] == ["ACME-99", "ACME-100"], "ticket keys sort by number, not as text"
+
+
 @pytest.mark.usefixtures("default_theme")
 @pytest.mark.parametrize("name", ["default", "okuda", "nerv"])
 def test_longest_turn_label_fits(name):

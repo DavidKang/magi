@@ -136,8 +136,9 @@ def test_collect():
         asked.append(items)
         current = {n["number"]: n for kind in lights.values() for n in kind}
         return [replace(details[number], updated_at=current[number]["updatedAt"]) for _, number in items]
-    asked_jira = []
+    asked_jira, viewed = [], []
     tickets = types.SimpleNamespace(
+        fetch_ticket=lambda key: viewed.append(key) or Ticket(key=key, summary="Ticket seven", status="En proceso"),
         fetch_my_tickets=lambda details: [Ticket(key="ACME-9", summary="Ticket nine", status="En proceso", detail=details(["ACME-9"])["ACME-9"])],
         fetch_ticket_detail=lambda key: replace(TICKET_DETAIL, description=f"{key} detail", links=[{"key": "ACME-50"}]),
         fetch_updated=lambda key: f"{key} updated",
@@ -162,8 +163,11 @@ def test_collect():
         "active tickets take their update time from the update cache"
     assert found["my_tickets"][0].detail.description == "ACME-9 detail", "my tickets take their details from their own cache"
     assert list(store.read("my_tickets")["found"]) == ["ACME-9"], "my tickets take their details from their own cache"
+    refresh.ticket("ACME-7")
     asked.clear()
     again = refresh.collect(STATED)
+    refresh.ticket("ACME-7")
+    assert viewed == ["ACME-7", "ACME-7"], "a refresh forgets the tickets v fetched, so the next v shows Jira as it is now"
     assert sorted(asked_jira) == sorted([(sorted(t.key for t in active), []), (["ACME-9"], ["ACME-9"])]), \
         "the next refresh asks jira what changed, and about the tickets linked to mine"
     assert isinstance(again["my_tickets"][0].detail, TicketDetail), "my ticket details read back from the cache are entities"
@@ -176,3 +180,22 @@ def test_collect():
     found = refresh.collect(STATED)
     assert asked == [[("acme/app", 1)]], "only the pr updated since the last refresh is fetched again"
     assert {pr.number: pr.ci for pr in found["prs"]} == {1: "passing", 2: "failing"}, "ci comes from the search even when the detail is reused"
+
+
+def test_ticket():
+    asked = []
+
+    def fetch_ticket(key):
+        asked.append(key)
+        if len(asked) == 1:
+            raise RuntimeError("acli timed out")
+        return Ticket(key=key, summary="Ticket one", status="En proceso")
+
+    refresh, _, _ = refresh_with(types.SimpleNamespace(fetch_ticket=fetch_ticket))
+    try:
+        refresh.ticket("ACME-1")
+    except RuntimeError:
+        pass
+    first, again = refresh.ticket("ACME-1"), refresh.ticket("ACME-1")
+    assert first == again == Ticket(key="ACME-1", summary="Ticket one", status="En proceso"), "a ticket comes from the tickets port"
+    assert asked == ["ACME-1", "ACME-1"], "a failed fetch is not kept, and a fetched ticket is asked of Jira once until the next refresh"

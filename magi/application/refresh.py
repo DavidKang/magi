@@ -19,6 +19,13 @@ class Refresh:
 
     def __init__(self, tickets, pull_requests, store, clock, parallel):
         self.tickets, self.pull_requests, self.store, self.clock, self.parallel = tickets, pull_requests, store, clock, parallel
+        self.seen_tickets = {}
+
+    def ticket(self, key):
+        """One ticket with its detail, asked of Jira once until the next refresh."""
+        if key not in self.seen_tickets:
+            self.seen_tickets[key] = self.tickets.fetch_ticket(key)
+        return self.seen_tickets[key]
 
     def save_state(self, snapshot, changes):
         self.store.write("state", {"snapshot": snapshot, "changes": changes})
@@ -54,6 +61,7 @@ class Refresh:
     def collect(self, settings):
         tickets, pull_requests, parallel = self.tickets, self.pull_requests, self.parallel
         started = self.clock.time()
+        self.seen_tickets = {}
         pool = ThreadPoolExecutor(max_workers=8)
         org = f"org:{settings.github_org}"
         people = list(dict.fromkeys([*settings.team, settings.github_user]))

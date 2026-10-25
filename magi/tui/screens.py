@@ -137,6 +137,41 @@ class ReviewScreen(ModalScreen):
         self.dismiss()
 
 
+class TicketScreen(ModalScreen):
+    BINDINGS = [Binding("c", "comments", "comments"), Binding("enter", "open", "open"), Binding("y", "copy", "copy key"),
+                Binding("escape", "close", "close"), Binding("q", "close", show=False), Binding("v", "close", show=False)]
+
+    def __init__(self, entry):
+        super().__init__()
+        self.entry = entry
+
+    def compose(self) -> ComposeResult:
+        with VerticalScroll(id="ticket"):
+            yield Static(self.entry.detail, id="ticket-detail")
+        yield Footer()
+
+    def on_mount(self):
+        box = self.query_one("#ticket")
+        box.border_title = escape(self.entry.popup[0])
+        box.focus()
+
+    def action_comments(self):
+        heading, items = self.entry.popup
+        if items:
+            self.app.push_screen(ReviewScreen(heading, items, 0))
+        else:
+            self.notify("no comments", timeout=2)
+
+    def action_open(self):
+        self.app.opener(self.entry.url)
+
+    def action_copy(self):
+        self.app.action_copy_text(self.entry.copy)
+
+    def action_close(self):
+        self.dismiss()
+
+
 CONFIG_FIELDS = {"team": ("GitHub users of your team", "alice, bob, carol"),
                  "jira_project": ("Jira project", "ACME"),
                  "github_user": ("Your GitHub user", "your-github-user"),

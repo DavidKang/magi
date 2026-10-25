@@ -20,8 +20,8 @@ from ..application.refresh import saved_board
 from ..domain import changes
 from ..domain.review import CONDITIONS, condition
 from . import screens, theme
-from .entries import cell_row, entries, escape
-from .screens import LOGO_BLACK, LOGO_WHITE, ConfigScreen, ReviewScreen, ThemeScreen, logo
+from .entries import cell_row, entries, escape, ticket_entry
+from .screens import LOGO_BLACK, LOGO_WHITE, ConfigScreen, ReviewScreen, ThemeScreen, TicketScreen, logo
 from .system import leave, open_in_browser, pbcopy
 from .theme import COLORS, use_theme
 
@@ -158,7 +158,7 @@ class Board(OptionList):
     def on_resize(self):
         self.app.redraw(self.section)
 
-BOARD_ACTIONS = {"focus_tab", "focus_box", "focus_filter", "clear_filter", "copy_current", "refresh", "open_review", "pick_theme"}
+BOARD_ACTIONS = {"focus_tab", "focus_box", "focus_filter", "clear_filter", "copy_current", "refresh", "open_review", "view_ticket", "pick_theme"}
 
 
 class MagiApp(App):
@@ -170,16 +170,18 @@ class MagiApp(App):
                 Binding("slash", "focus_filter", "filter", key_display="/"),
                 Binding("escape", "clear_filter", "clear", show=False),
                 Binding("c", "open_review", "comments"),
+                Binding("v", "view_ticket", "ticket"),
                 Binding("y", "copy_current", "copy"),
                 Binding("r", "refresh", "refresh"),
                 Binding("t", "pick_theme", "theme"),
                 Binding("q", "quit", "quit")]
 
-    def __init__(self, collect=None, load=None, opener=open_in_browser, copier=pbcopy, clock=time.time, cache=CACHE,
+    def __init__(self, collect=None, load=None, fetch_ticket=None, opener=open_in_browser, copier=pbcopy, clock=time.time, cache=CACHE,
                  config_path=config.PATH, edit_config=False):
         super().__init__()
         self.config_path, self.edit_config = config_path, edit_config
         self.load = load or (lambda: collect(self.settings))
+        self.fetch_ticket, self.loading_ticket = fetch_ticket, None
         self.opener, self.copier, self.clock, self.cache = opener, copier, clock, cache
         self.stamp = cache.with_name("last-refresh")
         self.seen_path = cache.with_name("seen.json")
@@ -243,7 +245,7 @@ class MagiApp(App):
             yield Footer()
 
     def check_action(self, action, parameters):
-        return not isinstance(self.screen, (ConfigScreen, ReviewScreen, ThemeScreen)) or action not in BOARD_ACTIONS
+        return not isinstance(self.screen, (ConfigScreen, ReviewScreen, ThemeScreen, TicketScreen)) or action not in BOARD_ACTIONS
 
     def on_mount(self):
         self.set_class(not screens.GRAPHICS, "no-graphics")
@@ -325,8 +327,7 @@ class MagiApp(App):
         self.refreshing = False
         self.refresh_failed = True
         self.query_one("#status", Static).update(f"[{COLORS['bad']}]refresh failed[/]")
-        message = error.stderr.strip() if isinstance(error, subprocess.CalledProcessError) and error.stderr else str(error)
-        self.notify(message, title="Refresh failed", severity="error", timeout=10, markup=False)
+        self.notify(error_message(error), title="Refresh failed", severity="error", timeout=10, markup=False)
 
     def show_board(self, board, at):
         self.refreshing = False
@@ -559,6 +560,38 @@ class MagiApp(App):
             return
         self.push_screen(ReviewScreen(heading, items, index))
 
+    def action_view_ticket(self):
+        entry = self.current()
+        key = entry and entry.ticket
+        if not key:
+            self.notify("no ticket", timeout=2)
+        elif key != self.loading_ticket:
+            self.loading_ticket = key
+            self.notify(f"loading {key}…", timeout=2)
+            # A daemon thread, as for the refresh: quitting must not wait for acli.
+            threading.Thread(target=self.load_ticket, args=(key,), daemon=True).start()
+
+    def load_ticket(self, key):
+        try:
+            ticket = self.fetch_ticket(key)
+            show = lambda: self.show_ticket(ticket)
+        except Exception as error:
+            message = error_message(error)
+            show = lambda: self.notify(message, title=f"{key} failed", severity="error", timeout=10, markup=False)
+        try:
+            self.call_from_thread(self.ticket_loaded, show)
+        except RuntimeError:  # the app quit and closed its loop while acli ran
+            pass
+
+    def ticket_loaded(self, show):
+        self.loading_ticket = None
+        show()
+
+    def show_ticket(self, ticket):
+        # A popup opened while Jira answered keeps its place; the next v opens the ticket at once.
+        if len(self.screen_stack) == 1:
+            self.push_screen(TicketScreen(ticket_entry(ticket, self.board["prs"], self.settings)))
+
     def action_open_link(self, url):
         self.opener(url)
 
@@ -572,7 +605,11 @@ class MagiApp(App):
         self.notify(f"copied {text}", timeout=2)
 
 
-def main(collect, edit_config=False):
-    app = MagiApp(collect, edit_config=edit_config)
+def error_message(error):
+    return error.stderr.strip() if isinstance(error, subprocess.CalledProcessError) and error.stderr else str(error)
+
+
+def main(collect, fetch_ticket, edit_config=False):
+    app = MagiApp(collect, fetch_ticket=fetch_ticket, edit_config=edit_config)
     app.run()
     leave(app)

@@ -29,13 +29,19 @@ def local_time(iso):
     return local(iso).strftime("%b %d %H:%M")
 
 
+def key_rank(pr, key):
+    """The keys a PR's title names come first, then by number: ACME-99 before ACME-100."""
+    return not re.search(rf"\b{key}\b", pr.title, re.I), int(key.rsplit("-", 1)[1])
+
+
 def pr_row(pr, by_key, settings):
     code = re.search(r"\[[A-Z][A-Z0-9]+-\d+\]", pr.title)
+    keys = sorted(ticket_keys_in(pr, settings.jira_project), key=lambda key: key_rank(pr, key))
     return {"ref": f"{tui_repo(pr)}#{pr.number}", "repo": pr.repo, "number": pr.number, "url": pr.url, "title": pr.title,
             "code": code.group() if code else "", "author": pr.author["login"], "review": review_state(pr), "turn": turn(pr), "ci": pr.ci,
-            "conflict": pr.mergeable == "CONFLICTING", "review_requested": bool(pr.review_requests), "age": days_since(pr.created_at),
+            "conflict": pr.mergeable == "CONFLICTING", "review_requested": bool(pr.review_requests), "age": days_since(pr.created_at), "keys": keys,
             "tickets": [{"key": t.key, "url": settings.jira_browse + t.key, "status": t.status, "summary": t.summary}
-                        for t in (by_key[k] for k in sorted(ticket_keys_in(pr, settings.jira_project)) if k in by_key)],
+                        for t in (by_key[k] for k in keys if k in by_key)],
             "events": [{"at": c["committedDate"], "state": None, "author": None} for c in pr.commits]
             + [{"at": r["submittedAt"], "state": r["state"], "author": r["author"]["login"]} for r in pr.reviews]}
 

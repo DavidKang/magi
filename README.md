@@ -143,6 +143,7 @@ Epics are not configured: the board shows every epic of the project in Developin
 | `j` / `k` | Move down / up |
 | `enter` | Open the selected item in the browser |
 | `c` | Open the selected PR's comments, reviews and code threads with their diff, or the selected ticket's description and comments (`j`/`k` move, `enter` opens it in the browser, `esc` closes) |
+| `v` | Open the Jira ticket of the selected PR in a popup, fetched from Jira the first time after each refresh (`c` opens its description and comments, `enter` opens it in the browser, `esc` closes) |
 | `/` | Filter the current box (`escape` clears it) |
 | `y` | Copy the selected link (the key, for an epic) |
 | `r` | Refresh (once every 30 seconds at most; it also refreshes every 5 minutes) |

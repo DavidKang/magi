@@ -40,6 +40,9 @@ ThemeScreen { align: center middle; background: $tk-veil; }
 #theme-list > .option-list--option-highlighted { background: $tk-pick-focus; text-style: none; }
 .framed #themes { border: panel $tk-accent; border-title-color: $tk-title; }
 ReviewScreen { align: center middle; background: $tk-veil; }
+TicketScreen { align: center middle; background: $tk-veil; }
+#ticket { width: 80%; height: 80%; border: round $tk-accent; border-title-color: $tk-accent; border-title-style: bold;
+          background: $tk-bg; padding: 1 2; }
 #review { width: 94%; height: 90%; border: round $tk-accent; border-title-color: $tk-accent; border-title-style: bold;
           background: $tk-bg; padding: 0 1; }
 #review-list { width: 34; height: 1fr; border: none; border-right: vkey $tk-line; padding: 0; background: $tk-bg;
@@ -53,7 +56,7 @@ ReviewScreen { align: center middle; background: $tk-veil; }
 .framed .panel { border: none; padding: 0; margin-bottom: 1; }
 .framed #panes .panel:last-child { margin-bottom: 0; }
 .framed .panel .filter, .framed Board, .framed #panel-details .pbody { padding: 0 1; }
-.framed #review { border: panel $tk-accent; border-title-color: $tk-title; }
+.framed #review, .framed #ticket { border: panel $tk-accent; border-title-color: $tk-title; }
 #header, #header-main { height: auto; }
 #elbow, #bar, #sidebar, #condition, #pills, .ptitle { display: none; }
 .lcars #elbow { display: block; width: 13; height: 5; margin-bottom: 1; background: $tk-bg; }
@@ -107,7 +110,7 @@ ReviewScreen { align: center middle; background: $tk-veil; }
 .nerv .panel:focus-within .ptitle .fill, .nerv .panel:focus-within .edge { color: $tk-focus; }
 .nerv .tab-pill .seg { background: $tk-bg; color: $tk-dim; }
 .nerv .tab-pill.-on .seg { background: $tk-bg; color: $tk-accent; }
-.nerv #review, .nerv #themes { border: heavy $tk-accent; border-title-color: $tk-accent; }
+.nerv #review, .nerv #ticket, .nerv #themes { border: heavy $tk-accent; border-title-color: $tk-accent; }
 .nerv #review-diff-box { border: heavy $tk-line; }
 .nerv #top #nerv-logo { display: block; }
 .nerv #top .brand { display: none; }

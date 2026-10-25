@@ -32,4 +32,5 @@ def main():
         sys.exit("\n".join(missing))
     from .tui.app import main as run
 
-    run(refresh().collect, edit_config=args == ["config"])
+    wired = refresh()
+    run(wired.collect, wired.ticket, edit_config=args == ["config"])

@@ -30,6 +30,7 @@ class Entry:
     search: str
     popup: tuple = None
     group: str = None
+    ticket: str = None
 
 
 ZERO_WIDTH_SPACE = "\u200b"
@@ -85,7 +86,7 @@ def pr_entry(pr, by_key, settings, asked=False):
     lines += ["", separator("activity"), *activity(row["events"])]
     return Entry(cells, "\n".join(lines), pr.url, pr.url,
                  f'{pr.repo} {rows.tui_repo(pr)} {pr.number} {pr.title} {row["author"]}',
-                 (f'{row["ref"]} · {pr.title}', items))
+                 (f'{row["ref"]} · {pr.title}', items), ticket=next(iter(row["keys"]), None))
 
 
 def activity(events):
