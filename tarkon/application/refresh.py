@@ -56,7 +56,8 @@ class Refresh:
         started = self.clock.time()
         pool = ThreadPoolExecutor(max_workers=8)
         org = f"org:{settings.github_org}"
-        authors = [settings.team[start:start + 6] for start in range(0, len(settings.team), 6)]
+        people = list(dict.fromkeys([*settings.team, settings.github_user]))
+        authors = [people[start:start + 6] for start in range(0, len(people), 6)]
         team_prs = pool.submit(parallel, pull_requests.search_prs,
                                [f"{OPEN_PRS} {org} " + " ".join(f"author:{a}" for a in chunk) for chunk in authors])
         review_requested = pool.submit(pull_requests.search_prs, f"{OPEN_PRS} {org} user-review-requested:@me")
@@ -79,7 +80,7 @@ class Refresh:
                             [f"{OPEN_PRS} {org} {' '.join(terms)}" for terms in pull_requests.search_terms(search_keys)])
         candidates = {pr.url: pr for found in open_prs + team_prs.result() for pr in found}
         shown = [pr for pr in candidates.values()
-                 if any(k in by_key for k in ticket_keys_in(pr, settings.jira_project)) or pr.author["login"] in settings.team]
+                 if any(k in by_key for k in ticket_keys_in(pr, settings.jira_project)) or pr.author["login"] in people]
         requested = review_requested.result()
         detailed = self.pr_details(list({pr.url: pr for pr in shown + requested}.values()))
         prs = [detailed[pr.url] for pr in shown]

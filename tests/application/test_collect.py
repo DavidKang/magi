@@ -3,7 +3,7 @@ import json
 import types
 from dataclasses import replace
 
-from builders import EPIC, PR_ONE, PR_THREE, PR_TWO, STATED, TICKETS, TICKET_DETAIL, board, light_node
+from builders import EPIC, PR_ONE, PR_THREE, PR_TWO, STATED, TICKETS, TICKET_DETAIL, board, light_node, make_settings
 from tarkon.adapters import github, paths, storage
 from tarkon.application.refresh import Refresh, saved_board
 from tarkon.domain import attention
@@ -99,8 +99,29 @@ def test_refetch_changed_links():
     assert asked == ["A-1"], "a ticket is fetched again when a ticket it links to changed"
 
 
+def test_collect_shows_my_prs_outside_the_team():
+    mine = replace(PR_TWO, title="Bump a gem", head_ref_name="bump-gem", author={"login": "carol"})
+    queries = []
+
+    def search(query):
+        queries.append(query)
+        return [github.light_pr(light_node(mine))] if "author:carol" in query else []
+    tickets = types.SimpleNamespace(
+        fetch_my_tickets=lambda details: [], fetch_updated=lambda key: key,
+        changed_since=lambda keys, minutes, linked_to=(): set(),
+        fetch_epics=lambda settings: [EPIC], fetch_children=lambda key: [replace(t, prs=[]) for t in TICKETS])
+    pull_requests = types.SimpleNamespace(search_prs=search, fetch_prs=lambda items: [mine for _ in items],
+                                          fetch_pr_states=lambda urls: {}, search_terms=github.search_terms)
+    refresh, _, _ = refresh_with(tickets, pull_requests)
+    found = refresh.collect(make_settings(github_user="carol"))
+    assert "is:pr is:open archived:false org:acme author:alice author:bob author:carol" in queries, \
+        "my own prs are searched with the team's, though i am not in the team"
+    assert [pr.number for pr in found["prs"]] == [2], "my prs show among the team's even without a tracked ticket"
+    assert [pr.number for pr in found["my_prs"]] == [2], "my prs show in mine even without a tracked ticket"
+
+
 def test_collect():
-    three = replace(PR_THREE, url="https://github.com/acme/renamed/pull/3")
+    three =replace(PR_THREE, url="https://github.com/acme/renamed/pull/3")
     lights = {"team": [light_node(PR_TWO)], "review": [light_node(three), light_node(PR_ONE)], "open": [light_node(PR_ONE)]}
     details = {1: PR_ONE, 2: PR_TWO, 3: three}
     queries, asked = [], []

@@ -114,7 +114,7 @@ The first run, or `tarkon config` at any time, opens the settings panel. Every f
 
 | Field | Example | Used for |
 |-------|---------|----------|
-| GitHub users of your team | `alice, bob, carol` | Whose open PRs make up the team's board (commas or spaces) |
+| GitHub users of your team | `alice, bob, carol` | Whose open PRs make up the team's board, besides your own (commas or spaces) |
 | Jira project | `ACME` | Which project's epics are shown |
 | Your GitHub user | `alice` | Which PRs are yours |
 | GitHub organization | `acme` | Limits every PR search to `org:<organization>` |
