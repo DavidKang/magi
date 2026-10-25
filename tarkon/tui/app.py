@@ -396,6 +396,8 @@ class TarkonApp(App):
         self.set_class(theme.lcars(), "lcars")
         self.set_class(theme.frame() == "nerv", "nerv")
         self.set_class(theme.current == "eva01", "eva01")
+        # A PR row's pills need more room than half the screen: the new mark, the cells and their gaps, the box's border and padding.
+        self.query_one("#panes").styles.min_width = 2 + sum(LCARS_PR_WIDTHS) + len(LCARS_PR_WIDTHS) + 4 if theme.frame() else None
         self.refresh_css()
         self.paint_frame()
         self.title_panels()

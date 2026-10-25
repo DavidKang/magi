@@ -8,7 +8,7 @@ from textual.widgets._footer import FooterKey
 
 import datetime as dt
 
-from builders import PR_ONE, SETTINGS, TICKETS, board, failing_load, make_epic, make_pr, settings_file
+from builders import PR_ONE, PR_TWO, SETTINGS, TICKETS, board, failing_load, make_epic, make_pr, settings_file
 from tarkon import rows
 from tarkon.tui import theme
 from tarkon.tui.app import TarkonApp
@@ -319,3 +319,19 @@ def test_no_logo_without_graphics(cache, monkeypatch, default_theme, name):
             assert app.query_one("#top .brand").display, "a terminal without Sixel or Kitty graphics shows the name instead"
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("name", ["okuda", "nerv"])
+def test_framed_pr_rows_fit(cache, default_theme, name):
+    async def run():
+        app = TarkonApp(load=lambda: board([PR_ONE, PR_TWO]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
+                        config_path=settings_file(cache, {**SETTINGS, "theme": name}))
+        async with app.run_test(size=(180, 50)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            listing = app.query_one("#list-prs", OptionList)
+            room = listing.scrollable_content_region.width
+            return room, [listing.get_option_at_index(i).prompt.cell_len for i in range(listing.option_count)]
+
+    room, rows = asyncio.run(run())
+    assert rows and all(width <= room for width in rows), f"a PR row fits its box in a 180-column terminal: {rows} in {room}"
