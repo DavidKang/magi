@@ -58,16 +58,25 @@ def test_stardate():
         "the LCARS masthead reads the year and month, the day, then the time of the last refresh"
 
 
+def opened(days):
+    return f"{dt.date.today() - dt.timedelta(days=days)}T10:00:00Z"
+
+
 @pytest.mark.usefixtures("default_theme")
-def test_lcars_groups_team_prs_by_repo():
-    prs = [replace(PR_ONE, repo="web", url="u1", created_at="2026-10-21T10:00:00Z"), replace(PR_TWO, repo="api", url="u2", created_at="2026-10-21T09:00:00Z"),
-           replace(PR_ONE, repo="web", url="u3", created_at="2026-10-20T10:00:00Z")]
+def test_lcars_puts_old_team_prs_first():
+    prs = [replace(PR_ONE, repo="web", url="u1", created_at=opened(1)), replace(PR_TWO, repo="api", url="u2", created_at=opened(4)),
+           replace(PR_ONE, repo="web", url="u3", created_at=opened(5)), replace(PR_TWO, repo="app", url="u4", created_at=opened(3))]
     found = {"prs": prs, "by_key": {}, "attention": [], "changes": [], "epics": [], "my_prs": [], "my_tickets": []}
-    assert [(e.url, e.group) for e in entries.entries(found, STATED)["prs"]] == [("u3", None), ("u2", None), ("u1", None)], \
-        "the default theme lists team PRs by age"
+    listed = entries.entries(found, STATED)["prs"]
+    assert [(e.url, e.group, e.cells[-1][1]) for e in listed] == [("u3", None, "dim-right"), ("u2", None, "dim-right"),
+                                                                 ("u4", None, "dim-right"), ("u1", None, "dim-right")], \
+        "the default theme lists team PRs by age, days dimmed"
     theme.use_theme("okuda")
-    assert [(e.url, e.group) for e in entries.entries(found, STATED)["prs"]] == [("u2", "SECTOR 1 · API"), ("u3", "SECTOR 2 · WEB"), ("u1", "SECTOR 2 · WEB")], \
-        "LCARS groups team PRs into one SECTOR per repo, oldest first within each"
+    listed = entries.entries(found, STATED)["prs"]
+    assert [(e.url, e.group) for e in listed] == [("u3", "PRIORITY ONE"), ("u2", "PRIORITY ONE"), ("u4", "ROUTINE"), ("u1", "ROUTINE")], \
+        "LCARS lists team PRs open more than three days as PRIORITY ONE, then the ROUTINE ones, oldest first in each"
+    assert [e.cells[-1] for e in listed] == [("5d", "bad-pill"), ("4d", "bad-pill"), ("3d", "dim-right"), ("1d", "dim-right")], \
+        "LCARS shows the days of a PRIORITY ONE PR in a red pill"
 
 
 @pytest.mark.usefixtures("default_theme")
@@ -80,3 +89,14 @@ def test_lcars_segments_epic_bars():
     two_of_three = [TICKETS[1], TICKETS[1], TICKETS[0]]
     assert entries.epic_entry(EPIC, two_of_three, STATED).cells[1][0].plain.count("█") == 10, "LCARS splits epic progress into ten segments"
     assert entries.epic_entry(EPIC, two_of_three, STATED).cells[1][0].spans[0].end == 14, "LCARS rounds done segments to the nearest tenth"
+
+
+@pytest.mark.usefixtures("default_theme")
+def test_lcars_pills_fit_their_text():
+    pr = replace(PR_ONE, created_at=opened(123), review_decision="CHANGES_REQUESTED")
+    found = {"prs": [pr], "by_key": {}, "attention": [], "changes": [], "epics": [], "my_prs": [], "my_tickets": []}
+    row = lambda: entries.cell_row(entries.entries(found, STATED)["prs"][0], app_module.widths("prs")).plain
+    assert row().endswith("✗ ci ⚠ conflict 123d "), "the default theme keeps its plain cells"
+    theme.use_theme("okuda")
+    for label in ("◖ CHANGES REQUESTED ◗", "◖ CI ◗", "◖ CONFLICT ◗", "◖ 123D ◗"):
+        assert label in row(), f"LCARS pads {label} inside its pill and gives the cell room for all of it"

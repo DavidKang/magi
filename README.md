@@ -56,7 +56,7 @@ In the TUI, a change you have not seen yet puts a `●` on its rows in every box
 | `/` | Filter the current box (`escape` clears it) |
 | `y` | Copy the selected link (the key, for an epic) |
 | `r` | Refresh (once every 30 seconds at most; it also refreshes every 5 minutes) |
-| `t` | Pick a theme in a popup: the default one or an LCARS one (Star Trek's computer screens) in the Okuda (TNG and DS9), Picard or Voyager colours. LCARS shows a stardate for the last refresh, the board's alert level (CONDITION GREEN, YELLOW ALERT while a PR waits on CI or review or someone else's fails CI or conflicts, RED ALERT when one of yours does), the changes as the Captain's Log and team PRs in one SECTOR per repo; the choice is saved in your settings |
+| `t` | Pick a theme in a popup: the default one or an LCARS one (Star Trek's computer screens) in the Okuda (TNG and DS9) or Picard colours. LCARS shows a stardate for the last refresh, the board's alert level (CONDITION GREEN, YELLOW ALERT while a PR waits on CI or review or someone else's fails CI or conflicts, RED ALERT when one of yours does), the changes as the Captain's Log, team PRs as Crew Reports with the ones open more than three days first, as PRIORITY ONE with their days in red, then the ROUTINE ones; the choice is saved in your settings |
 | `q` | Quit |
 
 ## Where it keeps its files

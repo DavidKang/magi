@@ -30,6 +30,8 @@ REFRESH_SECONDS = 5 * 60
 REFRESH_COOLDOWN = 30
 CACHE = paths.CACHE_DIR / "cache.json"
 PR_WIDTHS = [15, 9, 10, 17, 4, 10, 4]
+# LCARS draws review, CI, conflict and days as padded pills, which need more room than their plain text.
+LCARS_PR_WIDTHS = [15, 9, 10, 21, 6, 12, 8]
 CHANGE_WIDTHS = [12, 18, None]
 NO_CHANGES = f"no changes in the last {changes.CHANGES_HOURS} h"
 SECTIONS = {"attention": ("attention", "nothing to flag", [2, None]),
@@ -38,7 +40,7 @@ SECTIONS = {"attention": ("attention", "nothing to flag", [2, None]),
             "epics": ("epics", "no epics", [9, 20, 6, None]),
             "mine_prs": ("my prs", "no open prs", PR_WIDTHS),
             "mine_tickets": ("my tickets", "no open tickets", [10, None])}
-LCARS_NAMES = {"changes": "captain's log"}
+LCARS_NAMES = {"prs": "crew reports", "changes": "captain's log"}
 CONDITION_TONES = {"green": "ok", "yellow": "warn", "red": "bad"}
 TABS = {"overview": ["attention", "prs", "changes", "epics"], "mine": ["mine_prs", "mine_tickets"]}
 NUMBERS = {key: n for n, key in enumerate(SECTIONS, len(TABS) + 1)}
@@ -46,6 +48,11 @@ TAB_OF = {key: tab for tab, keys in TABS.items() for key in keys}
 LEFT_CAP, RIGHT_CAP = "\ue0b6", "\ue0b4"
 # Star Trek's running in-joke number, drawn in blocks: a terminal cell cannot grow its font.
 FORTY_SEVEN = "█ █ ███\n█ █   █\n███   █\n  █   █\n  █   █"
+
+
+def widths(key):
+    found = SECTIONS[key][2]
+    return LCARS_PR_WIDTHS if found is PR_WIDTHS and theme.lcars() else found
 
 
 def seen_mark(change):
@@ -343,7 +350,7 @@ class TarkonApp(App):
         self.title_panels()
 
     def row(self, key, entry):
-        return Text.assemble(("● ", COLORS["accent"]) if entry.url in self.news else "  ", cell_row(entry, SECTIONS[key][2]))
+        return Text.assemble(("● ", COLORS["accent"]) if entry.url in self.news else "  ", cell_row(entry, widths(key)))
 
     def apply_theme(self, name):
         use_theme(name)
@@ -389,7 +396,7 @@ class TarkonApp(App):
     def fill(self, key):
         board = self.query_one(f"#list-{key}", Board)
         query = self.query_one(f"#filter-{key}", Input).value.lower()
-        _, empty, widths = SECTIONS[key]
+        empty = SECTIONS[key][1]
         board.clear_options()
         shown = [(i, entry) for i, entry in enumerate(self.sections[key]) if query in entry.search.lower()]
         group = None

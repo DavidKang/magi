@@ -7,6 +7,7 @@ from rich.text import Text
 
 from .. import rows
 from ..domain import changes
+from ..domain.attention import STALE_PR_DAYS
 from ..domain.ages import days_since
 from ..domain.status import COLUMNS, status_label, ticket_order
 from . import theme
@@ -263,8 +264,13 @@ def team_pr_entries(prs, by_key, settings):
     by_age = sorted(prs, key=lambda p: p.created_at)
     if not theme.lcars():
         return [pr_entry(pr, by_key, settings) for pr in by_age]
-    sectors = {repo: n for n, repo in enumerate(sorted({pr.repo for pr in prs}), 1)}
-    return [replace(pr_entry(pr, by_key, settings), group=f"SECTOR {sectors[pr.repo]} · {pr.repo.upper()}") for pr in sorted(by_age, key=lambda p: sectors[p.repo])]
+    return [priority_entry(pr_entry(pr, by_key, settings)) if days_since(pr.created_at) > STALE_PR_DAYS
+            else replace(pr_entry(pr, by_key, settings), group="ROUTINE") for pr in by_age]
+
+
+def priority_entry(entry):
+    days, _ = entry.cells[-1]
+    return replace(entry, cells=[*entry.cells[:-1], (days, "bad-pill")], group="PRIORITY ONE")
 
 
 def entries(board, settings):
@@ -280,9 +286,9 @@ def entries(board, settings):
 def pill(value, width, tone):
     if not value:
         return Text(" " * width)
-    body, label = width - 2, value.upper().lstrip("✓✗…–⚠ ")
+    body, label = width - 4, value.upper().lstrip("✓✗…–⚠ ")
     label = label if len(label) <= body else label[:body - 1] + "…"
-    return Text.assemble(("◖", COLORS[tone]), (label.ljust(body), f"{COLORS['bg']} on {COLORS[tone]}"), ("◗", COLORS[tone]))
+    return Text.assemble(("◖", COLORS[tone]), (f" {label.ljust(body)} ", f"{COLORS['bg']} on {COLORS[tone]}"), ("◗", COLORS[tone]))
 
 
 def cell_row(entry, widths):

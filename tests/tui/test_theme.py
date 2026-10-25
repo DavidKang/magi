@@ -61,7 +61,7 @@ async def lcars_theme(cache):
         assert [pill.has_class("-on") for pill in pills] == [True, False], "the pill of the shown tab is lit"
         title = app.query_one("#panel-prs .ptitle")
         assert title.display, "LCARS titles panels with a pill"
-        assert [str(s.render()) for s in title.query(Static)] == ["╭─", "\ue0b6", "04", "TEAM PRS", "", "1", "\ue0b4", "─╮"], \
+        assert [str(s.render()) for s in title.query(Static)] == ["╭─", "\ue0b6", "04", "CREW REPORTS", "", "1", "\ue0b4", "─╮"], \
             "LCARS titles panels with a pill set into the box's top line: code, name, filler and count"
         assert [str(s.render()) for s in app.query_one("#panel-details").query(".ptitle Static")][3] == "DETAILS", "the details panel has a pill title too"
         assert app.query_one("#top").region.y == app.query_one("#bar").region.y + 2, "the LCARS masthead leaves a row under the bar"
@@ -82,14 +82,15 @@ async def lcars_theme(cache):
         assert str(app.query_one("#condition").render()) == "\ue0b6 RED ALERT \ue0b4", "LCARS shows the board's alert level as a pill"
         assert str(app.query_one("#panel-changes").border_title) == "05-CAPTAIN'S LOG 1", "LCARS calls the changes the Captain's Log"
         assert "CAPTAIN'S" in str(app.query_one("#side-changes").render()), "LCARS calls the changes the Captain's Log"
-        assert app.query_one("#list-prs").get_option_at_index(0).prompt.plain == "── SECTOR 1 · APP (1) ──", "LCARS groups team PRs by repo"
-        assert str(app.query_one("#panel-prs").border_title) == "04-TEAM PRS 1", "LCARS titles panels with a two-digit code in capitals"
+        assert app.query_one("#list-prs").get_option_at_index(0).prompt.plain == "── PRIORITY ONE (1) ──", "LCARS puts old team PRs first"
+        assert str(app.query_one("#panel-prs").border_title) == "04-CREW REPORTS 1", "LCARS calls the team PRs crew reports"
+        assert "REPORTS" in str(app.query_one("#side-prs").render()), "LCARS calls the team PRs crew reports"
         assert str(app.query_one("#panel-details").border_title) == "DETAILS", "LCARS titles panels with a two-digit code in capitals"
         key = app.query(FooterKey).first()
         assert (app.query_one(Footer).styles.background, key.styles.background) == (Color.parse(lcars["bg"]), Color.parse(lcars["line"])), \
             "LCARS turns the footer into a row of buttons"
         assert key.get_component_rich_style("footer-key--key").bgcolor.triplet.hex == lcars["accent"], "LCARS turns the footer into a row of buttons"
-        assert "◖AWAITING REVIEW" in app.query_one("#list-prs").get_option_at_index(1).prompt.plain, "LCARS shows review and CI states as pills"
+        assert "◖ AWAITING REVIEW " in app.query_one("#list-prs").get_option_at_index(1).prompt.plain, "LCARS shows review and CI states as pills"
         buttons = list(app.query(".side"))
         assert app.query_one("#sidebar").display, "LCARS adds a sidebar button per box, lit for the focused one"
         assert [str(b.render()).split() [0] for b in buttons] == ["03", "04", "05", "06", "07", "08"], \
@@ -132,7 +133,7 @@ async def lcars_theme(cache):
         await app.workers.wait_for_complete()
         await pilot.pause()
         assert app.screen.styles.background == Color.parse(lcars["bg"]), "the saved theme applies on start"
-        for name in ("picard", "voyager"):
+        for name in ("picard",):
             await pick_theme(pilot, name)
             assert app.query_one("#panel-prs .fill").styles.background == Color.parse(theme.THEMES[name]["line"]), f"the {name} LCARS has its own colours"
             assert app.query_one("#sidebar").display, f"the {name} LCARS keeps the LCARS frame"
@@ -241,8 +242,8 @@ def test_lcars_frame_follows_the_alert(cache):
 
 
 def test_lcars_palettes():
-    assert {name: theme.THEMES[name]["accent"] for name in theme.LCARS} == {"okuda": "#eb943a", "picard": "#37a6d1", "voyager": "#fb9004"}, \
-        "LCARS comes in Okuda's classic, Picard and Voyager colours"
+    assert {name: theme.THEMES[name]["accent"] for name in theme.LCARS} == {"okuda": "#eb943a", "picard": "#37a6d1"}, \
+        "LCARS comes in Okuda's classic and Picard colours"
     assert all(theme.THEMES[name].keys() == theme.THEMES["default"].keys() for name in theme.LCARS), "every LCARS palette names every colour"
 
 
@@ -255,8 +256,8 @@ async def theme_picker(cache):
         await pilot.pause()
         choices = app.screen.query_one("#theme-list", OptionList)
         assert isinstance(app.screen, ThemeScreen), "t opens the theme picker"
-        assert [choices.get_option_at_index(i).id for i in range(choices.option_count)] == ["default", "okuda", "picard", "voyager"], \
-            "the theme picker offers the default theme and the three LCARS ones"
+        assert [choices.get_option_at_index(i).id for i in range(choices.option_count)] == ["default", "okuda", "picard"], \
+            "the theme picker offers the default theme and the two LCARS ones"
         assert choices.highlighted == 0, "the theme picker starts on the current theme"
         await pilot.press("down", "escape")
         await pilot.pause()

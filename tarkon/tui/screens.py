@@ -38,7 +38,7 @@ class ThreadList(OptionList):
                 Binding("enter", "screen.open", "open")]
 
 
-THEME_LABELS = {"default": "Default", "okuda": "LCARS Okuda · TNG and DS9", "picard": "LCARS Picard", "voyager": "LCARS Voyager"}
+THEME_LABELS = {"default": "Default", "okuda": "LCARS Okuda · TNG and DS9", "picard": "LCARS Picard"}
 
 
 class ThemeScreen(ModalScreen):
