@@ -239,6 +239,8 @@ The LCARS, NERV and Cyberpunk themes show how the board is doing in the header:
 
 ### Cyberpunk
 
+![Cyberpunk · Night City](assets/screenshots/cyberpunk.png)
+
 - Colours picked by eye from Cyberpunk 2077's HUD, since the game has no published palette: off-red text, cyan lines, yellow focus.
 - A **hatched line** across the top turns red at five stars.
 - The header shows the **net uplink** time, and a refresh under way reads `JACKING IN…`.
