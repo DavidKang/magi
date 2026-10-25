@@ -1,5 +1,4 @@
 import datetime as dt
-import re
 from dataclasses import replace
 from pathlib import Path
 
@@ -15,7 +14,6 @@ from tarkon.tui import entries, theme
 
 def test_rows_view_model():
     from tarkon import rows
-    from tarkon.html import page
     from tarkon.tui import app as tui_app
     ticket = TICKETS[0]
     row = rows.pr_row(PR_ONE, {ticket.key: ticket}, STATED)
@@ -36,12 +34,10 @@ def test_rows_view_model():
     assert [pr["ref"] for pr in linked["prs"]] == ["app#1"], "a ticket row is plain data with its linked prs"
     assert linked["prs"][0]["review"] == "Awaiting review", "a ticket row is plain data with its linked prs"
     tui = Content.from_markup(entries.ticket_entry(ticket, [PR_ONE], STATED).detail).plain
-    html = re.sub(r"<[^>]+>", "", page.tui_ticket(ticket, [PR_ONE], STATED)["detail"])
-    assert all("app#1 Awaiting review" in text for text in (tui, html)), "the TUI and the html TUI design show the same row data"
+    assert "app#1 Awaiting review" in tui, "the TUI shows the row data"
     assert Path(tui_app.__file__).with_name("app.tcss").exists(), "the TUI styles live in a tcss file the app loads"
     assert tui_app.TarkonApp.CSS_PATH == "app.tcss", "the TUI styles live in a tcss file the app loads"
     assert not tui_app.TarkonApp.CSS, "the TUI styles live in a tcss file the app loads"
-    assert Path(page.__file__).with_name("template.html").exists(), "the html template is read from its package"
 
 
 def test_pr_rows():

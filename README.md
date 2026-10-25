@@ -2,7 +2,7 @@
 
 # Tarkon
 
-Tarkon shows your team's board on one screen: the PRs that need you, the team's open PRs, what changed in the last 24 hours, the progress of every Jira epic in Developing or Rollout, and your own open PRs and Jira tickets. It reads GitHub through the `gh` CLI and Jira through the Atlassian `acli` CLI, and runs as a terminal app (built with [Textual](https://textual.textualize.io)) or writes a static HTML page for the browser.
+Tarkon shows your team's board on one screen: the PRs that need you, the team's open PRs, what changed in the last 24 hours, the progress of every Jira epic in Developing or Rollout, and your own open PRs and Jira tickets. It reads GitHub through the `gh` CLI and Jira through the Atlassian `acli` CLI, and runs as a terminal app built with [Textual](https://textual.textualize.io).
 
 ## Quick start
 
@@ -119,9 +119,8 @@ Epics are not configured: the board shows every epic of the project in Developin
 |---------|--------------|
 | `tarkon` | Opens the board in the terminal |
 | `tarkon config` | Opens the settings panel |
-| `tarkon html` | Writes the browser page to `~/.local/state/tarkon/board.html` and prints its path |
 
-`python -m tarkon` works the same as `tarkon`. `tarkon html` needs saved settings, so run `tarkon config` first.
+`python -m tarkon` works the same as `tarkon`. `tarkon --help` prints the usage, and so does any other argument, which exits with code 2.
 
 ### Keys
 
@@ -142,10 +141,6 @@ Epics are not configured: the board shows every epic of the project in Developin
 ### What is new
 
 A change you have not seen yet puts a `●` on its rows in every box, a `N new` count in the box title and a `●` on its tab; the detail opens with the change and its time. Moving the cursor off the row marks it seen. The first start marks nothing.
-
-### Browser page
-
-`tarkon html` writes a single static page. It has three designs, picked from the switch in its header and remembered by the browser: `Console`, `Terminal` and `LCARS`.
 
 ## Themes
 
@@ -171,7 +166,6 @@ A change you have not seen yet puts a `●` on its rows in every box, a `N new` 
 |------|---------|
 | `~/.config/tarkon/config.json` | Your settings |
 | `~/.local/state/tarkon/state.json` | Last snapshot, used to detect changes |
-| `~/.local/state/tarkon/board.html` | The browser page |
 | `~/.cache/tarkon/cache.json` | Last board, shown while the next refresh runs; a cache from another version is dropped |
 | `~/.cache/tarkon/prs.json` | Comments, reviews and threads of the PRs on the board, reused until a PR changes |
 | `~/.cache/tarkon/updated.json` | When each in-progress ticket last changed, refetched only for tickets Jira reports as changed |
@@ -201,10 +195,9 @@ python3.12 -m venv .venv
 | `tarkon/domain/` | The board's rules: entities, status columns, review state, what needs attention, what changed |
 | `tarkon/application/` | One refresh: fetches through the interfaces in `ports.py` and builds the board as data |
 | `tarkon/adapters/` | Talks to the outside: `gh`, `acli`, JSON files, data paths, the clock |
-| `tarkon/cli.py` | Entry point: wires the adapters into the refresh and starts the app or the page |
+| `tarkon/cli.py` | Entry point: wires the adapters into the refresh and starts the app |
 | `tarkon/tui/` | The terminal app: rows and detail text (`entries.py`), popups and settings (`screens.py`), themes (`theme.py`) |
-| `tarkon/html/` | The browser page |
-| `tarkon/rows.py` | PR and ticket rows shared by the terminal app and the page |
+| `tarkon/rows.py` | PR and ticket rows as plain data, formatted by `tui/entries.py` |
 
 ## License
 

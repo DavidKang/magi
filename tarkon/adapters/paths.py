@@ -1,4 +1,4 @@
-"""Where Tarkon keeps its data: state next to the html page, caches in ~/.cache/tarkon."""
+"""Where Tarkon keeps its data: state in ~/.local/state/tarkon, caches in ~/.cache/tarkon."""
 
 from pathlib import Path
 

@@ -1,4 +1,4 @@
-"""The rows the TUI and the html TUI design show for a PR or a ticket, as plain data each view formats its own way."""
+"""The rows the TUI shows for a PR or a ticket, as plain data the entries format."""
 
 import datetime as dt
 import re
@@ -38,8 +38,6 @@ def pr_row(pr, by_key, settings):
 
 
 def ticket_row(ticket, prs, settings):
-    # The TUI links a PR whose title names the ticket in brackets; the html design only one naming a key of the project.
     return {"key": ticket.key, "url": settings.jira_browse + ticket.key, "summary": ticket.summary, "status": status_label(ticket.status),
-            "prs": [{"ref": f"{tui_repo(pr)}#{pr.number}", "url": pr.url, "review": review_state(pr)[1],
-                     "project_key": ticket.key in ticket_keys_in(pr, settings.jira_project)}
+            "prs": [{"ref": f"{tui_repo(pr)}#{pr.number}", "url": pr.url, "review": review_state(pr)[1]}
                     for pr in prs if ticket.key in title_keys_in(pr, settings.jira_project)]}

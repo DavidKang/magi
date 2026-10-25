@@ -13,7 +13,7 @@ def test_parallel_runs_one_wave():
 
 
 def test_missing_tools(tmp_path):
-    for args in ([], ["html"]):
+    for args in ([], ["config"]):
         try:
             result = subprocess.run([sys.executable, "-m", "tarkon", *args], capture_output=True, text=True,
                                     cwd=ROOT, env={**os.environ, "HOME": str(tmp_path), "PATH": "/usr/bin:/bin"},

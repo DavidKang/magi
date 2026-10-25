@@ -1,7 +1,7 @@
 [project]
 name = "tarkon"
 version = "0.1.0"
-description = "Team board of Jira epics and GitHub PRs, in the terminal or the browser."
+description = "Team board of Jira epics and GitHub PRs, in the terminal."
 requires-python = ">=3.12"
 dependencies = ["textual>=8.2", "textual-image>=0.14", "pillow>=10"]
 
@@ -16,12 +16,11 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["tarkon", "tarkon.adapters", "tarkon.application", "tarkon.domain", "tarkon.tui", "tarkon.html"]
+packages = ["tarkon", "tarkon.adapters", "tarkon.application", "tarkon.domain", "tarkon.tui"]
 
 [tool.setuptools.package-data]
 tarkon = ["logo.png", "logo-black.png", "logo-white.png"]
 "tarkon.tui" = ["app.tcss"]
-"tarkon.html" = ["template.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

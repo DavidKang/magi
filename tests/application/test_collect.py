@@ -46,7 +46,7 @@ def refresh_with(tickets=None, pull_requests=None, at=1600.0):
 
 
 def test_cached_board_reads_back(tmp_path):
-    found = {key: value for key, value in board([PR_ONE, PR_TWO]).items() if key != "out"}
+    found = board([PR_ONE, PR_TWO])
     storage.write(tmp_path / "cache.json", {"board": found})
     again = saved_board(storage.read(tmp_path / "cache.json")["board"])
     assert again == found, "a cached board reads back as the same board"

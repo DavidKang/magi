@@ -182,7 +182,7 @@ class TarkonApp(App):
         self.level = None
 
     def get_css_variables(self):
-        return {**super().get_css_variables(), **{f"mc-{name}": value for name, value in COLORS.items()}}
+        return {**super().get_css_variables(), **{f"tk-{name}": value for name, value in COLORS.items()}}
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="header"):

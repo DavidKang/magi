@@ -84,8 +84,7 @@ def board(prs):
                                              Ticket(key="ACME-1", summary="Ticket one", status="En proceso", detail=TICKET_DETAIL)],
             "attention": [{"subject": SUBJECT, "reason": "Open for review, but the ticket is still In progress. Move it to In review?"}],
             "changes": [{"at": "2026-10-24T02:04", "tone": "commented", "label": "New PR", "subject": SUBJECT, "note": None, "aside": None,
-                         "item": PR_ONE.url}],
-            "out": Path("board.html")}
+                         "item": PR_ONE.url}]}
 
 
 def settings_file(cache, settings=SETTINGS):

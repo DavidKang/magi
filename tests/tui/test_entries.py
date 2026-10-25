@@ -3,10 +3,8 @@ from dataclasses import replace
 
 from textual.content import Content
 
-from builders import CHANGES, EPIC, NOTE, PR_ONE, PR_TWO, REPLY, STATED, THREAD, TICKETS, TICKET_DETAIL, board
-from tarkon import config
+from builders import CHANGES, NOTE, PR_ONE, PR_TWO, REPLY, STATED, THREAD, TICKET_DETAIL, board
 from tarkon.domain.entities import Ticket
-from tarkon.html import page as web
 from tarkon.tui import entries
 
 
@@ -41,12 +39,6 @@ def test_ticket_links():
 def test_escaping():
     assert (Content.from_markup(entries.link("https://github.com/acme/app/pull/1", "Fix path\\")).plain.rstrip(entries.ZERO_WIDTH_SPACE)
             == "Fix path\\"), "tui links keep a title ending in a backslash"
-    site = config.Settings(team=["alice"], jira_project="ACME", github_user="me", github_org="acme",
-                           jira_url='https://acme.atlassian.net/"><b>site</b>')
-    rendered = (web.jira_link("ACME-9<i>", site) + web.tui_epic(EPIC, TICKETS, site)["detail"]
-                + web.tui_ticket(TICKETS[0], [], site)["detail"])
-    assert "<b>" not in rendered, "jira links escape the site and the key"
-    assert "<i>" not in rendered, "jira links escape the site and the key"
 
 
 def test_pr_comments():

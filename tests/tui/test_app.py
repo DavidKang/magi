@@ -433,8 +433,8 @@ def test_tui_loads_the_board():
     asked = []
     app = TarkonApp(collect=lambda settings: asked.append(settings) or "board")
     app.settings = STATED
-    assert app.load() == "board", "the TUI refresh collects the board with the app's settings, without writing the html page"
-    assert asked == [STATED], "the TUI refresh collects the board with the app's settings, without writing the html page"
+    assert app.load() == "board", "the TUI refresh collects the board with the app's settings"
+    assert asked == [STATED], "the TUI refresh collects the board with the app's settings"
 
 
 def test_refresh_policy():
