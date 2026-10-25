@@ -1,5 +1,6 @@
 import asyncio
 import json
+import threading
 
 import pytest
 from textual.color import Color
@@ -185,6 +186,29 @@ async def lcars_edit(cache):
 @pytest.mark.usefixtures("default_theme")
 def test_lcars_edit(cache):
     asyncio.run(lcars_edit(cache))
+
+
+async def refreshing_status(cache, name):
+    release = threading.Event()
+    def slow_load():
+        release.wait(5)
+        return board([PR_ONE])
+    app = MagiApp(load=slow_load, opener=print, copier=print, cache=cache, config_path=settings_file(cache, {**SETTINGS, "theme": name}))
+    async with app.run_test(size=(160, 40)) as pilot:
+        try:
+            await pilot.pause()
+            status = str(app.query_one("#status").render())
+        finally:
+            release.set()
+        await app.workers.wait_for_complete()
+    return status
+
+
+@pytest.mark.usefixtures("default_theme")
+@pytest.mark.parametrize("name, expected", [("okuda", "ENGAGING WARP DRIVE…"), ("picard", "ENGAGING WARP DRIVE…"),
+                                            ("default", "refreshing…")])
+def test_refreshing_status(cache, name, expected):
+    assert asyncio.run(refreshing_status(cache, name)) == expected, "LCARS refreshes by engaging warp drive, the default theme says refreshing"
 
 
 async def lcars_condition(cache, prs):

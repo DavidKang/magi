@@ -210,7 +210,7 @@ The LCARS and NERV themes show how the board is doing in the header:
 |---|---|
 | ![LCARS Okuda](assets/screenshots/okuda.png) | ![LCARS Picard](assets/screenshots/picard.png) |
 
-- A **stardate** marks the last refresh.
+- A **stardate** marks the last refresh, and a refresh under way reads `ENGAGING WARP DRIVE…`.
 - What a PR is missing and its age are drawn as **rounded pills**.
 - Team PR groups are written in capitals, and a PR open more than three days shows its age in red.
 

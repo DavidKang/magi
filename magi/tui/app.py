@@ -54,6 +54,7 @@ NERV_CONDITIONS = {"green": "NORMAL", "yellow": "PATTERN ORANGE", "red": "PATTER
 # EVA 01 reads the level as Unit-01's sync with its pilot, and berserk when it breaks.
 EVA_CONDITIONS = {"green": "SYNC STABLE", "yellow": "SYNC UNSTABLE", "red": "BERSERK"}
 THEME_CONDITIONS = {"nerv": NERV_CONDITIONS, "eva01": EVA_CONDITIONS}
+REFRESHING = {"lcars": "ENGAGING WARP DRIVE…"}
 CONDITION_TONES = {"green": "ok", "yellow": "warn", "red": "bad"}
 TABS = {"overview": ["attention", "prs", "changes", "epics"], "mine": ["mine_prs", "mine_tickets"]}
 NUMBERS = {key: n for n, key in enumerate(SECTIONS, len(TABS) + 1)}
@@ -296,7 +297,7 @@ class MagiApp(App):
         self.last_refresh = self.clock()
         self.stamp.parent.mkdir(parents=True, exist_ok=True)
         self.stamp.write_text(str(self.last_refresh))
-        self.query_one("#status", Static).update("refreshing…")
+        self.query_one("#status", Static).update(REFRESHING.get(theme.frame(), "refreshing…"))
         self.fetch(self.last_refresh)
 
     @work(exclusive=True, exit_on_error=False)
