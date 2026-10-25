@@ -1,7 +1,7 @@
 from PIL import Image as PILImage
 from textual_image._geometry import CellSize
 
-from tarkon.tui import screens
+from magi.tui import screens
 
 
 def test_logo_fit():

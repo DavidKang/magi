@@ -147,8 +147,8 @@ class Board(OptionList):
 BOARD_ACTIONS = {"focus_tab", "focus_box", "focus_filter", "clear_filter", "copy_current", "refresh", "open_review", "pick_theme"}
 
 
-class TarkonApp(App):
-    TITLE = "TARKON"
+class MagiApp(App):
+    TITLE = "MAGI"
     AUTO_FOCUS = "Board"
     CSS_PATH = "app.tcss"
     BINDINGS = [*(Binding(str(n), f"focus_tab({n})", "tabs", key_display="1-2", show=n == 1) for n in range(1, len(TABS) + 1)),
@@ -196,7 +196,7 @@ class TarkonApp(App):
                 with Horizontal(id="top", classes="masthead"):
                     yield logo()
                     yield logo(LOGO_WHITE, id="nerv-logo")
-                    yield Static("TARKON", classes="brand")
+                    yield Static("MAGI", classes="brand")
                     yield Static(id="condition")
                     yield Static("loading…", id="status")
                 with Horizontal(id="pills"):
@@ -548,6 +548,6 @@ class TarkonApp(App):
 
 
 def main(collect, edit_config=False):
-    app = TarkonApp(collect, edit_config=edit_config)
+    app = MagiApp(collect, edit_config=edit_config)
     app.run()
     leave(app)

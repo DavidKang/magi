@@ -4,7 +4,7 @@ from dataclasses import replace
 import pytest
 
 from builders import PR_ONE, STATED, SUBJECT, TICKETS, make_pr, make_ticket
-from tarkon.domain import ages, attention
+from magi.domain import ages, attention
 
 QUIET_PR = make_pr(ci="passing", mergeable="MERGEABLE", review_decision="APPROVED")
 

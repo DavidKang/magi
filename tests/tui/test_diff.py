@@ -4,7 +4,7 @@ import pytest
 from rich.cells import cell_len
 
 from builders import HUNK
-from tarkon.tui import entries, theme
+from magi.tui import entries, theme
 
 
 def test_diff_rendering():

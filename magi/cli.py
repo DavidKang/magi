@@ -1,4 +1,4 @@
-"""Entry point: tarkon opens the TUI, `config` its settings panel."""
+"""Entry point: magi opens the TUI, `config` its settings panel."""
 
 import sys
 
@@ -7,10 +7,10 @@ from .adapters.clock import SystemClock
 from .adapters.storage import JsonFiles
 from .application.refresh import Refresh
 
-USAGE = """usage: tarkon [config]
+USAGE = """usage: magi [config]
 
-  tarkon         open the board
-  tarkon config  open the settings panel"""
+  magi         open the board
+  magi config  open the settings panel"""
 
 
 def refresh():
@@ -26,6 +26,7 @@ def main():
     if args not in ([], ["config"]):
         print(USAGE, file=sys.stderr)
         sys.exit(2)
+    paths.move_old_dirs()
     missing = process.missing_tools()
     if missing:
         sys.exit("\n".join(missing))

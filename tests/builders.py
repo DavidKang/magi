@@ -3,8 +3,8 @@ import json
 import subprocess
 from pathlib import Path
 
-from tarkon import config
-from tarkon.domain.entities import Epic, PullRequest, Ticket, TicketDetail
+from magi import config
+from magi.domain.entities import Epic, PullRequest, Ticket, TicketDetail
 
 ROOT = Path(__file__).resolve().parents[1]
 

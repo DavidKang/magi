@@ -1,6 +1,6 @@
 from builders import PR_TWO, STATED, light_node, pr_node, ticket_view
-from tarkon.adapters import github, jira, process, storage
-from tarkon.domain.entities import Epic, FoundPr, PullRequest, Ticket, TicketDetail
+from magi.adapters import github, jira, process, storage
+from magi.domain.entities import Epic, FoundPr, PullRequest, Ticket, TicketDetail
 
 
 def test_entities(tmp_path, monkeypatch):

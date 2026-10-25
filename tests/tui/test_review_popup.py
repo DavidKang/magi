@@ -5,14 +5,14 @@ import pytest
 from textual.widgets import OptionList, Static
 
 from builders import CHANGES, HUNK, OUTDATED, PR_ONE, PR_TWO, THREAD, board, settings_file
-from tarkon.tui import app as app_module
-from tarkon.tui.app import TarkonApp
+from magi.tui import app as app_module
+from magi.tui.app import MagiApp
 
 
 async def review_popup(cache):
     pr_two = replace(PR_TWO, reviews=[*PR_TWO.reviews, CHANGES], threads=[THREAD, OUTDATED])
     opened, copied = [], []
-    app = TarkonApp(load=lambda: board([PR_ONE, pr_two]), opener=opened.append, copier=copied.append, clock=lambda: 1000.0,
+    app = MagiApp(load=lambda: board([PR_ONE, pr_two]), opener=opened.append, copier=copied.append, clock=lambda: 1000.0,
                          cache=cache, config_path=settings_file(cache))
     async with app.run_test(size=(160, 40)) as pilot:
         await app.workers.wait_for_complete()
@@ -71,7 +71,7 @@ async def long_diff(cache):
     hunk = HUNK.replace("item.price * item.qty", " + ".join(f"item.price_{n} * item.qty_{n}" for n in range(12)))
     thread = {**THREAD, "comments": [{**comment, "diffHunk": hunk} for comment in THREAD["comments"]]}
     pr_two = replace(PR_TWO, threads=[thread])
-    app = TarkonApp(load=lambda: board([PR_ONE, pr_two]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
+    app = MagiApp(load=lambda: board([PR_ONE, pr_two]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
                    config_path=settings_file(cache))
     async with app.run_test(size=(100, 30)) as pilot:
         await app.workers.wait_for_complete()

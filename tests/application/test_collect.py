@@ -4,10 +4,10 @@ import types
 from dataclasses import replace
 
 from builders import EPIC, PR_ONE, PR_THREE, PR_TWO, STATED, TICKETS, TICKET_DETAIL, board, light_node, make_settings
-from tarkon.adapters import github, paths, storage
-from tarkon.application.refresh import Refresh, saved_board
-from tarkon.domain import attention
-from tarkon.domain.entities import Ticket, TicketDetail
+from magi.adapters import github, paths, storage
+from magi.application.refresh import Refresh, saved_board
+from magi.domain import attention
+from magi.domain.entities import Ticket, TicketDetail
 
 
 class FakeStore:

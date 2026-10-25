@@ -1,7 +1,7 @@
 import pytest
 
 from builders import make_pr
-from tarkon.domain.review import CONDITIONS, condition, looks_ready_but_blocked, review_state
+from magi.domain.review import CONDITIONS, condition, looks_ready_but_blocked, review_state
 
 
 def test_review_state_reads_the_pr():

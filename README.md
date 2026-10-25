@@ -1,19 +1,19 @@
-<p align="center"><img src="assets/logo.png" alt="Tarkon logo" width="160"></p>
+<p align="center"><img src="assets/logo.png" alt="Magi logo" width="160"></p>
 
-# Tarkon
+# Magi
 
-Tarkon shows your team's board on one screen: the PRs that need you, the team's open PRs, what changed in the last 24 hours, the progress of every Jira epic in Developing or Rollout, and your own open PRs and Jira tickets. It reads GitHub through the `gh` CLI and Jira through the Atlassian `acli` CLI, and runs as a terminal app built with [Textual](https://textual.textualize.io).
+Magi shows your team's board on one screen: the PRs that need you, the team's open PRs, what changed in the last 24 hours, the progress of every Jira epic in Developing or Rollout, and your own open PRs and Jira tickets. It reads GitHub through the `gh` CLI and Jira through the Atlassian `acli` CLI, and runs as a terminal app built with [Textual](https://textual.textualize.io).
 
-![Tarkon's board in the default theme, on made-up data](assets/screenshots/default.png)
+![Magi's board in the default theme, on made-up data](assets/screenshots/default.png)
 
 ## Quick start
 
 ```bash
-brew install davidkang/tarkon/tarkon
+brew install davidkang/magi/magi
 brew tap atlassian/homebrew-acli && brew install acli
 gh auth login
 acli jira auth login --web
-tarkon
+magi
 ```
 
 The formula brings in `gh` and Python; `acli` comes from Atlassian's own tap.
@@ -28,9 +28,9 @@ The first run opens the settings panel. Fill in every field and save with `ctrl+
 | Python 3.12 or newer | `requires-python = ">=3.12"` |
 | [`gh`](https://cli.github.com), logged in | Every GitHub call is `gh api graphql` |
 | [`acli`](https://developer.atlassian.com/cloud/acli/), logged in to Jira | Every Jira call is `acli jira workitem search` or `view` |
-| [Homebrew](https://brew.sh) or [pipx](https://pipx.pypa.io) | Installs `tarkon` in its own environment |
+| [Homebrew](https://brew.sh) or [pipx](https://pipx.pypa.io) | Installs `magi` in its own environment |
 
-Tarkon checks for `gh` and `acli` on every start and exits with the install command for any that is missing.
+Magi checks for `gh` and `acli` on every start and exits with the install command for any that is missing.
 
 Python packages, installed automatically:
 
@@ -43,7 +43,7 @@ Python packages, installed automatically:
 
 ## Credentials
 
-Tarkon stores no tokens and reads none from the environment. It runs `gh` and `acli`, so it sees exactly what those two CLIs are logged in as. Check them with `gh auth status` and `acli jira auth status`.
+Magi stores no tokens and reads none from the environment. It runs `gh` and `acli`, so it sees exactly what those two CLIs are logged in as. Check them with `gh auth status` and `acli jira auth status`.
 
 ### GitHub
 
@@ -55,7 +55,7 @@ gh auth login
 
 To use a personal access token instead:
 
-1. Create a classic token at [github.com/settings/tokens](https://github.com/settings/tokens) with the scopes `repo`, `read:org` and `gist`. These are the minimum scopes `gh auth login --with-token` accepts; `repo` is what lets Tarkon search PRs and read their reviews, comments, review threads and CI status in private repositories.
+1. Create a classic token at [github.com/settings/tokens](https://github.com/settings/tokens) with the scopes `repo`, `read:org` and `gist`. These are the minimum scopes `gh auth login --with-token` accepts; `repo` is what lets Magi search PRs and read their reviews, comments, review threads and CI status in private repositories.
 2. If your organization uses SAML single sign-on, authorize the token for it from the same page (**Configure SSO**).
 3. Pass it to `gh` on standard input:
    ```bash
@@ -87,7 +87,7 @@ or with an API token:
 With Homebrew, which also installs `gh`:
 
 ```bash
-brew install davidkang/tarkon/tarkon
+brew install davidkang/magi/magi
 ```
 
 New releases arrive with `brew upgrade`, like any other formula.
@@ -95,14 +95,14 @@ New releases arrive with `brew upgrade`, like any other formula.
 Or with pipx, from GitHub:
 
 ```bash
-pipx install --python python3.12 git+https://github.com/DavidKang/tarkon.git
+pipx install --python python3.12 git+https://github.com/DavidKang/magi.git
 ```
 
 Or from a clone:
 
 ```bash
-git clone https://github.com/DavidKang/tarkon.git
-cd tarkon
+git clone https://github.com/DavidKang/magi.git
+cd magi
 pipx install --python python3.12 .
 ```
 
@@ -110,7 +110,7 @@ For a development setup, see [Development](#development).
 
 ## Configuration
 
-The first run, or `tarkon config` at any time, opens the settings panel. Every field is required; `ctrl+s` saves and `escape` cancels.
+The first run, or `magi config` at any time, opens the settings panel. Every field is required; `ctrl+s` saves and `escape` cancels.
 
 | Field | Example | Used for |
 |-------|---------|----------|
@@ -120,7 +120,7 @@ The first run, or `tarkon config` at any time, opens the settings panel. Every f
 | GitHub organization | `acme` | Limits every PR search to `org:<organization>` |
 | Jira site | `https://acme.atlassian.net` | Ticket and epic links |
 
-Settings are saved to `~/.config/tarkon/config.json`, together with the theme picked with `t`.
+Settings are saved to `~/.config/magi/config.json`, together with the theme picked with `t`.
 
 Epics are not configured: the board shows every epic of the project in Developing or Rollout, newest first.
 
@@ -128,10 +128,10 @@ Epics are not configured: the board shows every epic of the project in Developin
 
 | Command | What it does |
 |---------|--------------|
-| `tarkon` | Opens the board in the terminal |
-| `tarkon config` | Opens the settings panel |
+| `magi` | Opens the board in the terminal |
+| `magi config` | Opens the settings panel |
 
-`python -m tarkon` works the same as `tarkon`. `tarkon --help` prints the usage, and so does any other argument, which exits with code 2.
+`python -m magi` works the same as `magi`. `magi --help` prints the usage, and so does any other argument, which exits with code 2.
 
 ### Keys
 
@@ -155,7 +155,7 @@ A change you have not seen yet puts a `●` on its rows in every box, a `N new` 
 
 ## Themes
 
-Press `t` to pick a theme. Tarkon remembers your choice in its settings.
+Press `t` to pick a theme. Magi remembers your choice in its settings.
 
 | Theme | Inspired by |
 |-------|-------------|
@@ -224,14 +224,16 @@ The LCARS and NERV themes show how the board is doing in the header:
 
 | Path | Content |
 |------|---------|
-| `~/.config/tarkon/config.json` | Your settings |
-| `~/.local/state/tarkon/state.json` | Last snapshot, used to detect changes |
-| `~/.cache/tarkon/cache.json` | Last board, shown while the next refresh runs; a cache from another version is dropped |
-| `~/.cache/tarkon/prs.json` | Comments, reviews and threads of the PRs on the board, reused until a PR changes |
-| `~/.cache/tarkon/updated.json` | When each in-progress ticket last changed, refetched only for tickets Jira reports as changed |
-| `~/.cache/tarkon/my-tickets.json` | Details of your own tickets, refetched only for tickets Jira reports as changed |
-| `~/.cache/tarkon/seen.json` | The last change you saw on each PR or ticket, so new ones stay marked until you pass them |
-| `~/.cache/tarkon/last-refresh` | When the last refresh started, so reopening the app or pressing `r` waits 30 seconds |
+| `~/.config/magi/config.json` | Your settings |
+| `~/.local/state/magi/state.json` | Last snapshot, used to detect changes |
+| `~/.cache/magi/cache.json` | Last board, shown while the next refresh runs; a cache from another version is dropped |
+| `~/.cache/magi/prs.json` | Comments, reviews and threads of the PRs on the board, reused until a PR changes |
+| `~/.cache/magi/updated.json` | When each in-progress ticket last changed, refetched only for tickets Jira reports as changed |
+| `~/.cache/magi/my-tickets.json` | Details of your own tickets, refetched only for tickets Jira reports as changed |
+| `~/.cache/magi/seen.json` | The last change you saw on each PR or ticket, so new ones stay marked until you pass them |
+| `~/.cache/magi/last-refresh` | When the last refresh started, so reopening the app or pressing `r` waits 30 seconds |
+
+Magi used to be called Tarkon. On start, it moves any `tarkon` folder in those three places to `magi`, unless a `magi` folder is already there.
 
 ## Limits
 
@@ -253,12 +255,12 @@ python3.12 -m venv .venv
 
 | Path | What it does |
 |------|--------------|
-| `tarkon/domain/` | The board's rules: entities, status columns, review state, what needs attention, what changed |
-| `tarkon/application/` | One refresh: fetches through the interfaces in `ports.py` and builds the board as data |
-| `tarkon/adapters/` | Talks to the outside: `gh`, `acli`, JSON files, data paths, the clock |
-| `tarkon/cli.py` | Entry point: wires the adapters into the refresh and starts the app |
-| `tarkon/tui/` | The terminal app: rows and detail text (`entries.py`), popups and settings (`screens.py`), themes (`theme.py`) |
-| `tarkon/rows.py` | PR and ticket rows as plain data, formatted by `tui/entries.py` |
+| `magi/domain/` | The board's rules: entities, status columns, review state, what needs attention, what changed |
+| `magi/application/` | One refresh: fetches through the interfaces in `ports.py` and builds the board as data |
+| `magi/adapters/` | Talks to the outside: `gh`, `acli`, JSON files, data paths, the clock |
+| `magi/cli.py` | Entry point: wires the adapters into the refresh and starts the app |
+| `magi/tui/` | The terminal app: rows and detail text (`entries.py`), popups and settings (`screens.py`), themes (`theme.py`) |
+| `magi/rows.py` | PR and ticket rows as plain data, formatted by `tui/entries.py` |
 
 ## License
 

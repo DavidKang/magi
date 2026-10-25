@@ -11,11 +11,11 @@ import threading
 import time
 from pathlib import Path
 
-from tarkon import config
-from tarkon.adapters import github, jira, paths, process
-from tarkon.adapters.clock import SystemClock
-from tarkon.adapters.storage import JsonFiles
-from tarkon.application.refresh import Refresh
+from magi import config
+from magi.adapters import github, jira, paths, process
+from magi.adapters.clock import SystemClock
+from magi.adapters.storage import JsonFiles
+from magi.application.refresh import Refresh
 
 calls = []
 lock = threading.Lock()

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from tarkon.adapters import storage
+from magi.adapters import storage
 
 
 def test_storage(tmp_path):

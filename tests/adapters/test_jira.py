@@ -1,7 +1,7 @@
 from builders import TICKET_DETAIL, ticket_view
-from tarkon import config
-from tarkon.adapters import jira, process
-from tarkon.domain.entities import Epic, Ticket, TicketDetail
+from magi import config
+from magi.adapters import jira, process
+from magi.domain.entities import Epic, Ticket, TicketDetail
 
 
 ADF = {"type": "doc", "content": [

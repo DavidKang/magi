@@ -1,10 +1,10 @@
 # AGENTS.md
 
-Tarkon is a terminal board of a team's Jira epics and GitHub PRs. The README covers usage, configuration, themes and data locations; this file covers what you need to change the code.
+Magi is a terminal board of a team's Jira epics and GitHub PRs. The README covers usage, configuration, themes and data locations; this file covers what you need to change the code.
 
 ## Stack
 
-- Python 3.12+, packaged with setuptools (`pyproject.toml`), entry point `tarkon = "tarkon.cli:main"`.
+- Python 3.12+, packaged with setuptools (`pyproject.toml`), entry point `magi = "magi.cli:main"`.
 - [Textual](https://textual.textualize.io) for the TUI, `textual-image` and Pillow for the logo. No other runtime dependencies.
 - GitHub through the `gh` CLI (`gh api graphql`), Jira through the Atlassian `acli` CLI. No HTTP clients, no tokens in the code.
 - macOS only: links open with `open`, copies go through `pbcopy`.
@@ -12,7 +12,7 @@ Tarkon is a terminal board of a team's Jira epics and GitHub PRs. The README cov
 
 ## Architecture
 
-Hexagonal, in four layers under `tarkon/`:
+Hexagonal, in four layers under `magi/`:
 
 | Layer | Path | Holds |
 |-------|------|-------|
@@ -49,7 +49,7 @@ Run pytest as `.venv/bin/python -m pytest`: the venv's `pytest` script may point
 
 ## Tests
 
-- `tests/` mirrors `tarkon/`: `domain/`, `application/`, `adapters/`, `tui/`.
+- `tests/` mirrors `magi/`: `domain/`, `application/`, `adapters/`, `tui/`.
 - `tests/builders.py` holds the fixtures (`board`, `make_pr`, `make_epic`, `settings_file`, ...) and the import helpers the layering tests use.
 - TUI tests drive the real app with Textual's `run_test` pilot and a fake `load`; they never call `gh` or `acli`.
 - The suite runs in `Europe/Madrid` (`tests/conftest.py`), and `tests/tui/conftest.py` pretends the terminal draws images.
@@ -65,4 +65,4 @@ Run pytest as `.venv/bin/python -m pytest`: the venv's `pytest` script may point
 
 ## Release
 
-Bump `version` in `pyproject.toml` and push a `v*` tag. `.github/workflows/homebrew.yml` then points the formula in `DavidKang/homebrew-tarkon` at the tag.
+Bump `version` in `pyproject.toml` and push a `v*` tag. `.github/workflows/homebrew.yml` then points the formula in `DavidKang/homebrew-magi` at the tag.

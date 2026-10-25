@@ -4,7 +4,7 @@ import sys
 import threading
 
 from builders import ROOT
-from tarkon.adapters import process
+from magi.adapters import process
 
 
 def test_parallel_runs_one_wave():
@@ -15,7 +15,7 @@ def test_parallel_runs_one_wave():
 def test_missing_tools(tmp_path):
     for args in ([], ["config"]):
         try:
-            result = subprocess.run([sys.executable, "-m", "tarkon", *args], capture_output=True, text=True,
+            result = subprocess.run([sys.executable, "-m", "magi", *args], capture_output=True, text=True,
                                     cwd=ROOT, env={**os.environ, "HOME": str(tmp_path), "PATH": "/usr/bin:/bin"},
                                     timeout=15)
         except subprocess.TimeoutExpired:

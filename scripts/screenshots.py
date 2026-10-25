@@ -19,9 +19,9 @@ REAL_ENV = dict(os.environ)
 HOME = Path(tempfile.mkdtemp())
 os.environ["HOME"] = str(HOME)
 
-from tarkon.domain.entities import Epic, PullRequest, Ticket  # noqa: E402
-from tarkon.tui import theme  # noqa: E402
-from tarkon.tui.app import TarkonApp  # noqa: E402
+from magi.domain.entities import Epic, PullRequest, Ticket  # noqa: E402
+from magi.tui import theme  # noqa: E402
+from magi.tui.app import MagiApp  # noqa: E402
 
 OUT = Path(__file__).resolve().parents[1] / "assets" / "screenshots"
 FONT = "FiraCode Nerd Font Mono"
@@ -121,7 +121,7 @@ def run(name):
         await asyncio.sleep(HOLD_SECONDS)
         pilot.app.exit()
 
-    TarkonApp(load=board, opener=print, copier=print, cache=cache, config_path=config).run(auto_pilot=hold)
+    MagiApp(load=board, opener=print, copier=print, cache=cache, config_path=config).run(auto_pilot=hold)
 
 
 def window(pid):
@@ -136,7 +136,7 @@ def window(pid):
 
 def shoot(name):
     command = f"{sys.executable} {Path(__file__).resolve()} --run {name}"
-    subprocess.run(["open", "-na", "Ghostty.app", "--args", "--title=Tarkon", f"--window-width={SIZE[0]}",
+    subprocess.run(["open", "-na", "Ghostty.app", "--args", "--title=Magi", f"--window-width={SIZE[0]}",
                     f"--window-height={SIZE[1]}", f"--font-family={FONT}", "--font-size=13", "--window-save-state=never",
                     "--confirm-close-surface=false", "--quit-after-last-window-closed=true",
                     f"--command={command}"], check=True)

@@ -156,7 +156,7 @@ class ConfigScreen(Screen):
         with Vertical(id="config"):
             with Horizontal(classes="masthead"):
                 yield logo()
-                yield Static("TARKON config", classes="brand")
+                yield Static("MAGI config", classes="brand")
             for name, (label, placeholder) in CONFIG_FIELDS.items():
                 yield Static(label, classes="label")
                 yield Input(value=self.shown(name), placeholder=placeholder, id=f"config-{name}")

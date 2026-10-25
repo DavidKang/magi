@@ -1,7 +1,7 @@
 import json
 
 from builders import SETTINGS
-from tarkon import config
+from magi import config
 
 
 def test_config_ignores_unknown_keys(tmp_path):

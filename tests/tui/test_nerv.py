@@ -8,9 +8,9 @@ from textual.color import Color
 from textual.widgets import Static, Tabs
 
 from builders import CHANGES, EPIC, PR_ONE, PR_TWO, SETTINGS, STATED, THREAD, TICKETS, board, make_pr, settings_file
-from tarkon.tui import app as app_module
-from tarkon.tui import entries, theme
-from tarkon.tui.app import TarkonApp
+from magi.tui import app as app_module
+from magi.tui import entries, theme
+from magi.tui.app import MagiApp
 from test_theme import pick_theme
 
 # nerv-ui's design tokens (github.com/mdrbx/nerv-ui): black, orange text and focus, green grid, red alert, amber warning, cyan data.
@@ -19,7 +19,7 @@ MAGI = {"bg": "#000000", "fg": "#ff9900", "accent": "#ff9900", "line": "#00ff00"
 
 
 def start(cache, name):
-    return TarkonApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
+    return MagiApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
                     config_path=settings_file(cache, {**SETTINGS, "theme": name}))
 
 
@@ -92,7 +92,7 @@ def test_nerv_segments_epic_bars():
 
 async def nerv_review(cache):
     pr_two = replace(PR_TWO, reviews=[*PR_TWO.reviews, CHANGES], threads=[THREAD])
-    app = TarkonApp(load=lambda: board([PR_ONE, pr_two]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
+    app = MagiApp(load=lambda: board([PR_ONE, pr_two]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
                    config_path=settings_file(cache, {**SETTINGS, "theme": "nerv"}))
     async with app.run_test(size=(160, 40)) as pilot:
         await app.workers.wait_for_complete()
@@ -110,7 +110,7 @@ def test_nerv_review_popup(cache):
 
 
 async def nerv_condition(cache, pr):
-    app = TarkonApp(load=lambda: board([pr]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
+    app = MagiApp(load=lambda: board([pr]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
                    config_path=settings_file(cache, {**SETTINGS, "theme": "nerv"}))
     async with app.run_test(size=(160, 40)) as pilot:
         await app.workers.wait_for_complete()
