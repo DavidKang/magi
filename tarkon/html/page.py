@@ -6,13 +6,14 @@ import html
 import sys
 from pathlib import Path
 
-from . import config
-from .board import (CHANGES_HOURS, CI_LABELS, STATE_DIR, TUI_CI, TUI_REVIEW, TUI_REVIEW_EVENTS, attention_items, change_text,
-                    collect, local_time, review_state, subject_text, title_parts, ticket_keys_in, title_keys_in, tui_repo)
-from .fetch import COLUMNS, UnmappedStatus, days_since, status_label
+from .. import config, rows
+from ..board import (CHANGES_HOURS, CI_LABELS, STATE_DIR, TUI_CI, TUI_REVIEW, TUI_REVIEW_EVENTS, attention_items, change_text,
+                     collect, local_time, review_state, subject_text, title_parts, title_keys_in)
+from ..fetch import days_since
+from ..jira import COLUMNS, UnmappedStatus, status_label
 
 URGENT_PR_DAYS = 3
-LOGO = "data:image/png;base64," + base64.b64encode(Path(__file__).with_name("logo.png").read_bytes()).decode()
+LOGO = "data:image/png;base64," + base64.b64encode((Path(__file__).parent.parent / "logo.png").read_bytes()).decode()
 
 
 def esc(text):
@@ -30,8 +31,8 @@ JIRA_ICON = ('<svg class="icon jira" viewBox="0 0 24 24" aria-hidden="true"><pat
              '12.483V1.005A1.001 1.001 0 0 0 23.013 0Z"/></svg>')
 
 
-def jira_link(key):
-    return f'<a class="key" href="{esc(config.settings.jira_browse + key)}">{JIRA_ICON}{esc(key)}</a>'
+def jira_link(key, settings):
+    return f'<a class="key" href="{esc(settings.jira_browse + key)}">{JIRA_ICON}{esc(key)}</a>'
 
 
 def github_link(url, text, tooltip=""):
@@ -41,54 +42,54 @@ def github_link(url, text, tooltip=""):
 
 
 def pr_titled(pr):
-    return github_link(pr["url"], pr["title"], f'{pr["repo"]}#{pr["number"]}')
+    return github_link(pr.url, pr.title, f'{pr.repo}#{pr.number}')
 
 
-def ticket_titled(ticket):
-    return f'{jira_link(ticket["key"])} {esc(ticket["summary"])}'
+def ticket_titled(ticket, settings):
+    return f'{jira_link(ticket.key, settings)} {esc(ticket.summary)}'
 
 
-def subject_html(subject):
+def subject_html(subject, settings):
     if subject["kind"] == "pr":
         return github_link(subject["url"], subject["title"], subject["ref"])
-    return jira_link(subject["ref"]) + (f' {esc(subject["title"])}' if subject["title"] else "")
+    return jira_link(subject["ref"], settings) + (f' {esc(subject["title"])}' if subject["title"] else "")
 
 
-def change_html(change):
-    return (subject_html(change["subject"]) + (f' {esc(change["note"])}' if change["note"] else "")
+def change_html(change, settings):
+    return (subject_html(change["subject"], settings) + (f' {esc(change["note"])}' if change["note"] else "")
             + (f' <span class="age">{esc(change["aside"])}</span>' if change["aside"] else ""))
 
 
 def ci_pills(pr):
-    tone, label = CI_LABELS[pr["ci"]]
-    conflict = ' <span class="pill changes">Conflicts</span>' if pr["mergeable"] == "CONFLICTING" else ""
+    tone, label = CI_LABELS[pr.ci]
+    conflict = ' <span class="pill changes">Conflicts</span>' if pr.mergeable == "CONFLICTING" else ""
     return f'<span class="pill {tone}">{label}</span>{conflict}'
 
 
 def pr_chip(pr):
     state, label = review_state(pr)
-    return (f'<a class="pr {state}" href="{esc(pr["url"])}" title="{esc(pr["title"])}">'
-            f'{esc(pr["repo"])}#{pr["number"]} · {label}</a>')
+    return (f'<a class="pr {state}" href="{esc(pr.url)}" title="{esc(pr.title)}">'
+            f'{esc(pr.repo)}#{pr.number} · {label}</a>')
 
 
-def card(ticket):
-    age = f'updated {days_since(ticket["updated"])} d ago' if ticket["updated"] else ""
-    prs = "".join(pr_chip(pr) for pr in ticket["prs"])
-    return (f'<li class="card"><div class="card-top">{jira_link(ticket["key"])}'
+def card(ticket, settings):
+    age = f'updated {days_since(ticket.updated)} d ago' if ticket.updated else ""
+    prs = "".join(pr_chip(pr) for pr in ticket.prs)
+    return (f'<li class="card"><div class="card-top">{jira_link(ticket.key, settings)}'
             f'<span class="age">{age}</span></div>'
-            f'<div class="card-title">{esc(ticket["summary"])}</div>'
-            f'<div class="card-who">{esc(ticket["assignee"])}</div>'
+            f'<div class="card-title">{esc(ticket.summary)}</div>'
+            f'<div class="card-who">{esc(ticket.assignee)}</div>'
             f'{f"<div class=prs>{prs}</div>" if prs else ""}</li>')
 
 
-def board(epic, tickets):
-    counts = {key: sum(1 for t in tickets if t["column"] == key) for key, _, _ in COLUMNS}
+def board(epic, tickets, settings):
+    counts = {key: sum(1 for t in tickets if t.column == key) for key, _, _ in COLUMNS}
     total = len(tickets)
     done_pct = round(100 * counts["done"] / total) if total else 0
     columns = []
     for key, label, _ in COLUMNS:
-        cards = [t for t in tickets if t["column"] == key]
-        body = "".join(card(t) for t in cards)
+        cards = [t for t in tickets if t.column == key]
+        body = "".join(card(t, settings) for t in cards)
         if key == "done" and cards:
             body = f'<details><summary>Show {len(cards)}</summary><ul class="cards">{body}</ul></details>'
         elif cards:
@@ -97,59 +98,59 @@ def board(epic, tickets):
             body = '<p class="empty">—</p>'
         columns.append(f'<div class="col col-{key}"><h4>{label} <span class="count">{counts[key]}</span></h4>{body}</div>')
     lanes = "".join(f'<span>{label} <span class="count">{counts[key]}</span></span>' for key, label, _ in COLUMNS)
-    return (f'<section class="epic" id="{epic["key"]}"><details class="epic-toggle"><summary class="epic-head">'
-            f'<div>{jira_link(epic["key"])}<h3>{esc(epic["summary"])}</h3>'
-            f'<div class="card-who">Owner: {esc(epic["owner"])}</div><div class="lanes">{lanes}</div></div>'
+    return (f'<section class="epic" id="{epic.key}"><details class="epic-toggle"><summary class="epic-head">'
+            f'<div>{jira_link(epic.key, settings)}<h3>{esc(epic.summary)}</h3>'
+            f'<div class="card-who">Owner: {esc(epic.owner)}</div><div class="lanes">{lanes}</div></div>'
             f'<div class="progress"><span>{counts["done"]}/{total} done</span>'
             f'<div class="track"><div class="fill" style="width:{done_pct}%"></div></div></div></summary>'
             f'<div class="board">{"".join(columns)}</div></details></section>')
 
 
-def pr_tables(prs):
-    recent = [pr for pr in prs if days_since(pr["createdAt"]) <= URGENT_PR_DAYS]
-    urgent = [pr for pr in prs if days_since(pr["createdAt"]) > URGENT_PR_DAYS]
+def pr_tables(prs, settings):
+    recent = [pr for pr in prs if days_since(pr.created_at) <= URGENT_PR_DAYS]
+    urgent = [pr for pr in prs if days_since(pr.created_at) > URGENT_PR_DAYS]
     return ('<div class="pr-grid">'
-            f'<div><h3>Up to {URGENT_PR_DAYS} days <span class="count">{len(recent)}</span></h3>{pr_table(recent)}</div>'
+            f'<div><h3>Up to {URGENT_PR_DAYS} days <span class="count">{len(recent)}</span></h3>{pr_table(recent, settings)}</div>'
             f'<div class="urgent"><h3>Over {URGENT_PR_DAYS} days, urgent <span class="count">{len(urgent)}</span></h3>'
-            f'{pr_table(urgent)}</div></div>')
+            f'{pr_table(urgent, settings)}</div></div>')
 
 
-def pr_table(prs):
+def pr_table(prs, settings):
     if not prs:
         return '<p class="empty">None.</p>'
     rows = []
-    for pr in sorted(prs, key=lambda p: p["createdAt"]):
+    for pr in sorted(prs, key=lambda p: p.created_at):
         state, label = review_state(pr)
-        keys = sorted(title_keys_in(pr, config.settings.jira_project))
+        keys = sorted(title_keys_in(pr, settings.jira_project))
         rows.append(
-            f'<tr><td>{pr_titled(pr)}</td><td>{" ".join(jira_link(k) for k in keys)}</td>'
-            f'<td>{esc(pr["author"]["login"])}</td><td class="num">{days_since(pr["createdAt"])} d</td>'
+            f'<tr><td>{pr_titled(pr)}</td><td>{" ".join(jira_link(k, settings) for k in keys)}</td>'
+            f'<td>{esc(pr.author["login"])}</td><td class="num">{days_since(pr.created_at)} d</td>'
             f'<td><span class="pill {state}">{label}</span></td><td>{ci_pills(pr)}</td></tr>')
     return ('<div class="table-wrap"><table><thead><tr><th>Title</th><th>Ticket</th><th>Author</th>'
             '<th class="num">Age</th><th>Review</th><th>CI</th></tr></thead>'
             f'<tbody>{"".join(rows)}</tbody></table></div>')
 
 
-def attention(items):
+def attention(items, settings):
     if not items:
         return '<p class="empty">Nothing to flag.</p>'
     return '<div class="attention">' + "".join(
-        f'<div class="attention-item"><div>{subject_html(item["subject"])}</div><div class="attention-action">{esc(item["reason"])}</div></div>'
+        f'<div class="attention-item"><div>{subject_html(item["subject"], settings)}</div><div class="attention-action">{esc(item["reason"])}</div></div>'
         for item in items) + "</div>"
 
 
-def mine(my_prs, review_prs, my_tickets):
+def mine(my_prs, review_prs, my_tickets, settings):
     def pr_items(prs):
         if not prs:
             return '<p class="empty">None.</p>'
         return "<ul class='mine-list'>" + "".join(
             f'<li>{pr_titled(pr)}<div class="pills">'
             f'<span class="pill {review_state(pr)[0]}">{review_state(pr)[1]}</span> {ci_pills(pr)}'
-            f'<span class="age">{days_since(pr["createdAt"])} d</span></div></li>'
-            for pr in sorted(prs, key=lambda p: p["createdAt"])) + "</ul>"
+            f'<span class="age">{days_since(pr.created_at)} d</span></div></li>'
+            for pr in sorted(prs, key=lambda p: p.created_at)) + "</ul>"
 
     tickets = ("<ul class='mine-list'>" + "".join(
-        f'<li>{jira_link(t["key"])} {esc(t["summary"])}<div class="pills"><span class="pill draft">{esc(status_label(t["status"]))}</span></div></li>'
+        f'<li>{jira_link(t.key, settings)} {esc(t.summary)}<div class="pills"><span class="pill draft">{esc(status_label(t.status))}</span></div></li>'
         for t in my_tickets) + "</ul>") if my_tickets else '<p class="empty">None.</p>'
     return ('<div class="mine">'
             f'<div class="mine-box"><h3>Review requested from me <span class="count">{len(review_prs)}</span></h3>{pr_items(review_prs)}</div>'
@@ -166,7 +167,7 @@ def day_label(day):
     return "Today" if days_since(day.isoformat()) == 0 else "Yesterday"
 
 
-def changes_section(changes, ci_by_url):
+def changes_section(changes, ci_by_url, settings):
     if changes is None:
         return '<p class="empty">First run: changes show up from the next one.</p>'
     by_day = {}
@@ -174,7 +175,7 @@ def changes_section(changes, ci_by_url):
         at = dt.datetime.fromisoformat(c["at"])
         by_day.setdefault(at.date(), []).append(
             f'<li><span class="time">{at.strftime("%H:%M")}</span>'
-            f'<span class="pill {c["tone"]}">{esc(c["label"])}</span><div class="what">{change_html(c)}</div>'
+            f'<span class="pill {c["tone"]}">{esc(c["label"])}</span><div class="what">{change_html(c, settings)}</div>'
             f'<span class="ci">{ci_pill(ci_by_url.get(c["item"]))}</span></li>')
     if not by_day:
         return f'<p class="empty">Nothing in the last {CHANGES_HOURS} h.</p>'
@@ -203,65 +204,63 @@ def tui_attention(item):
                      url, url, f"{title} {reason}")
 
 
-def tui_pr(pr, by_key, group=None):
-    tone, label = review_state(pr)
-    ci_tone, ci_label = TUI_CI[pr["ci"]]
-    conflict = '<span class="bad">⚠ conflict</span>' if pr["mergeable"] == "CONFLICTING" else "<span></span>"
-    row = (f'<span>{esc(tui_repo(pr))}#{pr["number"]}</span><span class="{TUI_REVIEW[tone]}">{label.lower()}</span>'
-           f'<span class="{ci_tone}">{ci_label}</span>{conflict}<span class="dim r">{days_since(pr["createdAt"])}d</span>')
-    events = [(c["committedDate"], '<span class="dim">commit</span>') for c in pr["commits"]] + [
-        (r["submittedAt"], f'<span class="{TUI_REVIEW_EVENTS.get(r["state"], "blue")}">{r["state"].lower().replace("_", " ")}</span> '
-                           f'{esc(r["author"]["login"])}') for r in pr["reviews"]]
-    linked = [by_key[k] for k in sorted(ticket_keys_in(pr, config.settings.jira_project)) if k in by_key]
-    detail = (f'<div class="h">{esc(pr["title"])}</div>'
-              + tui_field("pr", f'<a href="{esc(pr["url"])}">{esc(tui_repo(pr))}#{pr["number"]}</a> <span class="dim">by</span> '
-                                f'{esc(pr["author"]["login"])} <span class="dim">open</span> {days_since(pr["createdAt"])}d')
-              + tui_field("review", label + (' <span class="warn">review requested</span>' if pr["reviewRequests"] else ""))
-              + tui_field("ci", pr["ci"]) + tui_field("merge", "conflicts" if pr["mergeable"] == "CONFLICTING" else "clean")
+def tui_pr(pr, by_key, settings, group=None):
+    data = rows.pr_row(pr, by_key, settings)
+    tone, label = data["review"]
+    ci_tone, ci_label = TUI_CI[data["ci"]]
+    conflict = '<span class="bad">⚠ conflict</span>' if data["conflict"] else "<span></span>"
+    row = (f'<span>{esc(data["ref"])}</span><span class="{TUI_REVIEW[tone]}">{label.lower()}</span>'
+           f'<span class="{ci_tone}">{ci_label}</span>{conflict}<span class="dim r">{data["age"]}d</span>')
+    events = [(e["at"], f'<span class="{TUI_REVIEW_EVENTS.get(e["state"], "blue")}">{e["state"].lower().replace("_", " ")}</span> '
+                        f'{esc(e["author"])}' if e["state"] else '<span class="dim">commit</span>') for e in data["events"]]
+    detail = (f'<div class="h">{esc(data["title"])}</div>'
+              + tui_field("pr", f'<a href="{esc(data["url"])}">{esc(data["ref"])}</a> <span class="dim">by</span> '
+                                f'{esc(data["author"])} <span class="dim">open</span> {data["age"]}d')
+              + tui_field("review", label + (' <span class="warn">review requested</span>' if data["review_requested"] else ""))
+              + tui_field("ci", data["ci"]) + tui_field("merge", "conflicts" if data["conflict"] else "clean")
               + ("".join(tui_field("ticket", f'{esc(t["key"])} <span class="dim">({esc(t["status"])})</span> {esc(t["summary"])}')
-                         for t in linked) or tui_field("ticket", "—"))
+                         for t in data["tickets"]) or tui_field("ticket", "—"))
               + '<div class="sep">── activity ──</div>'
               + "".join(f'<div><span class="dim">{local_time(at)}</span>  {what}</div>' for at, what in sorted(events, reverse=True)[:10]))
-    return tui_entry(row, detail, pr["url"], pr["url"], f'{pr["repo"]} {pr["number"]} {pr["title"]} {pr["author"]["login"]}', group=group)
+    return tui_entry(row, detail, pr.url, pr.url, f'{pr.repo} {pr.number} {pr.title} {data["author"]}', group=group)
 
 
-def tui_ticket(ticket, prs):
-    linked = [pr for pr in prs if ticket["key"] in ticket_keys_in(pr, config.settings.jira_project)]
-    row = (f'<span>{esc(ticket["key"])}</span><span class="warn">{esc(status_label(ticket["status"]))}</span>'
-           f'<span class="dim ell">{esc(ticket["summary"])}</span>')
-    detail = (f'<div class="h">{esc(ticket["summary"])}</div>'
-              + tui_field("ticket", f'<a href="{esc(config.settings.jira_browse)}{esc(ticket["key"])}">{esc(ticket["key"])}</a>')
-              + tui_field("status", esc(status_label(ticket["status"])))
-              + ("".join(tui_field("pr", f'<a href="{esc(pr["url"])}">{esc(tui_repo(pr))}#{pr["number"]}</a> {review_state(pr)[1]}')
-                         for pr in linked) or tui_field("pr", "—")))
-    return tui_entry(row, detail, config.settings.jira_browse + ticket["key"], ticket["key"], f'{ticket["key"]} {ticket["summary"]}',
-                     TUI_TICKET_GRID, "my tickets")
+def tui_ticket(ticket, prs, settings):
+    data = rows.ticket_row(ticket, prs, settings)
+    row = (f'<span>{esc(data["key"])}</span><span class="warn">{esc(data["status"])}</span>'
+           f'<span class="dim ell">{esc(data["summary"])}</span>')
+    detail = (f'<div class="h">{esc(data["summary"])}</div>'
+              + tui_field("ticket", f'<a href="{esc(data["url"])}">{esc(data["key"])}</a>')
+              + tui_field("status", esc(data["status"]))
+              + ("".join(tui_field("pr", f'<a href="{esc(pr["url"])}">{esc(pr["ref"])}</a> {pr["review"]}')
+                         for pr in data["prs"] if pr["project_key"]) or tui_field("pr", "—")))
+    return tui_entry(row, detail, data["url"], data["key"], f'{data["key"]} {data["summary"]}', TUI_TICKET_GRID, "my tickets")
 
 
-def tui_epic(epic, tickets):
-    done = sum(1 for t in tickets if t["column"] == "done")
+def tui_epic(epic, tickets, settings):
+    done = sum(1 for t in tickets if t.column == "done")
     filled = round(20 * done / len(tickets)) if tickets else 0
-    row = (f'<span>{esc(epic["key"])}</span><span class="ok">{"█" * filled}<span class="dim">{"░" * (20 - filled)}</span></span>'
-           f'<span class="dim r">{done}/{len(tickets)}</span><span class="ell">{esc(epic["summary"])}</span>')
+    row = (f'<span>{esc(epic.key)}</span><span class="ok">{"█" * filled}<span class="dim">{"░" * (20 - filled)}</span></span>'
+           f'<span class="dim r">{done}/{len(tickets)}</span><span class="ell">{esc(epic.summary)}</span>')
     groups = ""
     for key, label, _ in COLUMNS:
-        column = [t for t in tickets if t["column"] == key]
+        column = [t for t in tickets if t.column == key]
         if column and key != "done":
             groups += f'<div class="sep">── {label.lower()} ({len(column)}) ──</div>' + "".join(
-                f'<div><a href="{esc(config.settings.jira_browse)}{esc(t["key"])}">{esc(t["key"])}</a> {esc(t["summary"])} '
-                f'<span class="dim">{esc(t["assignee"])}</span></div>' for t in column)
-    detail = (f'<div class="h">{esc(epic["summary"])}</div>'
-              + tui_field("epic", f'<a href="{esc(config.settings.jira_browse)}{esc(epic["key"])}">{esc(epic["key"])}</a> <span class="dim">({esc(epic["status"])})</span>')
-              + tui_field("owner", esc(epic["owner"])) + tui_field("done", f"{done}/{len(tickets)}") + groups)
-    return tui_entry(row, detail, config.settings.jira_browse + epic["key"], epic["key"], f'{epic["key"]} {epic["summary"]}')
+                f'<div><a href="{esc(settings.jira_browse)}{esc(t.key)}">{esc(t.key)}</a> {esc(t.summary)} '
+                f'<span class="dim">{esc(t.assignee)}</span></div>' for t in column)
+    detail = (f'<div class="h">{esc(epic.summary)}</div>'
+              + tui_field("epic", f'<a href="{esc(settings.jira_browse)}{esc(epic.key)}">{esc(epic.key)}</a> <span class="dim">({esc(epic.status)})</span>')
+              + tui_field("owner", esc(epic.owner)) + tui_field("done", f"{done}/{len(tickets)}") + groups)
+    return tui_entry(row, detail, settings.jira_browse + epic.key, epic.key, f'{epic.key} {epic.summary}')
 
 
-def tui_change(change):
+def tui_change(change, settings):
     url = change["item"]
     row = (f'<span class="dim">{change["at"][5:10]} {change["at"][11:16]}</span>'
            f'<span class="{TUI_REVIEW.get(change["tone"], "dim")}">{esc(change["label"].lower())}</span>'
            f'<span class="ell">{esc(change_text(change))}</span>')
-    detail = f'<div class="h">{esc(change["label"])}</div><div>{change_html(change)}</div>' + tui_field("at", change["at"].replace("T", " "))
+    detail = f'<div class="h">{esc(change["label"])}</div><div>{change_html(change, settings)}</div>' + tui_field("at", change["at"].replace("T", " "))
     return tui_entry(row, detail, url, url, f'{change_text(change)} {change["label"]}')
 
 
@@ -280,38 +279,38 @@ def tui_pane(number, name, entries, empty):
             f'<section class="tui-panel"><span class="title">details</span>{details}</section></div>')
 
 
-def tui(attention_found, prs, review_prs, my_prs, my_tickets, epics, tickets_by_epic, changes, by_key):
-    desk = ([tui_pr(pr, by_key, "review requested") for pr in review_prs] + [tui_pr(pr, by_key, "my prs") for pr in my_prs]
-            + [tui_ticket(t, prs) for t in my_tickets])
+def tui(attention_found, prs, review_prs, my_prs, my_tickets, epics, tickets_by_epic, changes, by_key, settings):
+    desk = ([tui_pr(pr, by_key, settings, "review requested") for pr in review_prs] + [tui_pr(pr, by_key, settings, "my prs") for pr in my_prs]
+            + [tui_ticket(t, prs, settings) for t in my_tickets])
     tabs = [("attention", [tui_attention(item) for item in attention_found], "nothing to flag"),
-            ("team prs", [tui_pr(pr, by_key) for pr in sorted(prs, key=lambda p: p["createdAt"])], "no open prs"),
+            ("team prs", [tui_pr(pr, by_key, settings) for pr in sorted(prs, key=lambda p: p.created_at)], "no open prs"),
             ("my desk", desk, "desk is empty"),
-            ("epics", [tui_epic(e, tickets_by_epic[e["key"]]) for e in epics], "no epics"),
-            ("changes", [tui_change(c) for c in changes or []], f"no changes in the last {CHANGES_HOURS} h")]
+            ("epics", [tui_epic(e, tickets_by_epic[e.key], settings) for e in epics], "no epics"),
+            ("changes", [tui_change(c, settings) for c in changes or []], f"no changes in the last {CHANGES_HOURS} h")]
     nav = "".join(f'<button type="button" class="tui-tab" data-tab="{n}">[{n}] {name} <span class="dim">{len(entries)}</span></button>'
                   for n, (name, entries, _) in enumerate(tabs, 1))
     return nav, "".join(tui_pane(n, *tab) for n, tab in enumerate(tabs, 1))
 
 
-def render(epics, tickets_by_epic, prs, merged_by_ticket, review_prs, my_tickets, changes, now, template):
+def render(epics, tickets_by_epic, prs, merged_by_ticket, review_prs, my_tickets, changes, now, template, settings):
     all_tickets = [t for ts in tickets_by_epic.values() for t in ts]
-    attention_found = attention_items(all_tickets, prs, merged_by_ticket, config.settings)
-    my_prs = [pr for pr in prs if pr["author"]["login"] == config.settings.github_user]
+    attention_found = attention_items(all_tickets, prs, merged_by_ticket, settings)
+    my_prs = [pr for pr in prs if pr.author["login"] == settings.github_user]
     tui_tabs, tui_panes = tui(attention_found, prs, review_prs, my_prs, my_tickets, epics, tickets_by_epic,
-                              changes, {t["key"]: t for t in all_tickets})
+                              changes, {t.key: t for t in all_tickets}, settings)
 
-    boards = "".join(board(e, tickets_by_epic[e["key"]]) for e in epics)
+    boards = "".join(board(e, tickets_by_epic[e.key], settings) for e in epics)
     return (template
             .replace("{{DATE}}", dt.datetime.now().strftime("%d/%m/%Y %H:%M"))
-            .replace("{{MINE}}", mine(my_prs, review_prs, my_tickets))
-            .replace("{{CHANGES}}", changes_section(changes, {url: pr["ci"] for url, pr in now["prs"].items()}))
+            .replace("{{MINE}}", mine(my_prs, review_prs, my_tickets, settings))
+            .replace("{{CHANGES}}", changes_section(changes, {url: pr["ci"] for url, pr in now["prs"].items()}, settings))
             .replace("{{CHANGES_HOURS}}", str(CHANGES_HOURS))
-            .replace("{{ATTENTION}}", attention(attention_found))
+            .replace("{{ATTENTION}}", attention(attention_found, settings))
             .replace("{{TUI_TABS}}", tui_tabs)
             .replace("{{TUI_PANES}}", tui_panes)
-            .replace("{{PRS}}", pr_tables(prs))
-            .replace("{{TEAM}}", ", ".join(config.settings.team))
-            .replace("{{ORG}}", esc(config.settings.github_org))
+            .replace("{{PRS}}", pr_tables(prs, settings))
+            .replace("{{TEAM}}", ", ".join(settings.team))
+            .replace("{{ORG}}", esc(settings.github_org))
             .replace("{{LOGO}}", LOGO)
             .replace("{{BOARDS}}", boards))
 
@@ -320,11 +319,12 @@ OUT = STATE_DIR / "board.html"
 
 
 def build():
-    found = collect(config.settings)
-    template = (Path(__file__).with_name("tablero-template.html")).read_text()
+    settings = config.settings
+    found = collect(settings)
+    template = (Path(__file__).with_name("template.html")).read_text()
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(render(found["epics"], found["tickets_by_epic"], found["prs"], found["merged_by_ticket"], found["review_prs"],
-                          found["my_tickets"], found["changes"], found["now"], template))
+                          found["my_tickets"], found["changes"], found["now"], template, settings))
     return {**found, "out": OUT}
 
 

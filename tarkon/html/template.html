@@ -2,7 +2,7 @@
 <html lang="en" data-design="console">
 <head>
 <meta charset="utf-8">
-<script>try { document.documentElement.dataset.design = localStorage.getItem("tarkon-design") === "tui" ? "tui" : "console"; } catch (e) {}</script>
+<script>try { const design = localStorage.getItem("tarkon-design"); document.documentElement.dataset.design = ["tui", "lcars"].includes(design) ? design : "console"; } catch (e) {}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Tarkon</title>
 <link rel="icon" type="image/png" href="{{LOGO}}">
@@ -10,7 +10,7 @@
 <meta http-equiv="refresh" content="900">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&family=JetBrains+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&family=JetBrains+Mono:wght@400;700&family=Antonio:wght@500;600;700&display=swap">
 <style>
 :root {
   --bg: #dde3ea; --surface: #ffffff; --sunken: #eef1f5; --fg: #0b1620; --muted: #3b4856; --line: #a9b5c3;
@@ -258,6 +258,66 @@ footer { color: var(--muted); font-size: 13px; margin-top: 48px; border-top: 1px
 :root[data-design="console"] footer { border-top-color: var(--line); }
 :root[data-design="console"] .pr-grid h3 { display: flex; align-items: center; margin-bottom: 10px; }
 :root[data-design="console"] .pr-grid h3 .count { order: -1; margin: 0 12px 0 0; font-size: 26px; padding: 7px 12px 6px; min-width: 2.6em; }
+:root[data-design="lcars"] {
+  --lc-orange: #ff9900; --lc-peach: #ff9966; --lc-tan: #ffcc99; --lc-lilac: #cc99cc; --lc-violet: #9999ff;
+  --lc-blue: #99ccff; --lc-red: #ff6666; --lc-gold: #ffcc66; --lc-green: #99cc66; --lc-idle: #6f6680;
+  --bg: #000; --surface: #0b0911; --sunken: #000; --fg: #f3e5d4; --muted: #a99cc4; --line: #2e2540;
+  --accent: var(--lc-peach); --ok: var(--lc-green); --warn: var(--lc-gold); --bad: var(--lc-red); --info: var(--lc-violet); --track: #241d33;
+  --font-display: "Antonio", "Arial Narrow", sans-serif;
+  color-scheme: dark;
+}
+:root[data-design="lcars"] .design-switch { border: 0; padding: 0; gap: 4px; }
+:root[data-design="lcars"] .design-switch button { font: 600 14px/1 var(--font-display); text-transform: uppercase; letter-spacing: .08em; color: #000;
+  background: var(--lc-lilac); border-radius: 999px; padding: 7px 14px 6px; }
+:root[data-design="lcars"] .design-switch button[aria-pressed="true"] { background: var(--lc-orange); color: #000; }
+:root[data-design="lcars"] .masthead { position: relative; align-items: center; padding: 18px 0 14px 28px; border: 0;
+  border-top: 22px solid var(--lc-orange); border-left: 140px solid var(--lc-orange); border-top-left-radius: 56px; }
+:root[data-design="lcars"] .masthead::before { content: ""; position: absolute; left: 0; top: 0; width: 32px; height: 32px;
+  background: radial-gradient(circle at 100% 100%, transparent 31.5px, var(--lc-orange) 32px); }
+:root[data-design="lcars"] .masthead::after { content: "LCARS 47"; position: absolute; left: -132px; bottom: 8px; color: #000; font: 600 14px/1 var(--font-display); letter-spacing: .08em; }
+:root[data-design="lcars"] h1 { font: 700 44px/1 var(--font-display); text-transform: uppercase; letter-spacing: .04em; color: var(--lc-orange); }
+:root[data-design="lcars"] .masthead .meta { color: var(--lc-tan); font: 500 15px/1 var(--font-display); text-transform: uppercase; letter-spacing: .06em; }
+:root[data-design="lcars"] h2, :root[data-design="lcars"] .attention-heading { display: flex; align-items: center; gap: 12px; margin: 40px 0 14px;
+  font: 600 20px/1 var(--font-display); text-transform: uppercase; letter-spacing: .08em; color: var(--lc-orange); }
+:root[data-design="lcars"] h2::before, :root[data-design="lcars"] h2::after { content: ""; height: 24px; background: var(--lc-lilac); }
+:root[data-design="lcars"] h2::before { flex: none; width: 48px; border-radius: 12px 0 0 12px; }
+:root[data-design="lcars"] h2::after { flex: 1; border-radius: 0 12px 12px 0; }
+:root[data-design="lcars"] .rail h2 { margin: 0 0 4px; font-size: 17px; color: var(--lc-violet); }
+:root[data-design="lcars"] .rail h2::before, :root[data-design="lcars"] .rail h2::after { height: 18px; background: var(--lc-violet); }
+:root[data-design="lcars"] h3, :root[data-design="lcars"] .col h4 { font-family: var(--font-display); font-weight: 600; letter-spacing: .03em; }
+:root[data-design="lcars"] .pr-grid h3, :root[data-design="lcars"] .mine-box h3, :root[data-design="lcars"] .col h4, :root[data-design="lcars"] .recent-changes h3 { text-transform: uppercase; letter-spacing: .08em; color: var(--lc-tan); }
+:root[data-design="lcars"] .table-wrap, :root[data-design="lcars"] .mine-box, :root[data-design="lcars"] .rail, :root[data-design="lcars"] .epic { background: var(--surface); border: 0; border-left: 14px solid var(--lc-blue); border-radius: 16px 0 0 16px; }
+:root[data-design="lcars"] .mine-box { border-left-color: var(--lc-tan); }
+:root[data-design="lcars"] .rail { border-left-color: var(--lc-violet); }
+:root[data-design="lcars"] .epic, :root[data-design="lcars"] .epic:first-of-type, :root[data-design="lcars"] .epic:last-of-type { border-left-color: var(--lc-peach); border-bottom-width: 0; border-radius: 16px 0 0 16px; margin-bottom: 8px; }
+:root[data-design="lcars"] .epic-toggle[open] > summary.epic-head { border-bottom-color: var(--line); }
+:root[data-design="lcars"] .urgent .table-wrap { border-left-color: var(--lc-red); }
+:root[data-design="lcars"] .urgent h3 { color: var(--lc-red); }
+:root[data-design="lcars"] .attention { background: #160f02; border: 0; border-left: 14px solid var(--lc-gold); border-radius: 16px 0 0 16px; }
+:root[data-design="lcars"] .attention-item { font-family: var(--font-display); font-size: 22px; }
+:root[data-design="lcars"] .attention-item + .attention-item { border-top-color: var(--line); }
+:root[data-design="lcars"] .attention-action { color: var(--lc-tan); }
+:root[data-design="lcars"] th { background: none; color: var(--lc-lilac); font: 600 14px/1.2 var(--font-display); text-transform: uppercase; letter-spacing: .08em; border-bottom: 2px solid var(--lc-lilac); }
+:root[data-design="lcars"] tbody tr:hover td { background: #1a1426; }
+:root[data-design="lcars"] .pill, :root[data-design="lcars"] .pr { color: #000; box-shadow: none; padding: 1px 10px; font: 600 13px/1.6 var(--font-display); text-transform: uppercase; letter-spacing: .06em; }
+:root[data-design="lcars"] .approved { background: var(--lc-green); }
+:root[data-design="lcars"] .changes { background: var(--lc-red); }
+:root[data-design="lcars"] .waiting { background: var(--lc-gold); }
+:root[data-design="lcars"] .commented { background: var(--lc-violet); }
+:root[data-design="lcars"] .draft { background: var(--lc-idle); }
+:root[data-design="lcars"] h3 .count, :root[data-design="lcars"] h4 .count { background: var(--lc-orange); color: #000; box-shadow: none; font: 700 13px/1.6 var(--font-display); }
+:root[data-design="lcars"] .urgent h3 .count { background: var(--lc-red); color: #000; box-shadow: none; }
+:root[data-design="lcars"] .col-review h4 { color: var(--lc-gold); }
+:root[data-design="lcars"] .col-done h4 { color: var(--lc-green); }
+:root[data-design="lcars"] .card { border: 0; border-left: 6px solid var(--lc-violet); border-radius: 8px 0 0 8px; }
+:root[data-design="lcars"] .track { height: 10px; border-radius: 5px; }
+:root[data-design="lcars"] .fill { background: repeating-linear-gradient(90deg, var(--lc-orange) 0 10px, transparent 10px 13px); }
+:root[data-design="lcars"] footer { border-top: 10px solid var(--lc-violet); }
+@media (max-width: 640px) {
+  :root[data-design="lcars"] .masthead { border-left-width: 48px; border-top-left-radius: 32px; padding-left: 16px; }
+  :root[data-design="lcars"] .masthead::after { content: none; }
+  :root[data-design="lcars"] h1 { font-size: 30px; }
+}
 .tui { display: none; }
 :root[data-design="tui"] {
   --bg: #f6f8fa; --fg: #1f2328; --muted: #6e7781; --line: #d0d7de; --accent: #00704a;
@@ -326,6 +386,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 48px; border-top: 1px
       <div class="design-switch" role="group" aria-label="Design">
                 <button type="button" data-design="console" aria-pressed="false">Console</button>
         <button type="button" data-design="tui" aria-pressed="false">Terminal</button>
+        <button type="button" data-design="lcars" aria-pressed="false">LCARS</button>
       </div>
       <p class="meta">Updated {{DATE}}</p>
     </div>
@@ -366,6 +427,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 48px; border-top: 1px
     <div class="design-switch" role="group" aria-label="Design">
             <button type="button" data-design="console" aria-pressed="false">Console</button>
       <button type="button" data-design="tui" aria-pressed="false">Terminal</button>
+        <button type="button" data-design="lcars" aria-pressed="false">LCARS</button>
     </div>
   </div>
   {{TUI_PANES}}

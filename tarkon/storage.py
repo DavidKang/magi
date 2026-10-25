@@ -3,17 +3,22 @@
 Bump VERSION whenever the shape of the saved board or state changes, so an older file is dropped instead of breaking the app.
 """
 
+import dataclasses
 import json
 
-VERSION = 2
+VERSION = 3
 
 
 def write(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     # Written aside and renamed, so quitting mid-write never leaves a truncated file.
     staged = path.with_name(path.name + ".tmp")
-    staged.write_text(json.dumps({"version": VERSION, **data}, default=str, ensure_ascii=False))
+    staged.write_text(json.dumps({"version": VERSION, **data}, default=encode, ensure_ascii=False))
     staged.replace(path)
+
+
+def encode(value):
+    return dataclasses.asdict(value) if dataclasses.is_dataclass(value) else str(value)
 
 
 def read(path):

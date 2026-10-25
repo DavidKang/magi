@@ -2,6 +2,7 @@ import asyncio
 import base64
 import datetime as dt
 import json
+from dataclasses import replace
 import os
 import re
 import subprocess
@@ -12,6 +13,7 @@ import types
 import time
 from pathlib import Path
 
+from textual.color import Color
 from textual.content import Content
 from textual.widgets import Input, OptionList, Static
 import pytest
@@ -20,9 +22,11 @@ from textual_image._geometry import CellSize
 from textual_image.widget import Image, get_cell_size
 
 from tarkon import board as board_module
-from tarkon import app as app_module
-from tarkon import config, fetch, storage, web
-from tarkon.app import TarkonApp
+from tarkon import config, fetch, github, jira, storage
+from tarkon.html import page as web
+from tarkon.tui import app as app_module
+from tarkon.tui.app import TarkonApp
+from tarkon.entities import Epic, FoundPr, PullRequest, Ticket, TicketDetail
 
 
 
@@ -40,38 +44,46 @@ def settings():
 
 
 @pytest.fixture(autouse=True)
+def default_theme():
+    yield
+    app_module.use_theme("default")
+
+
+@pytest.fixture(autouse=True)
 def aliases(monkeypatch):
     monkeypatch.setitem(board_module.TUI_REPO_ALIASES, "billing-reconciliation-service", "brs")
 
-PR_ONE = {"url": "https://github.com/acme/app/pull/1", "repo": "app", "number": 1, "title": "[ACME-1] First change",
-          "author": {"login": "alice"}, "isDraft": False, "reviewDecision": "", "reviews": [], "reviewRequests": [{}],
-          "createdAt": "2026-10-20T10:00:00Z", "ci": "failing", "mergeable": "CONFLICTING", "headRefName": "ACME-1-x",
-          "commits": [{"committedDate": "2026-10-21T10:00:00Z"}], "threads": []}
-PR_TWO = {"url": "https://github.com/acme/billing-reconciliation-service/pull/2", "repo": "billing-reconciliation-service",
-          "number": 2, "title": "[ACME-2] Second change", "author": {"login": "bob"}, "isDraft": False, "reviewDecision": "APPROVED",
-          "reviews": [{"submittedAt": "2026-10-22T09:00:00Z", "state": "APPROVED", "body": "", "author": {"login": "alice"}}], "reviewRequests": [],
-          "createdAt": "2026-10-21T10:00:00Z", "ci": "passing", "mergeable": "MERGEABLE", "headRefName": "ACME-2-y", "commits": [], "threads": []}
-PR_THREE = {**PR_ONE, "url": "https://github.com/acme/app/pull/3", "number": 3, "title": "[ACME-3] Third change",
-            "createdAt": "2026-10-23T10:00:00Z"}
-TICKETS = [{"key": "ACME-1", "summary": "Ticket one", "status": "En proceso", "column": "doing", "assignee": "Ana", "updated": None, "prs": []},
-           {"key": "ACME-2", "summary": "Ticket two", "status": "Finalizado", "column": "done", "assignee": "Ana", "updated": None, "prs": []}]
-TICKET_DETAIL = {"type": "Story", "priority": "Low", "labels": ["blocked"], "creator": "Bob",
-                 "created": "2026-10-08T16:12:45.341+0200", "updated": "2026-10-21T17:42:10.834+0200",
-                 "epic": {"key": "ACME-100", "summary": "Epic one"},
-                 "links": [{"relation": "is blocked by", "key": "ACME-2", "summary": "Ticket two", "status": "En revisión"}],
-                 "description": "Context\n\nUse the new reason column.",
-                 "comments": [{"id": "10", "author": "Carol", "created": "2026-10-20T10:00:00.000+0200", "body": "Looks good"}]}
+PR_ONE = PullRequest(url="https://github.com/acme/app/pull/1", repo="app", number=1, title="[ACME-1] First change",
+                     author={"login": "alice"}, is_draft=False, review_decision="", reviews=[], review_requests=[{}],
+                     created_at="2026-10-20T10:00:00Z", ci="failing", mergeable="CONFLICTING", head_ref_name="ACME-1-x",
+                     commits=[{"committedDate": "2026-10-21T10:00:00Z"}], threads=[], conversation=[],
+                     updated_at="2026-10-21T10:00:00Z", head_ref_oid="a1")
+PR_TWO = PullRequest(url="https://github.com/acme/billing-reconciliation-service/pull/2", repo="billing-reconciliation-service",
+                     number=2, title="[ACME-2] Second change", author={"login": "bob"}, is_draft=False, review_decision="APPROVED",
+                     reviews=[{"submittedAt": "2026-10-22T09:00:00Z", "state": "APPROVED", "body": "", "author": {"login": "alice"}}],
+                     review_requests=[], created_at="2026-10-21T10:00:00Z", ci="passing", mergeable="MERGEABLE", head_ref_name="ACME-2-y",
+                     commits=[], threads=[], conversation=[], updated_at="2026-10-22T09:00:00Z", head_ref_oid="b2")
+PR_THREE = replace(PR_ONE, url="https://github.com/acme/app/pull/3", number=3, title="[ACME-3] Third change",
+                   created_at="2026-10-23T10:00:00Z", head_ref_oid="c3")
+TICKETS = [Ticket(key="ACME-1", summary="Ticket one", status="En proceso", column="doing", assignee="Ana"),
+           Ticket(key="ACME-2", summary="Ticket two", status="Finalizado", column="done", assignee="Ana")]
+TICKET_DETAIL = TicketDetail(type="Story", priority="Low", labels=["blocked"], creator="Bob",
+                             created="2026-10-08T16:12:45.341+0200", updated="2026-10-21T17:42:10.834+0200",
+                             epic={"key": "ACME-100", "summary": "Epic one"},
+                             links=[{"relation": "is blocked by", "key": "ACME-2", "summary": "Ticket two", "status": "En revisión"}],
+                             description="Context\n\nUse the new reason column.",
+                             comments=[{"id": "10", "author": "Carol", "created": "2026-10-20T10:00:00.000+0200", "body": "Looks good"}])
+EPIC = Epic(key="ACME-100", summary="Epic one", status="Developing", owner="Ana")
 SUBJECT = {"kind": "pr", "url": "https://github.com/acme/app/pull/1", "ref": "app#1", "title": "[ACME-1] First change"}
 
 
 def board(prs):
-    return {"epics": [{"key": "ACME-100", "summary": "Epic one", "status": "Developing", "owner": "Ana"}],
-            "tickets_by_epic": {"ACME-100": TICKETS}, "by_key": {t["key"]: t for t in TICKETS}, "prs": prs, "review_prs": [],
-            "my_prs": [PR_ONE], "my_tickets": [{"key": "OPS-7", "summary": "Ticket seven", "status": "Tareas por hacer"},
-                                             {"key": "ACME-1", "summary": "Ticket one", "status": "En proceso", **TICKET_DETAIL}],
+    return {"epics": [EPIC], "tickets_by_epic": {"ACME-100": TICKETS}, "by_key": {t.key: t for t in TICKETS}, "prs": prs, "review_prs": [],
+            "my_prs": [PR_ONE], "my_tickets": [Ticket(key="OPS-7", summary="Ticket seven", status="Tareas por hacer"),
+                                             Ticket(key="ACME-1", summary="Ticket one", status="En proceso", detail=TICKET_DETAIL)],
             "attention": [{"subject": SUBJECT, "reason": "Open for review, but the ticket is still In progress. Move it to In review?"}],
             "changes": [{"at": "2026-10-24T02:04", "tone": "commented", "label": "New PR", "subject": SUBJECT, "note": None, "aside": None,
-                         "item": PR_ONE["url"]}],
+                         "item": PR_ONE.url}],
             "out": Path("board.html")}
 
 
@@ -130,7 +142,7 @@ async def main(cache):
         await pilot.click("#list-changes", offset=(2, 0))
         check("click in the changes box shows that change", "New PR" in detail())
         await pilot.press("enter")
-        check("enter opens the item of the focused box", opened == [PR_ONE["url"]])
+        check("enter opens the item of the focused box", opened == [PR_ONE.url])
         opened.clear()
         await pilot.press("4")
         check("4 focuses the team prs box", focused("prs") and "Second change" in detail())
@@ -144,11 +156,11 @@ async def main(cache):
         check("done blocks are green and the rest dim", segments == [("█" * 10, "#56d364"), ("░" * 10, "#6e7a87")])
         check("long repo shown as alias", "brs#2" in str(app.query_one("#list-prs", OptionList).get_option_at_index(1).prompt))
         await pilot.press("enter")
-        check("enter opens the PR", opened == [PR_TWO["url"]])
+        check("enter opens the PR", opened == [PR_TWO.url])
         await pilot.click("#list-prs", offset=(2, 0))
         check("click on a row selects it", "First change" in detail())
         await pilot.click("#detail", offset=(10, 2))
-        check("click on a detail link opens it", opened[-1] == PR_ONE["url"])
+        check("click on a detail link opens it", opened[-1] == PR_ONE.url)
         await pilot.press("slash")
         check("slash focuses the filter of the focused box", app.focused is app.query_one("#filter-prs"))
         await pilot.press(*"second")
@@ -253,26 +265,26 @@ ADF = {"type": "doc", "content": [
 
 
 def test_ticket_detail_edges():
-    ticket = {"key": "ACME-1", "summary": "Ticket one", "status": "En proceso", **TICKET_DETAIL, "epic": None, "comments": [],
-              "description": "\n".join(f"line {n}" for n in range(1, 15))}
-    lines = Content.from_markup(app_module.ticket_entry(ticket, []).detail).plain.splitlines()
+    ticket = Ticket(key="ACME-1", summary="Ticket one", status="En proceso", detail=replace(
+        TICKET_DETAIL, epic=None, comments=[], description="\n".join(f"line {n}" for n in range(1, 15))))
+    lines = Content.from_markup(app_module.ticket_entry(ticket, [], STATED).detail).plain.splitlines()
     check("a ticket without an epic shows a dash", "epic     —" in lines)
     check("a long description is cut with a hint to open it",
           "line 12" in lines and "line 13" not in lines and "… c to read it all" in lines)
     check("a ticket without comments shows no comments line", not any(line.startswith("comments") for line in lines))
-    cached = app_module.ticket_entry({"key": "OPS-7", "summary": "Ticket seven", "status": "Tareas por hacer"}, [])
+    cached = app_module.ticket_entry(Ticket(key="OPS-7", summary="Ticket seven", status="Tareas por hacer"), [], STATED)
     check("a ticket cached before the detail fetch has nothing to open", cached.popup[1] == [])
-    shuffled = {**board([]), "my_tickets": [{"key": "A-1", "summary": "a", "status": "En proceso"},
-                                            {"key": "A-2", "summary": "b", "status": "Tareas por hacer"},
-                                            {"key": "A-3", "summary": "c", "status": "En proceso"}]}
+    shuffled = {**board([]), "my_tickets": [Ticket(key="A-1", summary="a", status="En proceso"),
+                                            Ticket(key="A-2", summary="b", status="Tareas por hacer"),
+                                            Ticket(key="A-3", summary="c", status="En proceso")]}
     check("my tickets from an older cache are regrouped by status",
-          [e.group for e in app_module.entries(shuffled)["mine_tickets"]] == ["Todo", "In Progress", "In Progress"])
+          [e.group for e in app_module.entries(shuffled, STATED)["mine_tickets"]] == ["Todo", "In Progress", "In Progress"])
 
 
 def test_ticket_links():
-    ticket = {"key": "ACME-1", "summary": "Ticket one", "status": "En proceso", **TICKET_DETAIL,
-              "links": [*TICKET_DETAIL["links"], {"relation": "relates to", "key": "ACME-3", "summary": "Third", "status": "Backlog"}]}
-    lines = Content.from_markup(app_module.ticket_entry(ticket, []).detail).plain.splitlines()
+    ticket = Ticket(key="ACME-1", summary="Ticket one", status="En proceso", detail=replace(
+        TICKET_DETAIL, links=[*TICKET_DETAIL.links, {"relation": "relates to", "key": "ACME-3", "summary": "Third", "status": "Backlog"}]))
+    lines = Content.from_markup(app_module.ticket_entry(ticket, [], STATED).detail).plain.splitlines()
     start = lines.index("── links ──")
     check("ticket links are a list, one item per link with its title below",
           lines[start + 1:start + 5] == ["• is blocked by ACME-2 (In review)", "  Ticket two", "• relates to ACME-3 (Backlog)", "  Third"]
@@ -280,7 +292,7 @@ def test_ticket_links():
 
 
 def test_adf_rendering():
-    check("jira rich text reads as plain text", fetch.adf_text(ADF) ==
+    check("jira rich text reads as plain text", jira.adf_text(ADF) ==
           "Context\n\nUse `reason` only.\nAsk @Bob\n\n- one\n- two\n\na | b\n1 | 2\n\n    x = 1\n    y = 2")
 
 
@@ -303,7 +315,7 @@ ADF_MORE = {"type": "doc", "content": [
 
 
 def test_adf_more_nodes():
-    check("lists, quotes, cards, emoji, statuses, dates, media and panels read as plain text", fetch.adf_text(ADF_MORE) ==
+    check("lists, quotes, cards, emoji, statuses, dates, media and panels read as plain text", jira.adf_text(ADF_MORE) ==
           "1. first\n  - nested\n2. second\n\n> quoted\n\n---\n\nhttps://example.com/a [link] :tada: DONE 2026-10-22\n\n[attachment]\n\nin a panel")
 
 
@@ -330,7 +342,7 @@ def test_my_tickets_fetch():
     seen, run_json = [], fetch.run_json
     fetch.run_json = lambda cmd: seen.append(cmd) or (items if cmd[3] == "search" else ticket_view(cmd[4]))
     try:
-        tickets = fetch.fetch_my_tickets(lambda keys: dict(zip(keys, fetch.parallel(fetch.fetch_ticket_detail, keys))))
+        tickets = jira.fetch_my_tickets(lambda keys: dict(zip(keys, fetch.parallel(jira.fetch_ticket_detail, keys))))
     finally:
         fetch.run_json = run_json
     check("my tickets are every assigned ticket not done, in one search",
@@ -338,8 +350,8 @@ def test_my_tickets_fetch():
           and "assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC" in seen[0])
     check("each ticket's detail comes from one view", sorted(cmd[4] for cmd in seen if cmd[3] == "view") == sorted(i["key"] for i in items))
     check("my tickets come in board order, each status together, unknown statuses last, latest update first within a status",
-          [t["key"] for t in tickets] == ["ACME-3", "ACME-6", "ACME-1", "ACME-4", "ACME-5", "OPS-7"])
-    check("my tickets carry their detail", tickets[0] == {"key": "ACME-3", "summary": "Later", "status": "Backlog", **TICKET_DETAIL})
+          [t.key for t in tickets] == ["ACME-3", "ACME-6", "ACME-1", "ACME-4", "ACME-5", "OPS-7"])
+    check("my tickets carry their detail", tickets[0] == Ticket(key="ACME-3", summary="Later", status="Backlog", detail=TICKET_DETAIL))
 
 
 def test_sparse_ticket_detail():
@@ -351,26 +363,51 @@ def test_sparse_ticket_detail():
     run_json = fetch.run_json
     fetch.run_json = lambda cmd: view
     try:
-        detail = fetch.fetch_ticket_detail("OPS-9")
+        detail = jira.fetch_ticket_detail("OPS-9")
     finally:
         fetch.run_json = run_json
-    check("a ticket with empty jira fields still loads", detail == {
-        "type": "Task", "priority": None, "labels": [], "creator": "unknown", "created": "2026-10-08T16:12:45.341+0200",
-        "updated": "2026-10-21T17:42:10.834+0200", "epic": None, "links": [], "description": "",
-        "comments": [{"id": "11", "author": "unknown", "created": "2026-10-20T10:00:00.000+0200", "body": ""}]})
+    check("a ticket with empty jira fields still loads", detail == TicketDetail(
+        type="Task", priority=None, labels=[], creator="unknown", created="2026-10-08T16:12:45.341+0200",
+        updated="2026-10-21T17:42:10.834+0200", epic=None, links=[], description="",
+        comments=[{"id": "11", "author": "unknown", "created": "2026-10-20T10:00:00.000+0200", "body": ""}]))
+
+
+def test_rows_view_model():
+    from tarkon import rows
+    from tarkon.html import page
+    from tarkon.tui import app as tui_app
+    config.use(None)
+    ticket = TICKETS[0]
+    row = rows.pr_row(PR_ONE, {ticket.key: ticket}, STATED)
+    check("a pr row is plain data built from the settings passed in",
+          row["ref"] == "app#1" and row["url"] == PR_ONE.url and row["author"] == "alice" and row["review"] == ("waiting", "Awaiting review")
+          and row["ci"] == "failing" and row["conflict"] and row["review_requested"] and row["age"] == fetch.days_since(PR_ONE.created_at)
+          and row["tickets"] == [{"key": "ACME-1", "url": "https://acme.atlassian.net/browse/ACME-1", "status": "En proceso",
+                                  "summary": "Ticket one"}])
+    linked = rows.ticket_row(ticket, [PR_ONE, PR_TWO], STATED)
+    check("a ticket row is plain data with its linked prs",
+          linked["key"] == "ACME-1" and linked["url"] == "https://acme.atlassian.net/browse/ACME-1" and linked["status"] == "In Progress"
+          and [pr["ref"] for pr in linked["prs"]] == ["app#1"] and linked["prs"][0]["review"] == "Awaiting review")
+    tui = Content.from_markup(tui_app.ticket_entry(ticket, [PR_ONE], STATED).detail).plain
+    html = re.sub(r"<[^>]+>", "", page.tui_ticket(ticket, [PR_ONE], STATED)["detail"])
+    check("the TUI and the html TUI design show the same row data", all("app#1 Awaiting review" in text for text in (tui, html)))
+    check("the TUI styles live in a tcss file the app loads",
+          Path(tui_app.__file__).with_name("app.tcss").exists() and tui_app.TarkonApp.CSS_PATH == "app.tcss"
+          and not tui_app.TarkonApp.CSS)
+    check("the html template is read from its package", Path(page.__file__).with_name("template.html").exists())
 
 
 def test_html_mine():
-    page = web.mine([], [], [{"key": "ACME-1", "summary": "Ticket one", "status": "En proceso"}])
+    page = web.mine([], [], [Ticket(key="ACME-1", summary="Ticket one", status="En proceso")], STATED)
     check("html lists my open tickets with their status in English",
           "My open tickets" in page and "In Progress" in page and "En proceso" not in page and "in status" not in page)
-    row = web.tui_ticket({"key": "ACME-1", "summary": "Ticket one", "status": "En proceso"}, [])["row"]
+    row = web.tui_ticket(Ticket(key="ACME-1", summary="Ticket one", status="En proceso"), [], STATED)["row"]
     check("the html tui mirror shows my ticket's status in English in three columns",
           "In Progress" in row and "En proceso" not in row and row.count("<span") == 3)
 
 
 def test_status_labels():
-    labels = {status: fetch.status_label(status) for status in
+    labels = {status: jira.status_label(status) for status in
               ["Tareas por hacer", "En proceso", "En revisión", "Finalizado", "Backlog", "Developing", "Blocked"]}
     check("Spanish statuses read in English, the rest as Jira names them", labels == {
         "Tareas por hacer": "Todo", "En proceso": "In Progress", "En revisión": "In review", "Finalizado": "Done",
@@ -382,7 +419,7 @@ def failing_load():
 
 
 def unmapped_load():
-    fetch.column_for("Blocked")
+    jira.column_for("Blocked")
 
 
 async def unmapped_status(cache):
@@ -419,8 +456,8 @@ async def reopen(cache):
 
 
 async def stale_cache(cache):
-    old = board([{**PR_ONE, "threads": [{**THREAD, "comments": [{**THREAD["comments"][0], "author": None}]}]}])
-    cache.write_text(json.dumps({"at": 1000.0, "board": old}, default=str))
+    old = board([replace(PR_ONE, threads=[{**THREAD, "comments": [{**THREAD["comments"][0], "author": None}]}])])
+    cache.write_text(json.dumps({"at": 1000.0, "board": old}, default=storage.encode))
     calls = []
     app = TarkonApp(load=lambda: calls.append(1) or board([PR_ONE]), opener=print, copier=print, clock=lambda: 1030.0, cache=cache,
                          config_path=settings_file(cache))
@@ -502,7 +539,8 @@ async def first_run(cache):
         check("config fields start empty with a placeholder", all(not i.value and i.placeholder for i in inputs.values()))
         check("board waits until the config is saved", calls == [])
         check("config panel hides the board keys on first run",
-              not app.check_action("focus_filter", ()) and not app.check_action("refresh", ()) and app.screen.check_action("save", ()))
+              not app.check_action("focus_filter", ()) and not app.check_action("refresh", ()) and not app.check_action("toggle_theme", ())
+              and app.screen.check_action("save", ()))
         inputs["team"].value = "alice, bob"
         await pilot.click("#config-save")
         await pilot.pause()
@@ -515,7 +553,7 @@ async def first_run(cache):
         await pilot.click("#config-save")
         await app.workers.wait_for_complete()
         await pilot.pause()
-        check("saving writes the config", json.loads(path.read_text()) == SETTINGS)
+        check("saving writes the config", json.loads(path.read_text()) == {**SETTINGS, "theme": "default"})
         check("saving opens the board", calls == [1] and str(app.query_one("#panel-prs").border_title) == "[4] team prs 1")
         check("the TUI cache is written into a folder created on demand", cache.exists())
 
@@ -555,7 +593,7 @@ async def edit_cancel(cache):
         await pilot.click("#config-cancel")
         await app.workers.wait_for_complete()
         await pilot.pause()
-        check("cancel keeps the saved config", json.loads(path.read_text()) == SETTINGS)
+        check("cancel keeps the saved config", json.loads(path.read_text()) == {**SETTINGS, "theme": "default"})
         check("cancel goes to the board", str(app.query_one("#panel-prs").border_title) == "[4] team prs 1")
 
 
@@ -591,7 +629,8 @@ QUIT_SCRIPT = """
 import asyncio, sys, threading, time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from tarkon import app as app_module, fetch
+from tarkon import fetch
+from tarkon.tui import app as app_module
 
 cache, done, mode = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
 started = threading.Event()
@@ -655,32 +694,38 @@ def test_quit_drops_queued_fetches(cache):
     check("the app's exit code reaches the shell", code == 3)
 
 
+def test_config_ignores_unknown_keys(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({**SETTINGS, "theme": "lcars", "added_later": 1}))
+    check("a config written by a newer version still loads", config.load(path) == config.Settings(**SETTINGS, theme="lcars"))
+
+
 def test_settings_used():
     config.use(config.Settings(team=["alice"], jira_project="ACME", github_user="me", github_org="acme",
                                jira_url="https://acme.atlassian.net/"))
-    check("jira links use the configured site", 'href="https://acme.atlassian.net/browse/ACME-9"' in web.jira_link("ACME-9"))
+    check("jira links use the configured site", 'href="https://acme.atlassian.net/browse/ACME-9"' in web.jira_link("ACME-9", config.settings))
     seen, run_json = [], fetch.run_json
     items = [{"key": "ACME-9", "fields": {"summary": "Newer", "status": {"name": "Rollout"}, "assignee": None}},
              {"key": "ACME-2", "fields": {"summary": "Older", "status": {"name": "Developing"},
                                           "assignee": {"displayName": "Ana"}}}]
     fetch.run_json = lambda cmd: seen.append(cmd) or items
     try:
-        epics = fetch.fetch_epics(config.settings)
+        epics = jira.fetch_epics(config.settings)
     finally:
         fetch.run_json = run_json
     jql = seen[0][seen[0].index("--jql") + 1]
     check("epics come from the configured project in Developing or Rollout, newest first",
           jql == 'project = ACME AND issuetype = Epic AND status in ("Developing", "Rollout") ORDER BY created DESC')
     check("fetched epics keep Jira's order", epics == [
-        {"key": "ACME-9", "summary": "Newer", "status": "Rollout", "owner": "Unassigned"},
-        {"key": "ACME-2", "summary": "Older", "status": "Developing", "owner": "Ana"}])
+        Epic(key="ACME-9", summary="Newer", status="Rollout", owner="Unassigned"),
+        Epic(key="ACME-2", summary="Older", status="Developing", owner="Ana")])
 
 
 def test_epic_changes():
-    epic_one, epic_two = {"key": "ACME-100", "summary": "Epic one"}, {"key": "ACME-200", "summary": "Epic two"}
-    one, two, three = ({"key": key, "summary": f"Ticket {key}", "status": "En proceso"} for key in ("ACME-1", "ACME-2", "ACME-3"))
-    summaries = {t["key"]: t["summary"] for t in (one, two, three)}
-    pr = {**PR_TWO, "headRefOid": "abc"}
+    epic_one, epic_two = EPIC, replace(EPIC, key="ACME-200", summary="Epic two")
+    one, two, three = (Ticket(key=key, summary=f"Ticket {key}", status="En proceso") for key in ("ACME-1", "ACME-2", "ACME-3"))
+    summaries = {t.key: t.summary for t in (one, two, three)}
+    pr = replace(PR_TWO, head_ref_oid="abc")
     before = board_module.snapshot([epic_one], {"ACME-100": [one]}, [], STATED)
     now = board_module.snapshot([epic_one, epic_two], {"ACME-100": [one], "ACME-200": [two, three]}, [pr], STATED)
     found = board_module.changes_between(before, now, summaries, {}, STATED)
@@ -700,15 +745,15 @@ def test_epic_changes():
 
 
 def test_domain_returns_data():
-    gone = {**PR_ONE, "url": "https://github.com/acme/app/pull/8", "number": 8, "title": "[ACME-1] Gone", "headRefOid": "x"}
+    gone = replace(PR_ONE, url="https://github.com/acme/app/pull/8", number=8, title="[ACME-1] Gone", head_ref_oid="x")
     before = board_module.snapshot([], {}, [gone], STATED)
     now = board_module.snapshot([], {}, [], STATED)
-    check("a vanished pr outside quiet epics needs its state", board_module.vanished_prs(before, now) == [gone["url"]])
-    found = board_module.changes_between(before, now, {}, {gone["url"]: "MERGED"}, STATED)
+    check("a vanished pr outside quiet epics needs its state", board_module.vanished_prs(before, now) == [gone.url])
+    found = board_module.changes_between(before, now, {}, {gone.url: "MERGED"}, STATED)
     check("a vanished pr is labelled from the state it was given, as data", found == [
-        {"item": gone["url"], "tone": "approved", "label": "Merged", "note": None, "aside": None,
-         "subject": {"kind": "pr", "url": gone["url"], "ref": "app#8", "title": "[ACME-1] Gone"}}])
-    tickets = [{**TICKETS[0], "prs": [PR_ONE]}]
+        {"item": gone.url, "tone": "approved", "label": "Merged", "note": None, "aside": None,
+         "subject": {"kind": "pr", "url": gone.url, "ref": "app#8", "title": "[ACME-1] Gone"}}])
+    tickets = [replace(TICKETS[0], prs=[PR_ONE])]
     check("attention items are data, never html", board_module.attention_items(tickets, [], {}, STATED) == [
         {"subject": SUBJECT, "reason": "Open for review, but the ticket is still In progress. Move it to In review?"}])
 
@@ -720,7 +765,7 @@ def test_pr_titles_read_like_their_links():
 
 
 def test_vanished_prs_need_their_state():
-    gone = {**PR_ONE, "headRefOid": "x"}
+    gone = replace(PR_ONE, head_ref_oid="x")
     with pytest.raises(KeyError):
         board_module.changes_between(board_module.snapshot([], {}, [gone], STATED), board_module.snapshot([], {}, [], STATED), {}, {}, STATED)
 
@@ -728,26 +773,28 @@ def test_vanished_prs_need_their_state():
 def test_tui_loads_the_board(monkeypatch):
     asked = []
     monkeypatch.setattr(board_module, "collect", lambda settings: asked.append(settings) or "board")
+    app = TarkonApp()
+    app.settings = STATED
     check("the TUI refresh collects the board with the app's settings, without writing the html page",
-          TarkonApp().load() == "board" and asked == [config.settings])
+          app.load() == "board" and asked == [STATED])
 
 
 def test_domain_reads_no_global_settings(monkeypatch):
     monkeypatch.setattr(config, "settings", None)
-    pr = {**PR_ONE, "headRefOid": "a1"}
+    pr = replace(PR_ONE, head_ref_oid="a1")
     found = board_module.changes_between(board_module.snapshot([], {}, [], STATED), board_module.snapshot([], {}, [pr], STATED), {}, {}, STATED)
     check("changes take the settings they are given", [c["label"] for c in found] == ["New PR"])
     check("pr ticket keys take the project they are given", board_module.ticket_keys_in(pr, "ACME") == {"ACME-1"})
 
 
 def test_unmapped_status_raises():
-    with pytest.raises(fetch.UnmappedStatus, match="Unmapped Jira status: Blocked"):
-        fetch.column_for("Blocked")
+    with pytest.raises(jira.UnmappedStatus, match="Unmapped Jira status: Blocked"):
+        jira.column_for("Blocked")
 
 
 def test_html_unmapped_status_exits_cleanly(monkeypatch):
     monkeypatch.setattr(config, "load", lambda: STATED)
-    monkeypatch.setattr(web, "build", lambda: (_ for _ in ()).throw(fetch.UnmappedStatus("Unmapped Jira status: Blocked")))
+    monkeypatch.setattr(web, "build", lambda: (_ for _ in ()).throw(jira.UnmappedStatus("Unmapped Jira status: Blocked")))
     with pytest.raises(SystemExit, match="Unmapped Jira status: Blocked"):
         web.main()
 
@@ -797,6 +844,35 @@ def test_storage_crash(tmp_path, monkeypatch):
     check("a write cut off midway keeps the previous file", storage.read(path) == {"kept": True})
 
 
+def test_entities(tmp_path, monkeypatch):
+    monkeypatch.setattr(fetch, "run_json", lambda cmd: {"data": {"search": {"nodes": [light(PR_TWO)]}}})
+    check("a pr search builds found prs", isinstance(github.search_prs("is:pr")[0], FoundPr))
+    monkeypatch.setattr(fetch, "run_json", lambda cmd: {"data": {"pr0": pr_node(2, None)}})
+    check("a pr fetch builds pull requests", isinstance(github.fetch_prs([("acme/app", 2)])[0], PullRequest))
+    monkeypatch.setattr(fetch, "run_json", lambda cmd: [{"key": "ACME-9", "fields": {
+        "summary": "S", "status": {"name": "Rollout"}, "assignee": None}}])
+    check("epics are built from jira", isinstance(jira.fetch_epics(STATED)[0], Epic))
+    check("an epic's children are tickets", isinstance(jira.fetch_children("ACME-9")[0], Ticket))
+    monkeypatch.setattr(fetch, "run_json", lambda cmd: [{"key": "ACME-1", "fields": {"summary": "S", "status": {"name": "En proceso"}}}]
+                        if cmd[3] == "search" else ticket_view(cmd[4]))
+    mine = jira.fetch_my_tickets(lambda keys: {key: jira.fetch_ticket_detail(key) for key in keys})
+    check("my tickets are tickets carrying their detail", isinstance(mine[0], Ticket) and isinstance(mine[0].detail, TicketDetail))
+    path = tmp_path / "entities.json"
+    storage.write(path, {"epic": Epic("ACME-1", "S", "Rollout", "Ana")})
+    check("storage writes an entity as its fields", storage.read(path) == {"epic": {"key": "ACME-1", "summary": "S", "status": "Rollout", "owner": "Ana"}})
+    path.write_text('{"version": 2, "board": {}}')
+    check("files written before entities read as nothing", storage.read(path) is None)
+
+
+def test_cached_board_reads_back(tmp_path):
+    def shown(found):
+        return {key: [(e.detail, e.url, e.search) for e in found_entries] for key, found_entries in app_module.entries(found, STATED).items()}
+    found = board([PR_ONE, PR_TWO])
+    storage.write(tmp_path / "cache.json", {"board": found})
+    again = board_module.saved_board(storage.read(tmp_path / "cache.json")["board"])
+    check("a cached board reads back as the same board", shown(again) == shown(found))
+
+
 def test_state_write(tmp_path, monkeypatch):
     monkeypatch.setattr(board_module, "STATE_PATH", tmp_path / "state.json")
     board_module.save_state({"tickets": {}}, [])
@@ -804,9 +880,9 @@ def test_state_write(tmp_path, monkeypatch):
 
 
 def light(pr, updated="2026-10-24T10:00:00Z", ci="SUCCESS"):
-    owner_repo = pr["url"].split("/")[3] + "/" + pr["url"].split("/")[4]
-    return {"url": pr["url"], "number": pr["number"], "updatedAt": updated, "title": pr["title"], "headRefName": pr["headRefName"],
-            "mergeable": pr["mergeable"], "author": pr["author"], "repository": {"nameWithOwner": owner_repo},
+    owner_repo = pr.url.split("/")[3] + "/" + pr.url.split("/")[4]
+    return {"url": pr.url, "number": pr.number, "updatedAt": updated, "title": pr.title, "headRefName": pr.head_ref_name,
+            "mergeable": pr.mergeable, "author": pr.author, "repository": {"nameWithOwner": owner_repo},
             "head": {"nodes": [{"commit": {"statusCheckRollup": {"state": ci} if ci else None}}]}}
 
 
@@ -814,29 +890,29 @@ def test_search_prs(monkeypatch):
     seen = []
     monkeypatch.setattr(fetch, "run_json", lambda cmd: seen.append(cmd) or {"data": {"search": {"nodes": [
         {**light(PR_TWO, ci="FAILURE"), "author": None}]}}})
-    found = fetch.search_prs("is:pr is:open org:acme author:alice")
+    found = github.search_prs("is:pr is:open org:acme author:alice")
     query = next(arg for arg in seen[0] if arg.startswith("query="))
     check("pr searches go through graphql, not the rest search api",
           seen[0][:3] == ["gh", "api", "graphql"] and 'search(type: ISSUE, query: "is:pr is:open org:acme author:alice", first: 100)' in query)
-    check("a search returns light prs with their ci, repo and update time", found == [{
-        "url": PR_TWO["url"], "number": 2, "updatedAt": "2026-10-24T10:00:00Z", "title": PR_TWO["title"], "headRefName": "ACME-2-y",
-        "mergeable": "MERGEABLE", "author": {"login": "ghost"}, "nameWithOwner": "acme/billing-reconciliation-service",
-        "repo": "billing-reconciliation-service", "ci": "failing"}])
-    check("the rest pr searches are gone", not any(hasattr(fetch, name) for name in
+    check("a search returns light prs with their ci, repo and update time", found == [FoundPr(
+        url=PR_TWO.url, number=2, updated_at="2026-10-24T10:00:00Z", title=PR_TWO.title, head_ref_name="ACME-2-y",
+        mergeable="MERGEABLE", author={"login": "ghost"}, name_with_owner="acme/billing-reconciliation-service",
+        repo="billing-reconciliation-service", ci="failing")])
+    check("the rest pr searches are gone", not any(hasattr(module, name) for module in (fetch, github) for name in
                                                     ("search_team_prs", "search_open_prs", "search_merged_prs", "search_review_requested_from_me")))
 
 
 def test_changed_since(monkeypatch):
     seen = []
     monkeypatch.setattr(fetch, "run_json", lambda cmd: seen.append(cmd) or [{"key": "A-2", "fields": {"summary": "x"}}])
-    check("jira says which tickets changed in the last minutes, by key", fetch.changed_since(["A-1", "A-2"], 15) == {"A-2"}
+    check("jira says which tickets changed in the last minutes, by key", jira.changed_since(["A-1", "A-2"], 15) == {"A-2"}
           and "key in (A-1, A-2) AND updated >= -15m" in seen[0] and "--paginate" in seen[0])
     seen.clear()
-    fetch.changed_since(["A-1", "A-2"], 15, linked_to=["A-1"])
+    jira.changed_since(["A-1", "A-2"], 15, linked_to=["A-1"])
     check("tickets linked to the given ones are asked about too",
           "(key in (A-1, A-2) OR issue in linkedIssues(A-1)) AND updated >= -15m" in seen[0])
     monkeypatch.setattr(fetch, "run_json", lambda cmd: {"fields": {"updated": "2026-10-21T17:42:10.834+0200"}})
-    check("a ticket's update time is returned, not written into it", fetch.fetch_updated("A-1") == "2026-10-21T17:42:10.834+0200")
+    check("a ticket's update time is returned, not written into it", jira.fetch_updated("A-1") == "2026-10-21T17:42:10.834+0200")
 
 
 def test_refetch_changed(tmp_path, monkeypatch):
@@ -890,37 +966,38 @@ def test_pr_states(monkeypatch):
     monkeypatch.setattr(fetch, "run_json", lambda cmd: seen.append(cmd) or {"data": {
         "pr0": {"pullRequest": {"state": "MERGED"}}, "pr1": {"pullRequest": {"state": "CLOSED"}}}})
     urls = ["https://github.com/acme/app/pull/8", "https://github.com/acme/web/pull/9"]
-    states = fetch.fetch_pr_states(urls)
+    states = github.fetch_pr_states(urls)
     query = next(arg for arg in seen[0] if arg.startswith("query="))
     check("vanished pr states come from one graphql call", len(seen) == 1 and states == {urls[0]: "MERGED", urls[1]: "CLOSED"}
           and 'name: "web"' in query and "pullRequest(number: 9)" in query)
-    check("nothing vanished asks nothing", fetch.fetch_pr_states([]) == {} and len(seen) == 1)
+    check("nothing vanished asks nothing", github.fetch_pr_states([]) == {} and len(seen) == 1)
 
 
 def test_collect(tmp_path, monkeypatch):
-    three = {**PR_THREE, "url": "https://github.com/acme/renamed/pull/3"}
+    three = replace(PR_THREE, url="https://github.com/acme/renamed/pull/3")
     lights = {"team": [light(PR_TWO)], "review": [light(three), light(PR_ONE)], "open": [light(PR_ONE)]}
-    details = {1: {**PR_ONE, "headRefOid": "a1"}, 2: {**PR_TWO, "headRefOid": "b2"}, 3: {**three, "headRefOid": "c3"}}
+    details = {1: PR_ONE, 2: PR_TWO, 3: three}
     queries, asked = [], []
 
     def search(query):
         queries.append(query)
         kind = "team" if "author:" in query else "review" if "user-review-requested" in query else "merged" if "is:merged" in query else "open"
-        return [{**fetch.light_pr(node), "updatedAt": node["updatedAt"]} for node in lights.get(kind, [])]
+        return [github.light_pr(node) for node in lights.get(kind, [])]
 
     def details_of(items):
         items = list(items)
         asked.append(items)
         current = {n["number"]: n for kind in lights.values() for n in kind}
-        return [{**details[number], "updatedAt": current[number]["updatedAt"]} for _, number in items]
-    jira = []
-    fakes = {"fetch_my_tickets": lambda details: [{"key": "ACME-9", **details(["ACME-9"])["ACME-9"]}],
-             "fetch_ticket_detail": lambda key: {"summary": f"{key} detail", "links": [{"key": "ACME-50"}]},
+        return [replace(details[number], updated_at=current[number]["updatedAt"]) for _, number in items]
+    asked_jira = []
+    fakes = {"fetch_my_tickets": lambda details: [Ticket(key="ACME-9", summary="Ticket nine", status="En proceso",
+                                                         detail=details(["ACME-9"])["ACME-9"])],
+             "fetch_ticket_detail": lambda key: replace(TICKET_DETAIL, description=f"{key} detail", links=[{"key": "ACME-50"}]),
              "fetch_updated": lambda key: f"{key} updated",
-             "changed_since": lambda keys, minutes, linked_to=(): jira.append((sorted(keys), sorted(linked_to))) or set(),
+             "changed_since": lambda keys, minutes, linked_to=(): asked_jira.append((sorted(keys), sorted(linked_to))) or set(),
              "search_prs": search, "fetch_prs": details_of,
-             "fetch_epics": lambda settings: [{"key": "ACME-100", "summary": "Epic one", "status": "Developing", "owner": "Ana"}],
-             "fetch_children": lambda key: [{**t, "prs": []} for t in TICKETS], "fetch_pr_states": lambda urls: {}}
+             "fetch_epics": lambda settings: [EPIC],
+             "fetch_children": lambda key: [replace(t, prs=[]) for t in TICKETS], "fetch_pr_states": lambda urls: {}}
     for name, fake in fakes.items():
         monkeypatch.setattr(board_module, name, fake)
     monkeypatch.setattr(board_module, "STATE_PATH", tmp_path / "state.json")
@@ -935,17 +1012,19 @@ def test_collect(tmp_path, monkeypatch):
           and "is:pr is:open archived:false org:acme ACME-100 OR ACME-1" in queries and "is:pr is:merged org:acme ACME-1" in queries)
     check("every pr on the board is fetched once, in one go", len(asked) == 1
           and sorted(asked[0]) == [("acme/app", 1), ("acme/billing-reconciliation-service", 2), ("acme/renamed", 3)])
-    check("review requests keep their order", [pr["number"] for pr in found["review_prs"]] == [3, 1])
-    active = [t for t in found["by_key"].values() if t["column"] in board_module.ACTIVE_COLUMNS]
+    check("review requests keep their order", [pr.number for pr in found["review_prs"]] == [3, 1])
+    active = [t for t in found["by_key"].values() if t.column in board_module.ACTIVE_COLUMNS]
     check("active tickets take their update time from the update cache", active
-          and all(t["updated"] == f'{t["key"]} updated' for t in active)
-          and sorted(storage.read(tmp_path / "updated.json")["found"]) == sorted(t["key"] for t in active))
-    check("my tickets take their details from their own cache", found["my_tickets"][0]["summary"] == "ACME-9 detail"
+          and all(t.updated == f"{t.key} updated" for t in active)
+          and sorted(storage.read(tmp_path / "updated.json")["found"]) == sorted(t.key for t in active))
+    check("my tickets take their details from their own cache", found["my_tickets"][0].detail.description == "ACME-9 detail"
           and list(storage.read(tmp_path / "my-tickets.json")["found"]) == ["ACME-9"])
     asked.clear()
-    board_module.collect(STATED)
+    again = board_module.collect(STATED)
     check("the next refresh asks jira what changed, and about the tickets linked to mine",
-          sorted(jira) == sorted([(sorted(t["key"] for t in active), []), (["ACME-9"], ["ACME-9"])]))
+          sorted(asked_jira) == sorted([(sorted(t.key for t in active), []), (["ACME-9"], ["ACME-9"])]))
+    check("my ticket details read back from the cache are entities", isinstance(again["my_tickets"][0].detail, TicketDetail)
+          and again["my_tickets"][0].detail.description == "ACME-9 detail")
     check("an unchanged pr is not fetched again", asked in ([], [[]]))
     lights["open"] = [light(PR_ONE, updated="2026-10-25T08:00:00Z")]
     lights["review"] = [light(three), light(PR_ONE, updated="2026-10-25T08:00:00Z")]
@@ -953,7 +1032,7 @@ def test_collect(tmp_path, monkeypatch):
     asked.clear()
     found = board_module.collect(STATED)
     check("only the pr updated since the last refresh is fetched again", asked == [[("acme/app", 1)]])
-    check("ci comes from the search even when the detail is reused", {pr["number"]: pr["ci"] for pr in found["prs"]} == {1: "passing", 2: "failing"})
+    check("ci comes from the search even when the detail is reused", {pr.number: pr.ci for pr in found["prs"]} == {1: "passing", 2: "failing"})
 
 
 def test_refresh_policy():
@@ -996,11 +1075,10 @@ def test_escaping():
     check("tui links keep a title ending in a backslash",
           Content.from_markup(app_module.link("https://github.com/acme/app/pull/1", "Fix path\\")).plain.rstrip(app_module.ZERO_WIDTH_SPACE)
           == "Fix path\\")
-    config.use(config.Settings(team=["alice"], jira_project="ACME", github_user="me", github_org="acme",
-                               jira_url='https://acme.atlassian.net/"><b>site</b>'))
-    epic = {"key": "ACME-100", "summary": "Epic one", "status": "Developing", "owner": "Ana"}
-    rendered = (web.jira_link("ACME-9<i>") + web.tui_epic(epic, TICKETS)["detail"]
-                + web.tui_ticket(TICKETS[0], [])["detail"])
+    site = config.Settings(team=["alice"], jira_project="ACME", github_user="me", github_org="acme",
+                           jira_url='https://acme.atlassian.net/"><b>site</b>')
+    rendered = (web.jira_link("ACME-9<i>", site) + web.tui_epic(EPIC, TICKETS, site)["detail"]
+                + web.tui_ticket(TICKETS[0], [], site)["detail"])
     check("jira links escape the site and the key", "<b>" not in rendered and "<i>" not in rendered)
 
 
@@ -1020,27 +1098,31 @@ REPLY = {**NOTE, "author": {"__typename": "User", "login": "bob"}, "body": "Than
 CHANGES = {"submittedAt": "2026-10-22T09:00:00Z", "state": "CHANGES_REQUESTED", "body": "Please split this", "author": {"login": "carol"}}
 
 
+def test_stardate():
+    check("a stardate is the year, the day of the year and the tenth of the day", app_module.stardate(dt.datetime(2026, 10, 25, 12, 0)) == "26298.5")
+
+
 def test_pr_rows():
-    row = lambda pr: app_module.cell_row(app_module.pr_entry(pr, {}), app_module.PR_WIDTHS).plain
+    row = lambda pr: app_module.cell_row(app_module.pr_entry(pr, {}, STATED), app_module.PR_WIDTHS).plain
     check("team pr row shows the title's ticket code and the author", "[ACME-1]" in row(PR_ONE) and "alice" in row(PR_ONE))
-    check("team pr row without a ticket code shows no code", "[" not in row({**PR_ONE, "title": "No ticket"})
-          and "alice" in row({**PR_ONE, "title": "No ticket"}))
+    check("team pr row without a ticket code shows no code", "[" not in row(replace(PR_ONE, title="No ticket"))
+          and "alice" in row(replace(PR_ONE, title="No ticket")))
 
 
 def test_pr_comments():
     review = {"submittedAt": "2026-10-22T09:00:00Z", "state": "CHANGES_REQUESTED", "body": "Please split this", "author": {"login": "carol"}}
-    pr = {**PR_TWO, "reviews": [*PR_TWO["reviews"], review], "commits": [{"committedDate": "2026-10-23T08:00:00Z"}], "threads": [THREAD]}
-    detail = Content.from_markup(app_module.pr_entry(pr, {}).detail).plain
+    pr = replace(PR_TWO, reviews=[*PR_TWO.reviews, review], commits=[{"committedDate": "2026-10-23T08:00:00Z"}], threads=[THREAD])
+    detail = Content.from_markup(app_module.pr_entry(pr, {}, STATED).detail).plain
     check("pr detail counts the comments and says how to open them", "comments 2 · c to open" in detail)
     check("pr detail leaves the comments themselves to the popup", all(text not in detail for text in
           ("Please split this", "app/models/order.rb", ".sum { |item|", "Rename qty to quantity")))
     activity = detail[detail.index("── activity ──"):]
     check("activity is newest first", activity.index("commit") < activity.index("approved"))
-    check("pr detail without comments has no comments line", "comments" not in Content.from_markup(app_module.pr_entry(PR_ONE, {}).detail).plain)
+    check("pr detail without comments has no comments line", "comments" not in Content.from_markup(app_module.pr_entry(PR_ONE, {}, STATED).detail).plain)
 
 
 def test_conversation_comments():
-    pr = {**PR_TWO, "reviews": [CHANGES], "threads": [THREAD], "conversation": [NOTE, REPLY]}
+    pr = replace(PR_TWO, reviews=[CHANGES], threads=[THREAD], conversation=[NOTE, REPLY])
     items = app_module.review_items(pr)
     check("conversation comments sit with the reviews by date, before the code threads",
           [str(item["row"]).splitlines()[0] for item in items] == ["comment", "changes requested", "comment", "order.rb:12"])
@@ -1049,7 +1131,7 @@ def test_conversation_comments():
           and "Nice work, this reads well" in Content.from_markup("\n".join(items[0]["comments"])).plain)
     check("enter on a conversation comment opens that comment", items[0]["url"] == NOTE["url"])
     check("the detail counts conversation comments too",
-          "comments 4 · c to open" in Content.from_markup(app_module.pr_entry(pr, {}).detail).plain)
+          "comments 4 · c to open" in Content.from_markup(app_module.pr_entry(pr, {}, STATED).detail).plain)
 
 
 def test_diff_rendering():
@@ -1071,7 +1153,7 @@ def test_diff_rendering():
 
 
 async def review_popup(cache):
-    pr_two = {**PR_TWO, "reviews": [*PR_TWO["reviews"], CHANGES], "threads": [THREAD, OUTDATED]}
+    pr_two = replace(PR_TWO, reviews=[*PR_TWO.reviews, CHANGES], threads=[THREAD, OUTDATED])
     opened, copied = [], []
     app = TarkonApp(load=lambda: board([PR_ONE, pr_two]), opener=opened.append, copier=copied.append, clock=lambda: 1000.0,
                          cache=cache, config_path=settings_file(cache))
@@ -1081,6 +1163,7 @@ async def review_popup(cache):
         text = lambda selector: str(app.screen.query_one(selector, Static).render())
         await pilot.press("4", "j", "c")
         check("c opens the review comments of the selected PR", isinstance(app.screen, app_module.ReviewScreen))
+        check("the review popup blocks the theme key", not app.check_action("toggle_theme", ()))
         check("the popup lists the review and every open thread", app.screen.query_one(OptionList).option_count == 3)
         check("the popup title names the PR", "brs#2" in str(app.screen.query_one("#review").border_title))
         prompts = [str(app.screen.query_one(OptionList).get_option_at_index(i).prompt) for i in range(3)]
@@ -1122,6 +1205,8 @@ def pr_node(number, rollup):
     bots = [{**NOTE, "author": {"__typename": "Bot", "login": "github-actions"}}, {**NOTE, "author": {"__typename": "User", "login": "deploybot"}}]
     return {"pullRequest": {
         "number": number, "title": "x", "url": f"https://github.com/acme/app/pull/{number}", "author": {"login": "alice"},
+        "updatedAt": "2026-10-22T10:00:00Z", "headRefName": "x", "headRefOid": "h", "isDraft": False, "createdAt": "2026-10-20T10:00:00Z",
+        "reviewDecision": None, "mergeable": "MERGEABLE",
         "reviewRequests": {"nodes": [{"requestedReviewer": {"__typename": "User"}}]}, "reviews": {"nodes": [CHANGES]},
         "commits": {"nodes": [{"commit": {"committedDate": "2026-10-21T10:00:00Z"}}, {"commit": {"committedDate": "2026-10-22T10:00:00Z"}}]},
         "head": {"nodes": [{"commit": {"statusCheckRollup": rollup}}]},
@@ -1141,30 +1226,30 @@ def test_pr_fetch():
 
     fetch.run_json = graph
     try:
-        prs = fetch.fetch_prs([("acme/app", 2), ("acme/app", 3)])
-        many = fetch.fetch_prs([("acme/app", n) for n in range(25)])
+        prs = github.fetch_prs([("acme/app", 2), ("acme/app", 3)])
+        many = github.fetch_prs([("acme/app", n) for n in range(25)])
     finally:
         fetch.run_json = run_json
     query = next(arg for arg in seen[0] if arg.startswith("query="))
     check("prs come from one graphql call per batch of 3", len(seen) == 10 and all("graphql" in cmd for cmd in seen) and len(many) == 25)
     check("pr fetch asks for each pr by repo and number", 'owner: "acme"' in query and 'name: "app"' in query
           and "pullRequest(number: 2)" in query and "pullRequest(number: 3)" in query)
-    check("pr fetch keeps the order it was asked", [pr["number"] for pr in many] == list(range(25)))
-    check("pr fetch keeps only unresolved review threads", prs[0]["threads"] == [THREAD])
-    check("pr fetch keeps conversation comments from people, not bots", prs[0]["conversation"] == [NOTE])
-    check("pr fetch flattens reviews, review requests and commits", prs[0]["reviews"] == [CHANGES] and len(prs[0]["reviewRequests"]) == 1
-          and [c["committedDate"] for c in prs[0]["commits"]] == ["2026-10-21T10:00:00Z", "2026-10-22T10:00:00Z"])
-    check("pr ci comes from the last commit's check rollup", [pr["ci"] for pr in many[:4]] == ["failing", "running", "passing", "none"])
-    check("pr fetch names the repo", prs[0]["repo"] == "app")
+    check("pr fetch keeps the order it was asked", [pr.number for pr in many] == list(range(25)))
+    check("pr fetch keeps only unresolved review threads", prs[0].threads == [THREAD])
+    check("pr fetch keeps conversation comments from people, not bots", prs[0].conversation == [NOTE])
+    check("pr fetch flattens reviews, review requests and commits", prs[0].reviews == [CHANGES] and len(prs[0].review_requests) == 1
+          and [c["committedDate"] for c in prs[0].commits] == ["2026-10-21T10:00:00Z", "2026-10-22T10:00:00Z"])
+    check("pr ci comes from the last commit's check rollup", [pr.ci for pr in many[:4]] == ["failing", "running", "passing", "none"])
+    check("pr fetch names the repo", prs[0].repo == "app")
     check("pr fetch asks for the check rollup of the head commit only",
           "commits(last: 100) { nodes { commit { committedDate } } }" in query
           and "head: commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }" in query)
     node = pr_node(5, None)["pullRequest"]
     ghost = {**node, "author": None, "reviews": {"nodes": [{**CHANGES, "author": None}]},
              "reviewThreads": {"nodes": [{**THREAD, "comments": {"nodes": [{**THREAD["comments"][0], "author": None}]}}]}}
-    pr = fetch.pr_from_graph(ghost, "acme/app")
-    check("a deleted account reads as ghost", pr["author"] == {"login": "ghost"} and pr["reviews"][0]["author"] == {"login": "ghost"}
-          and pr["threads"][0]["comments"][0]["author"] == {"login": "ghost"})
+    pr = github.pr_from_graph(ghost, "acme/app")
+    check("a deleted account reads as ghost", pr.author == {"login": "ghost"} and pr.reviews[0]["author"] == {"login": "ghost"}
+          and pr.threads[0]["comments"][0]["author"] == {"login": "ghost"})
     check("pr fetch asks for every comment field the popup shows",
           all(re.search(rf"\b{name}\b", query) for name in ("login", "body", "createdAt", "diffHunk", "url")))
 
@@ -1187,9 +1272,16 @@ def test_html_logo():
             page = web.build()["out"].read_text()
         finally:
             web.collect, web.OUT = collect, path
-    logo = "data:image/png;base64," + base64.b64encode(Path(web.__file__).with_name("logo.png").read_bytes()).decode()
+    logo = "data:image/png;base64," + base64.b64encode((Path(web.__file__).parent.parent / "logo.png").read_bytes()).decode()
     check("html favicon is the logo", f'<link rel="icon" type="image/png" href="{logo}">' in page)
     check("html headers show the logo instead of the rocket", page.count(f'src="{logo}"') == 2 and "rotate(45 16 16)" not in page)
+
+
+def test_html_lcars_design():
+    template = Path(web.__file__).with_name("template.html").read_text()
+    check("both design switches offer LCARS", template.count('<button type="button" data-design="lcars"') == 2)
+    check("the page remembers the LCARS design", re.search(r'getItem\("tarkon-design"\).*"lcars"', template.splitlines()[4]) is not None)
+    check("the LCARS design has its own look", ':root[data-design="lcars"] .masthead' in template)
 
 
 def test_html_without_config():
@@ -1200,12 +1292,75 @@ def test_html_without_config():
           result.returncode == 1 and "Run `python -m tarkon config` first" in result.stderr)
 
 
+async def lcars_theme(cache):
+    path = settings_file(cache)
+    lcars = app_module.THEMES["lcars"]
+    app = TarkonApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=path)
+    async with app.run_test(size=(160, 40)) as pilot:
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        check("a config without a theme starts with the default one", app.screen.styles.background == Color.parse(app_module.THEMES["default"]["bg"]))
+        check("the default theme has no LCARS frame", not any(app.query_one(f"#{name}").display for name in ("elbow", "bar", "sidebar")))
+        await pilot.press("t")
+        await pilot.pause()
+        check("LCARS frames the header with an elbow", app.query_one("#elbow").display and app.query_one("#bar").display
+              and str(app.query_one("#top .brand").render()) == "TARKON"
+              and str(app.query_one("#status").render()).startswith("STARDATE "))
+        check("LCARS titles panels with a two-digit code in capitals", str(app.query_one("#panel-prs").border_title) == "04-TEAM PRS 1"
+              and str(app.query_one("#detail").parent.border_title) == "DETAILS")
+        check("LCARS shows review and CI states as pills",
+              "◖AWAITING REVIEW" in app.query_one("#list-prs").get_option_at_index(0).prompt.plain)
+        buttons = list(app.query(".side"))
+        check("LCARS adds a sidebar button per box, lit for the focused one", app.query_one("#sidebar").display
+              and [str(b.render()).split() [0] for b in buttons] == ["03", "04", "05", "06", "07", "08"]
+              and [b.has_class("-on") for b in buttons] == [True, False, False, False, False, False])
+        await pilot.click("#side-changes")
+        await pilot.pause()
+        check("a sidebar button focuses its box", app.current_section == "changes" and app.query_one("#side-changes").has_class("-on"))
+        check("t switches the TUI to LCARS", app.screen.styles.background == Color.parse(lcars["bg"])
+              and app.query_one("#panel-prs").styles.border_top == ("panel", Color.parse(lcars["line"])))
+        check("the switch repaints the board", lcars["accent"] in app.sections["prs"][0].detail)
+        check("the theme is saved in the config", json.loads(path.read_text()) == {**SETTINGS, "theme": "lcars"})
+    app = TarkonApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=path)
+    async with app.run_test(size=(160, 40)) as pilot:
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        check("the saved theme applies on start", app.screen.styles.background == Color.parse(lcars["bg"]))
+        await pilot.press("t")
+        await pilot.pause()
+        check("t switches back to the default theme", app.screen.styles.background == Color.parse(app_module.THEMES["default"]["bg"])
+              and json.loads(path.read_text())["theme"] == "default")
+        check("the default theme keeps its titles, states and header", str(app.query_one("#panel-prs").border_title) == "[4] team prs 1"
+              and "awaiting review" in app.query_one("#list-prs").get_option_at_index(0).prompt.plain
+              and str(app.query_one("#top .brand").render()) == "Tarkon"
+              and not app.query_one("#sidebar").display)
+    app = TarkonApp(load=failing_load, opener=print, copier=print, clock=lambda: 5000.0, cache=cache, config_path=path)
+    async with app.run_test(size=(160, 40)) as pilot:
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        await pilot.press("t")
+        await pilot.pause()
+        check("switching the theme keeps a failed refresh visible", "refresh failed" in str(app.query_one("#status").render()))
+
+
+async def lcars_edit(cache):
+    path = settings_file(cache, {**SETTINGS, "theme": "lcars"})
+    app = TarkonApp(load=lambda: board([PR_ONE]), opener=print, copier=print, cache=cache, config_path=path, edit_config=True)
+    async with app.run_test(size=(160, 40)) as pilot:
+        await pilot.pause()
+        app.screen.query_one("#config-team", Input).value = "alice bob, carol"
+        await pilot.click("#config-save")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        check("editing the config keeps the saved theme", json.loads(path.read_text())["theme"] == "lcars")
+
+
 @pytest.fixture
 def cache(tmp_path):
     return tmp_path / "cache.json"
 
 
 @pytest.mark.parametrize("scenario", [main, reopen, throttle_across_runs, running, failure, unmapped_status, first_run, first_run_cancel,
-                                      edit, edit_cancel, review_popup, stale_cache], ids=lambda scenario: scenario.__name__)
+                                      edit, edit_cancel, review_popup, stale_cache, lcars_theme, lcars_edit], ids=lambda scenario: scenario.__name__)
 def test_tui(scenario, cache):
     asyncio.run(scenario(cache))

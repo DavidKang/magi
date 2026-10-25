@@ -39,6 +39,8 @@ Your team's board in one screen: the PRs that need you, the team's open PRs, wha
 
 Epics are not configured: the board shows every epic of the project in Developing or Rollout, newest first.
 
+The browser page has three designs, picked from the switch in its header and remembered by the browser: `Console`, `Terminal` and `LCARS`.
+
 ## Keys
 
 | Key | Action |
@@ -52,6 +54,7 @@ Epics are not configured: the board shows every epic of the project in Developin
 | `/` | Filter the current box (`escape` clears it) |
 | `y` | Copy the selected link (the key, for an epic) |
 | `r` | Refresh (once every 30 seconds at most; it also refreshes every 5 minutes) |
+| `t` | Switch between the default theme and the LCARS one (Star Trek's computer screens); the choice is saved in your settings |
 | `q` | Quit |
 
 ## Where it keeps its files
@@ -81,3 +84,5 @@ python3.12 -m venv .venv
 .venv/bin/pytest
 .venv/bin/python scripts/profile_refresh.py  # one real refresh, timed per call; leaves your files alone
 ```
+
+`board.py` builds the board as data from the `jira.py` and `github.py` adapters; `tui/` and `html/` render it, and both show PR and ticket rows from `rows.py`.

@@ -1,5 +1,6 @@
 """Turn the fetched data into the board: attention items and changes since the last run, as plain data the views render."""
 
+import dataclasses
 import datetime as dt
 import math
 import re
@@ -8,8 +9,10 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from . import storage
-from .fetch import (changed_since, column_for, days_since, fetch_children, fetch_epics, fetch_my_tickets, fetch_pr_states, fetch_prs,
-                    fetch_ticket_detail, fetch_updated, parallel, search_prs, search_terms)
+from .entities import Epic, PullRequest, TicketDetail, ticket_from
+from .fetch import days_since, parallel
+from .github import fetch_pr_states, fetch_prs, search_prs, search_terms
+from .jira import changed_since, column_for, fetch_children, fetch_epics, fetch_my_tickets, fetch_ticket_detail, fetch_updated
 
 ACTIVE_COLUMNS = {"doing", "review", "deploy"}
 STALE_PR_DAYS = 3
@@ -32,27 +35,27 @@ CI_LABELS = {"failing": ("changes", "CI red"), "running": ("commented", "CI runn
 
 
 def looks_ready_but_blocked(pr):
-    return review_state(pr)[0] == "approved" and (pr["ci"] == "failing" or pr["mergeable"] == "CONFLICTING")
+    return review_state(pr)[0] == "approved" and (pr.ci == "failing" or pr.mergeable == "CONFLICTING")
 
 
 def review_state(pr):
-    if pr["isDraft"]:
+    if pr.is_draft:
         return "draft", "Draft"
-    if pr["reviewDecision"] == "APPROVED":
+    if pr.review_decision == "APPROVED":
         return "approved", "Approved"
-    if pr["reviewDecision"] == "CHANGES_REQUESTED":
+    if pr.review_decision == "CHANGES_REQUESTED":
         return "changes", "Changes requested"
-    if pr["reviews"]:
+    if pr.reviews:
         return "commented", "Commented"
     return "waiting", "Awaiting review"
 
 
 def ticket_keys_in(pr, project):
-    return {k.upper() for k in re.findall(rf"{re.escape(project)}-\d+", f"{pr['title']} {pr['headRefName']}", flags=re.I)}
+    return {k.upper() for k in re.findall(rf"{re.escape(project)}-\d+", f"{pr.title} {pr.head_ref_name}", flags=re.I)}
 
 
 def title_keys_in(pr, project):
-    return set(re.findall(r"\[([A-Z][A-Z0-9]+-\d+)\]", pr["title"])) | ticket_keys_in(pr, project)
+    return set(re.findall(r"\[([A-Z][A-Z0-9]+-\d+)\]", pr.title)) | ticket_keys_in(pr, project)
 
 
 def pr_subject(url, ref, title):
@@ -85,37 +88,37 @@ def attention_items(all_tickets, prs, merged_by_ticket, settings):
     def flag(subject, reason):
         items.append({"subject": subject, "reason": reason})
     for t in all_tickets:
-        open_for_review = [pr for pr in t["prs"] if not pr["isDraft"]]
-        if t["column"] == "doing":
+        open_for_review = [pr for pr in t.prs if not pr.is_draft]
+        if t.column == "doing":
             for pr in open_for_review:
-                flag(pr_subject(pr["url"], f'{pr["repo"]}#{pr["number"]}', pr["title"]), "Open for review, but the ticket is still In progress. Move it to In review?")
-        if t["column"] in {"doing", "review"} and not t["prs"]:
-            for merged in merged_by_ticket.get(t["key"], []):
-                flag(merged, f'Merged, but the ticket is still {t["status"]} with no other open PR. Move it?')
-        if t["column"] == "review" and not t["prs"] and not merged_by_ticket.get(t["key"]):
-            flag(ticket_subject(t["key"], settings.jira_browse, t["summary"]), "In review with no open PR.")
-        if t["column"] == "done":
-            for pr in t["prs"]:
-                flag(pr_subject(pr["url"], f'{pr["repo"]}#{pr["number"]}', pr["title"]), "Still open, but the ticket is already done.")
-        if t["column"] in ACTIVE_COLUMNS and t["assignee"] == "Unassigned":
-            flag(ticket_subject(t["key"], settings.jira_browse, t["summary"]), "Active with no owner.")
+                flag(pr_subject(pr.url, f"{pr.repo}#{pr.number}", pr.title), "Open for review, but the ticket is still In progress. Move it to In review?")
+        if t.column in {"doing", "review"} and not t.prs:
+            for merged in merged_by_ticket.get(t.key, []):
+                flag(merged, f"Merged, but the ticket is still {t.status} with no other open PR. Move it?")
+        if t.column == "review" and not t.prs and not merged_by_ticket.get(t.key):
+            flag(ticket_subject(t.key, settings.jira_browse, t.summary), "In review with no open PR.")
+        if t.column == "done":
+            for pr in t.prs:
+                flag(pr_subject(pr.url, f"{pr.repo}#{pr.number}", pr.title), "Still open, but the ticket is already done.")
+        if t.column in ACTIVE_COLUMNS and t.assignee == "Unassigned":
+            flag(ticket_subject(t.key, settings.jira_browse, t.summary), "Active with no owner.")
     for pr in prs:
-        subject = pr_subject(pr["url"], f'{pr["repo"]}#{pr["number"]}', pr["title"])
+        subject = pr_subject(pr.url, f"{pr.repo}#{pr.number}", pr.title)
         if looks_ready_but_blocked(pr):
-            reason = "red CI" if pr["ci"] == "failing" else "conflicts"
+            reason = "red CI" if pr.ci == "failing" else "conflicts"
             flag(subject, f"Approved, but it has {reason}.")
-        if review_state(pr)[0] == "waiting" and days_since(pr["createdAt"]) > STALE_PR_DAYS:
-            flag(subject, f'{days_since(pr["createdAt"])} days without any review.')
+        if review_state(pr)[0] == "waiting" and days_since(pr.created_at) > STALE_PR_DAYS:
+            flag(subject, f"{days_since(pr.created_at)} days without any review.")
     return items
 
 
 def snapshot(epics, tickets_by_epic, prs, settings):
-    return {"epics": {e["key"]: {"summary": e["summary"], "tickets": [t["key"] for t in tickets_by_epic[e["key"]]]} for e in epics},
-            "tickets": {t["key"]: t["status"] for tickets in tickets_by_epic.values() for t in tickets},
-            "prs": {pr["url"]: {"label": f'{pr["repo"]}#{pr["number"]}', "title": pr["title"],
-                                "review": list(review_state(pr)), "ci": list(CI_LABELS[pr["ci"]]),
-                                "head": pr["headRefOid"], "reviews": len(pr["reviews"]),
-                                "awaiting": bool(pr["reviewRequests"]), "tickets": sorted(ticket_keys_in(pr, settings.jira_project))} for pr in prs}}
+    return {"epics": {e.key: {"summary": e.summary, "tickets": [t.key for t in tickets_by_epic[e.key]]} for e in epics},
+            "tickets": {t.key: t.status for tickets in tickets_by_epic.values() for t in tickets},
+            "prs": {pr.url: {"label": f"{pr.repo}#{pr.number}", "title": pr.title,
+                             "review": list(review_state(pr)), "ci": list(CI_LABELS[pr.ci]),
+                             "head": pr.head_ref_oid, "reviews": len(pr.reviews),
+                             "awaiting": bool(pr.review_requests), "tickets": sorted(ticket_keys_in(pr, settings.jira_project))} for pr in prs}}
 
 
 def change(subject, tone, label, note=None, aside=None):
@@ -200,7 +203,7 @@ TUI_REPO_ALIASES = {}
 
 
 def tui_repo(pr):
-    return TUI_REPO_ALIASES.get(pr["repo"], pr["repo"])
+    return TUI_REPO_ALIASES.get(pr.repo, pr.repo)
 
 
 def local_time(iso):
@@ -213,22 +216,23 @@ def save_state(snapshot, changes):
 
 def pr_details(found):
     """Full PRs for the light ones a search found: fetched again only when a PR changed since the last refresh."""
-    cached = (storage.read(PR_CACHE_PATH) or {}).get("prs", {})
-    stale = [pr for pr in found if cached.get(pr["url"], {}).get("updatedAt") != pr["updatedAt"]]
-    fresh = dict(zip((pr["url"] for pr in stale), fetch_prs((pr["nameWithOwner"], pr["number"]) for pr in stale)))
-    details = {pr["url"]: fresh.get(pr["url"]) or cached[pr["url"]] for pr in found}
+    cached = {url: PullRequest(**pr) for url, pr in (storage.read(PR_CACHE_PATH) or {}).get("prs", {}).items()}
+    stale = [pr for pr in found if pr.url not in cached or cached[pr.url].updated_at != pr.updated_at]
+    fresh = dict(zip((pr.url for pr in stale), fetch_prs((pr.name_with_owner, pr.number) for pr in stale)))
+    details = {pr.url: fresh.get(pr.url) or cached[pr.url] for pr in found}
     storage.write(PR_CACHE_PATH, {"prs": details})
     # CI and mergeability change without touching updatedAt, so they always come from the search.
-    return {pr["url"]: {**details[pr["url"]], "ci": pr["ci"], "mergeable": pr["mergeable"]} for pr in found}
+    return {pr.url: dataclasses.replace(details[pr.url], ci=pr.ci, mergeable=pr.mergeable) for pr in found}
 
 
-def refetch_changed(path, keys, fetch_one, started, linked=None):
+def refetch_changed(path, keys, fetch_one, started, linked=None, rebuild=None):
     """fetch_one(key) for the keys Jira changed since the last refresh, or never seen; the rest come from path.
 
-    linked(found) names the tickets a cached value shows, so a change to one of them fetches the value again.
+    linked(found) names the tickets a cached value shows, so a change to one of them fetches the value again;
+    rebuild(value) turns a value read back from path into what fetch_one returns.
     """
     cache = storage.read(path)
-    found = cache["found"] if cache else {}
+    found = {key: rebuild(value) if rebuild else value for key, value in cache["found"].items()} if cache else {}
     known = [key for key in keys if key in found]
     changed = set()
     if known:
@@ -248,50 +252,60 @@ def collect(settings):
     team_prs = pool.submit(parallel, search_prs, [f"{OPEN_PRS} {org} " + " ".join(f"author:{a}" for a in chunk) for chunk in authors])
     review_requested = pool.submit(search_prs, f"{OPEN_PRS} {org} user-review-requested:@me")
     my_tickets = pool.submit(fetch_my_tickets, lambda keys: refetch_changed(MY_TICKETS_CACHE_PATH, keys, fetch_ticket_detail, started,
-                                                                            lambda detail: [link["key"] for link in detail["links"]]))
+                                                                            lambda detail: [link["key"] for link in detail.links],
+                                                                            lambda value: TicketDetail(**value)))
     epics = fetch_epics(settings)
-    epic_keys = [epic["key"] for epic in epics]
+    epic_keys = [epic.key for epic in epics]
     tickets_by_epic = dict(zip(epic_keys, parallel(fetch_children, epic_keys)))
-    by_key = {t["key"]: t for ts in tickets_by_epic.values() for t in ts}
+    by_key = {t.key: t for ts in tickets_by_epic.values() for t in ts}
 
-    active = [t for t in by_key.values() if t["column"] in ACTIVE_COLUMNS]
-    updated = pool.submit(refetch_changed, UPDATED_CACHE_PATH, [t["key"] for t in active], fetch_updated, started)
-    search_keys = epic_keys + [k for k, t in by_key.items() if t["column"] != "done"]
-    active_keys = [k for k, t in by_key.items() if t["column"] in {"doing", "review"}]
+    active = [t for t in by_key.values() if t.column in ACTIVE_COLUMNS]
+    updated = pool.submit(refetch_changed, UPDATED_CACHE_PATH, [t.key for t in active], fetch_updated, started)
+    search_keys = epic_keys + [k for k, t in by_key.items() if t.column != "done"]
+    active_keys = [k for k, t in by_key.items() if t.column in {"doing", "review"}]
     merged_prs = pool.submit(parallel, search_prs, [f"is:pr is:merged {org} {' '.join(terms)}" for terms in search_terms(active_keys)])
     open_prs = parallel(search_prs, [f"{OPEN_PRS} {org} {' '.join(terms)}" for terms in search_terms(search_keys)])
-    candidates = {pr["url"]: pr for found in open_prs + team_prs.result() for pr in found}
+    candidates = {pr.url: pr for found in open_prs + team_prs.result() for pr in found}
     shown = [pr for pr in candidates.values()
-             if any(k in by_key for k in ticket_keys_in(pr, settings.jira_project)) or pr["author"]["login"] in settings.team]
+             if any(k in by_key for k in ticket_keys_in(pr, settings.jira_project)) or pr.author["login"] in settings.team]
     requested = review_requested.result()
-    detailed = pr_details(list({pr["url"]: pr for pr in shown + requested}.values()))
-    prs = [detailed[pr["url"]] for pr in shown]
+    detailed = pr_details(list({pr.url: pr for pr in shown + requested}.values()))
+    prs = [detailed[pr.url] for pr in shown]
     for pr in prs:
         for k in ticket_keys_in(pr, settings.jira_project):
             if k in by_key:
-                by_key[k]["prs"].append(pr)
-    review_prs = [detailed[pr["url"]] for pr in requested]
+                by_key[k].prs.append(pr)
+    review_prs = [detailed[pr.url] for pr in requested]
 
     merged_by_ticket = {}
     for merged in (pr for found in merged_prs.result() for pr in found):
-        subject = pr_subject(merged["url"], f'{merged["repo"]}#{merged["number"]}', merged["title"])
-        for k in ticket_keys_in({"title": merged["title"], "headRefName": ""}, settings.jira_project):
+        subject = pr_subject(merged.url, f"{merged.repo}#{merged.number}", merged.title)
+        for k in ticket_keys_in(dataclasses.replace(merged, head_ref_name=""), settings.jira_project):
             if k in active_keys:
                 merged_by_ticket.setdefault(k, []).append(subject)
     my_tickets = my_tickets.result()
     found_updated = updated.result()
     for ticket in active:
-        ticket["updated"] = found_updated[ticket["key"]]
+        ticket.updated = found_updated[ticket.key]
 
     state = storage.read(STATE_PATH)
-    now = snapshot(epics, tickets_by_epic, {pr["url"]: pr for pr in prs + review_prs}.values(), settings)
+    now = snapshot(epics, tickets_by_epic, {pr.url: pr for pr in prs + review_prs}.values(), settings)
     stamp = dt.datetime.now()
     ended = fetch_pr_states(vanished_prs(state["snapshot"], now) if state else [])
-    changes = recent_changes(state, now, {k: t["summary"] for k, t in by_key.items()}, stamp, ended, settings)
+    changes = recent_changes(state, now, {k: t.summary for k, t in by_key.items()}, stamp, ended, settings)
 
     save_state(now, changes or [])
     pool.shutdown()
     return {"epics": epics, "tickets_by_epic": tickets_by_epic, "by_key": by_key, "prs": prs, "review_prs": review_prs,
-            "my_prs": [pr for pr in prs if pr["author"]["login"] == settings.github_user], "my_tickets": my_tickets,
+            "my_prs": [pr for pr in prs if pr.author["login"] == settings.github_user], "my_tickets": my_tickets,
             "attention": attention_items(list(by_key.values()), prs, merged_by_ticket, settings), "changes": changes or [],
             "merged_by_ticket": merged_by_ticket, "now": now}
+
+
+def saved_board(data):
+    """A board collect returned, read back from json: its epics, tickets and PRs rebuilt as entities."""
+    tickets_by_epic = {key: [ticket_from(t) for t in tickets] for key, tickets in data["tickets_by_epic"].items()}
+    return {**data, "epics": [Epic(**e) for e in data["epics"]], "tickets_by_epic": tickets_by_epic,
+            "by_key": {t.key: t for tickets in tickets_by_epic.values() for t in tickets},
+            "prs": [PullRequest(**pr) for pr in data["prs"]], "review_prs": [PullRequest(**pr) for pr in data["review_prs"]],
+            "my_prs": [PullRequest(**pr) for pr in data["my_prs"]], "my_tickets": [ticket_from(t) for t in data["my_tickets"]]}

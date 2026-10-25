@@ -1,0 +1,55 @@
+Screen { background: $mc-bg; color: $mc-fg; }
+.masthead { height: 1; }
+.masthead #logo { height: 1; margin-right: 1; }
+.masthead Static { height: 1; }
+#top { padding: 0 1; margin-bottom: 1; color: $mc-dim; }
+#top .brand { color: $mc-accent; text-style: bold; width: auto; }
+#status { width: 1fr; text-align: right; color: $mc-accent; }
+.pane { height: 1fr; }
+#panes { width: 1fr; height: 1fr; }
+#panes > Vertical { height: 1fr; }
+#panel-attention, #panel-epics { height: auto; max-height: 12; }
+#list-attention, #list-epics { height: auto; }
+.panel { border: round $mc-line; border-title-color: $mc-accent; padding: 0 1; height: 1fr; width: 1fr; background: $mc-bg; }
+.panel:focus-within { border: round $mc-accent; }
+.filter { border: none; height: 1; padding: 0; background: $mc-bg; color: $mc-fg; margin-bottom: 1; }
+.filter:focus { border: none; background: $mc-raised; }
+Board { border: none; padding: 0; background: $mc-bg; height: 1fr; text-wrap: nowrap; text-overflow: ellipsis; }
+Board:focus { border: none; }
+Board > .option-list--option-highlighted { background: $mc-pick; text-style: none; }
+Board:focus > .option-list--option-highlighted { background: $mc-pick-focus; }
+Board > .option-list--option-hover { background: $mc-raised; }
+Board > .option-list--option-disabled { color: $mc-dim; }
+.empty { color: $mc-dim; }
+Footer { background: $mc-raised; }
+ConfigScreen { align: center middle; background: $mc-bg; }
+#config { width: 72; height: auto; border: round $mc-accent; padding: 1 2; background: $mc-bg; }
+#config .brand { color: $mc-accent; text-style: bold; }
+#config .masthead { margin-bottom: 1; }
+#config .label { color: $mc-dim; margin-top: 1; }
+#config-buttons { height: auto; margin-top: 2; }
+#config Button { margin-right: 2; }
+ReviewScreen { align: center middle; background: $mc-veil; }
+#review { width: 94%; height: 90%; border: round $mc-accent; border-title-color: $mc-accent; border-title-style: bold;
+          background: $mc-bg; padding: 0 1; }
+#review-list { width: 34; height: 1fr; border: none; border-right: vkey $mc-line; padding: 0; background: $mc-bg;
+               text-wrap: nowrap; text-overflow: ellipsis; }
+#review-list > .option-list--option-highlighted { background: $mc-pick-focus; text-style: none; }
+#review-thread { width: 1fr; padding: 0 0 0 2; }
+#review-place { height: auto; margin: 1 0; }
+#review-diff-box { height: auto; max-height: 60%; border: round $mc-line; background: $mc-bg; overflow-x: auto; }
+#review-diff { width: auto; }
+#review-comments-box { height: 1fr; margin-top: 1; }
+.lcars .panel { border: panel $mc-line; border-title-color: $mc-title; border-title-style: bold; }
+.lcars .panel:focus-within { border: panel $mc-accent; }
+.lcars #review { border: panel $mc-accent; border-title-color: $mc-title; }
+#header, #header-main { height: auto; }
+#elbow, #bar, #sidebar { display: none; }
+.lcars #elbow { display: block; width: 12; height: 3; padding: 0 1; background: $mc-accent; color: $mc-title; text-style: bold;
+                content-align: left bottom; }
+.lcars #bar { display: block; height: 1; background: $mc-accent; content-align: right middle; }
+.lcars #top .brand { color: $mc-accent; }
+.lcars #sidebar { display: block; width: 12; height: 1fr; margin-right: 1; }
+.side { height: 3; margin-bottom: 1; padding: 0 1; background: $mc-line; color: $mc-title; content-align: right bottom; }
+.side.-on { background: $mc-accent; text-style: bold; }
+#side-fill { height: 1fr; background: $mc-line; }

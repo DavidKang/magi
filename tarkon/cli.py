@@ -10,10 +10,10 @@ def main():
     if missing:
         sys.exit("\n".join(missing))
     if sys.argv[1:] == ["html"]:
-        from .web import main as run
+        from .html.page import main as run
 
         run()
     else:
-        from .app import main as run
+        from .tui.app import main as run
 
         run(edit_config=sys.argv[1:] == ["config"])

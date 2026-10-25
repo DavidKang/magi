@@ -7,7 +7,7 @@ import subprocess
 import sys
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from PIL import Image as PILImage
@@ -22,21 +22,27 @@ from textual.widgets import Button, ContentSwitcher, Footer, Input, OptionList, 
 from textual.widgets.option_list import Option
 from textual_image.widget import Image, get_cell_size
 
-from . import board as g
-from . import config, fetch, storage
+from .. import board as g
+from .. import config, fetch, jira, rows, storage
 
-COLORS = {"ok": "#56d364", "bad": "#ff7b72", "warn": "#e3b341", "blue": "#79c0ff", "dim": "#6e7a87"}
-ACCENT = "#21cfac"
+THEMES = {"default": {"ok": "#56d364", "bad": "#ff7b72", "warn": "#e3b341", "blue": "#79c0ff", "dim": "#6e7a87", "accent": "#21cfac",
+                       "bg": "#0d1117", "fg": "#d1d9e0", "line": "#30363d", "raised": "#161b22", "title": "#21cfac",
+                       "pick": "#1f6feb40", "pick-focus": "#1f6feb66", "veil": "#01040980"},
+          "lcars": {"ok": "#99cc66", "bad": "#ff6666", "warn": "#ffcc66", "blue": "#99ccff", "dim": "#9999cc", "accent": "#ff9900",
+                    "bg": "#000000", "fg": "#ffcc99", "line": "#cc99cc", "raised": "#1a1426", "title": "#000000",
+                    "pick": "#ff990033", "pick-focus": "#ff990059", "veil": "#000000c0"}}
+COLORS = dict(THEMES["default"])
+theme = "default"
 # A refresh costs about 5 s and at most 9 of GitHub's 5000 GraphQL points an hour.
 REFRESH_SECONDS = 5 * 60
 REFRESH_COOLDOWN = 30
 CACHE = Path.home() / ".cache" / "tarkon" / "cache.json"
-LOGO = Path(__file__).with_name("logo.png")
+LOGO = Path(__file__).parent.parent / "logo.png"
 LOGO_ROWS = 1
 DESCRIPTION_LINES = 12
 PR_WIDTHS = [15, 9, 10, 17, 4, 10, 4]
 DIFF_BACKGROUNDS = {"+": "#12261e", "-": "#2d1418", " ": "#0d1117"}
-DIFF_SIGNS = {"+": COLORS["ok"], "-": COLORS["bad"], " ": COLORS["dim"]}
+DIFF_SIGNS = {"+": "ok", "-": "bad", " ": "dim"}
 HUNK_HEADER = re.compile(r"@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 CHANGE_WIDTHS = [12, 18, None]
 NO_CHANGES = f"no changes in the last {g.CHANGES_HOURS} h"
@@ -65,13 +71,29 @@ class Entry:
 ZERO_WIDTH_SPACE = "\u200b"
 
 
+def use_theme(name):
+    global theme
+    theme = name
+    COLORS.update(THEMES[name])
+
+
+def stardate(when):
+    return f"{when:%y%j}.{when.hour * 10 // 24}"
+
+
+def panel_title(key, count):
+    number, name = NUMBERS[key], SECTIONS[key][0]
+    title = f"{number:02d}-{name.upper()}" if theme == "lcars" else f"[{number}] {name}"
+    return title if count is None else f"{title} {count}"
+
+
 def escape(value):
     text = str(value).replace("[", r"\[")
     return text + ZERO_WIDTH_SPACE if text.endswith("\\") else text
 
 
 def link(url, label):
-    return f"[{ACCENT} underline @click=app.open_link({url!r})]{escape(label)}[/]"
+    return f"[{COLORS['accent']} underline @click=app.open_link({url!r})]{escape(label)}[/]"
 
 
 def colored(tone, value):
@@ -97,32 +119,28 @@ def attention_entry(item):
                  url, url, f"{title} {reason}")
 
 
-def pr_entry(pr, by_key):
-    tone, label = g.review_state(pr)
-    ci_tone, ci_label = g.TUI_CI[pr["ci"]]
-    conflict = ("⚠ conflict", "bad") if pr["mergeable"] == "CONFLICTING" else ("", "")
-    code = re.search(r"\[[A-Z][A-Z0-9]+-\d+\]", pr["title"])
-    cells = [(f'{g.tui_repo(pr)}#{pr["number"]}', ""), (code.group() if code else "", "blue"), (pr["author"]["login"], "dim"),
-             (label.lower(), g.TUI_REVIEW[tone]), (ci_label, ci_tone), conflict,
-             (f'{fetch.days_since(pr["createdAt"])}d', "dim-right")]
-    events = [(c["committedDate"], colored("dim", "commit")) for c in pr["commits"]] + [
-        (r["submittedAt"], f'{state_label(r)} '
-                           f'{escape(r["author"]["login"])}') for r in pr["reviews"]]
-    tickets = [by_key[k] for k in sorted(g.ticket_keys_in(pr, config.settings.jira_project)) if k in by_key]
-    lines = [heading(pr["title"]), "",
-             field("pr", f'{link(pr["url"], f"{g.tui_repo(pr)}#{pr['number']}")} {colored("dim", "by")} {escape(pr["author"]["login"])} '
-                         f'{colored("dim", "open")} {fetch.days_since(pr["createdAt"])}d'),
-             field("review", escape(label) + (f' {colored("warn", "review requested")}' if pr["reviewRequests"] else "")),
-             field("ci", pr["ci"]),
-             field("merge", "conflicts" if pr["mergeable"] == "CONFLICTING" else "clean")]
-    lines += [field("ticket", f'{link(config.settings.jira_browse + t["key"], t["key"])} {colored("dim", f"({t['status']})")} {escape(t["summary"])}')
-              for t in tickets] or [field("ticket", "—")]
+def pr_entry(pr, by_key, settings):
+    row = rows.pr_row(pr, by_key, settings)
+    tone, label = row["review"]
+    ci_tone, ci_label = g.TUI_CI[row["ci"]]
+    conflict = ("⚠ conflict" if row["conflict"] else "", "bad-pill")
+    cells = [(row["ref"], ""), (row["code"], "blue"), (row["author"], "dim"),
+             (label.lower(), f"{g.TUI_REVIEW[tone]}-pill"), (ci_label, f"{ci_tone}-pill"), conflict, (f'{row["age"]}d', "dim-right")]
+    events = [(e["at"], f'{state_label(e)} {escape(e["author"])}' if e["state"] else colored("dim", "commit")) for e in row["events"]]
+    lines = [heading(row["title"]), "",
+             field("pr", f'{link(row["url"], row["ref"])} {colored("dim", "by")} {escape(row["author"])} '
+                         f'{colored("dim", "open")} {row["age"]}d'),
+             field("review", escape(label) + (f' {colored("warn", "review requested")}' if row["review_requested"] else "")),
+             field("ci", row["ci"]),
+             field("merge", "conflicts" if row["conflict"] else "clean")]
+    lines += [field("ticket", f'{link(t["url"], t["key"])} {colored("dim", f"({t["status"]})")} {escape(t["summary"])}')
+              for t in row["tickets"]] or [field("ticket", "—")]
     items = review_items(pr)
     lines += comments_field(len(items)) if items else []
     lines += ["", separator("activity")] + [f'{colored("dim", g.local_time(at))}  {what}' for at, what in sorted(events, reverse=True)[:10]]
-    return Entry(cells, "\n".join(lines), pr["url"], pr["url"],
-                 f'{pr["repo"]} {g.tui_repo(pr)} {pr["number"]} {pr["title"]} {pr["author"]["login"]}',
-                 (f'{g.tui_repo(pr)}#{pr["number"]} · {pr["title"]}', items))
+    return Entry(cells, "\n".join(lines), pr.url, pr.url,
+                 f'{pr.repo} {g.tui_repo(pr)} {pr.number} {pr.title} {row["author"]}',
+                 (f'{row["ref"]} · {pr.title}', items))
 
 
 def state_label(review):
@@ -168,14 +186,14 @@ def note_row(kind, author, body):
 
 def review_items(pr):
     reviews = [(r["submittedAt"], {"row": review_row(r), "place": f'{escape(r["author"]["login"])} {state_label(r)}', "hunk": None,
-                                   "path": None, "comments": indented(r["body"]), "url": pr["url"]})
-               for r in pr["reviews"] if r["body"].strip()]
+                                   "path": None, "comments": indented(r["body"]), "url": pr.url})
+               for r in pr.reviews if r["body"].strip()]
     notes = [(c["createdAt"], {"row": note_row("comment", c["author"]["login"], c["body"]), "place": f'{escape(c["author"]["login"])} {colored("blue", "commented")}',
                                "hunk": None, "path": None, "url": c["url"],
                                "comments": [colored("dim", g.local_time(c["createdAt"])), *indented(c["body"])]})
-             for c in pr.get("conversation", [])]
+             for c in pr.conversation]
     items = [item for _, item in sorted(reviews + notes, key=lambda pair: pair[0])]
-    for thread in pr.get("threads", []):
+    for thread in pr.threads:
         comments = []
         for comment in thread["comments"]:
             comments += ["" if comments else None,
@@ -183,23 +201,26 @@ def review_items(pr):
                          *indented(comment["body"])]
         items.append({"row": thread_row(thread), "place": thread_place(thread), "hunk": thread["comments"][0]["diffHunk"],
                       "path": thread["path"], "comments": [line for line in comments if line is not None],
-                      "url": thread["comments"][0].get("url", pr["url"])})
+                      "url": thread["comments"][0].get("url", pr.url)})
     return items
 
 
 def comments_field(count):
-    return [field("comments", f"[{ACCENT} underline @click=app.open_review(0)]{count} · c to open[/]")]
+    return [field("comments", f"[{COLORS['accent']} underline @click=app.open_review(0)]{count} · c to open[/]")]
 
 
-def ticket_items(ticket):
-    url = config.settings.jira_browse + ticket["key"]
-    description = [{"row": note_row("description", ticket["creator"], ticket["description"]), "hunk": None, "path": None, "url": url,
-                    "place": f'{escape(ticket["creator"])} {colored("blue", "description")}', "comments": indented(ticket["description"])}
-                   ] if ticket.get("description") else []
+def ticket_items(ticket, settings):
+    url = settings.jira_browse + ticket.key
+    detail = ticket.detail
+    if not detail:
+        return []
+    description = [{"row": note_row("description", detail.creator, detail.description), "hunk": None, "path": None, "url": url,
+                    "place": f'{escape(detail.creator)} {colored("blue", "description")}', "comments": indented(detail.description)}
+                   ] if detail.description else []
     return description + [{"row": note_row("comment", c["author"], c["body"]), "hunk": None, "path": None,
                            "place": f'{escape(c["author"])} {colored("blue", "commented")}', "url": f'{url}?focusedCommentId={c["id"]}',
                            "comments": [colored("dim", g.local_time(c["created"])), *indented(c["body"])]}
-                          for c in ticket.get("comments", [])]
+                          for c in detail.comments]
 
 
 def diff_text(hunk, path):
@@ -222,8 +243,8 @@ def diff_text(hunk, path):
         sign = line[:1] if line[:1] in "+-" else " "
         background = DIFF_BACKGROUNDS[sign]
         numbers = f'{"" if sign == "+" else old:>{digits}} ' * (columns == 2) + f'{"" if sign == "-" else new:>{digits}} '
-        text.append(numbers, ACCENT if i == len(lines) - 1 else COLORS["dim"])
-        text.append(sign, f"{DIFF_SIGNS[sign]} on {background}")
+        text.append(numbers, COLORS["accent" if i == len(lines) - 1 else "dim"])
+        text.append(sign, f"{COLORS[DIFF_SIGNS[sign]]} on {background}")
         code = Syntax("", lexer, theme="github-dark", background_color=background).highlight(line[1:])
         code.right_crop(1)
         text.append_text(code)
@@ -232,22 +253,22 @@ def diff_text(hunk, path):
     return text
 
 
-def epic_entry(epic, tickets):
-    done = sum(1 for t in tickets if t["column"] == "done")
+def epic_entry(epic, tickets, settings):
+    done = sum(1 for t in tickets if t.column == "done")
     filled = round(20 * done / len(tickets)) if tickets else 0
-    lines = [heading(epic["summary"]), "",
-             field("epic", f'{link(config.settings.jira_browse + epic["key"], epic["key"])} {colored("dim", f"({epic['status']})")}'),
-             field("owner", escape(epic["owner"])), field("done", f"{done}/{len(tickets)}")]
-    for key, label, _ in fetch.COLUMNS:
-        column = [t for t in tickets if t["column"] == key]
+    lines = [heading(epic.summary), "",
+             field("epic", f'{link(settings.jira_browse + epic.key, epic.key)} {colored("dim", f"({epic.status})")}'),
+             field("owner", escape(epic.owner)), field("done", f"{done}/{len(tickets)}")]
+    for key, label, _ in jira.COLUMNS:
+        column = [t for t in tickets if t.column == key]
         if column and key != "done":
             lines += ["", separator(f"{label.lower()} ({len(column)})")]
-            lines += [f'{link(config.settings.jira_browse + t["key"], t["key"])} {escape(t["summary"])} {colored("dim", t["assignee"])}' for t in column]
+            lines += [f'{link(settings.jira_browse + t.key, t.key)} {escape(t.summary)} {colored("dim", t.assignee)}' for t in column]
     bar = Text()
     bar.append("█" * filled, COLORS["ok"])
     bar.append("░" * (20 - filled), COLORS["dim"])
-    return Entry([(epic["key"], ""), (bar, ""), (f"{done}/{len(tickets)}", "dim-right"), (epic["summary"], "")],
-                 "\n".join(lines), config.settings.jira_browse + epic["key"], epic["key"], f'{epic["key"]} {epic["summary"]}')
+    return Entry([(epic.key, ""), (bar, ""), (f"{done}/{len(tickets)}", "dim-right"), (epic.summary, "")],
+                 "\n".join(lines), settings.jira_browse + epic.key, epic.key, f'{epic.key} {epic.summary}')
 
 
 def change_entry(change):
@@ -259,49 +280,59 @@ def change_entry(change):
                  "\n".join(lines), url, url, f'{text} {change["label"]}')
 
 
-def ticket_entry(ticket, prs):
-    linked = [pr for pr in prs if ticket["key"] in g.title_keys_in(pr, config.settings.jira_project)]
-    url = config.settings.jira_browse + ticket["key"]
-    status = fetch.status_label(ticket["status"])
-    kind = " · ".join(escape(value) for value in (ticket.get("type"), ticket.get("priority")) if value)
-    lines = [heading(ticket["summary"]), "", field("ticket", link(url, ticket["key"]) + (f" {colored('dim', '·')} {kind}" if kind else "")),
+def ticket_entry(ticket, prs, settings):
+    row = rows.ticket_row(ticket, prs, settings)
+    url, status = row["url"], row["status"]
+    detail = ticket.detail
+    kind = " · ".join(escape(value) for value in ((detail.type, detail.priority) if detail else ()) if value)
+    lines = [heading(ticket.summary), "", field("ticket", link(url, ticket.key) + (f" {colored('dim', '·')} {kind}" if kind else "")),
              field("status", escape(status))]
-    # Tickets cached before the detail fetch existed carry only key, summary and status.
-    if "comments" in ticket:
-        epic = ticket["epic"]
-        lines += [field("epic", f'{link(config.settings.jira_browse + epic["key"], epic["key"])} {escape(epic["summary"])}' if epic else "—"),
-                  field("creator", escape(ticket["creator"])),
-                  field("created", f'{g.local_time(ticket["created"])} {colored("dim", "updated")} {fetch.days_since(ticket["updated"])}d ago'),
-                  field("labels", escape(", ".join(ticket["labels"])) or "—")]
-    lines += [field("pr", f'{link(pr["url"], f"{g.tui_repo(pr)}#{pr['number']}")} {escape(g.review_state(pr)[1])}') for pr in linked] or [field("pr", "—")]
-    items = ticket_items(ticket)
-    lines += comments_field(len(ticket["comments"])) if ticket.get("comments") else []
-    if ticket.get("links"):
+    if detail:
+        epic = detail.epic
+        lines += [field("epic", f'{link(settings.jira_browse + epic["key"], epic["key"])} {escape(epic["summary"])}' if epic else "—"),
+                  field("creator", escape(detail.creator)),
+                  field("created", f'{g.local_time(detail.created)} {colored("dim", "updated")} {fetch.days_since(detail.updated)}d ago'),
+                  field("labels", escape(", ".join(detail.labels)) or "—")]
+    lines += [field("pr", f'{link(pr["url"], pr["ref"])} {escape(pr["review"])}') for pr in row["prs"]] or [field("pr", "—")]
+    items = ticket_items(ticket, settings)
+    lines += comments_field(len(detail.comments)) if detail and detail.comments else []
+    if detail and detail.links:
         lines += ["", separator("links")]
-        for other in ticket["links"]:
-            lines += [f'• {colored("dim", other["relation"])} {link(config.settings.jira_browse + other["key"], other["key"])} '
-                      f'{colored("dim", f"({fetch.status_label(other["status"])})")}', f'  {escape(other["summary"])}']
-    if ticket.get("description"):
-        shown = ticket["description"].splitlines()
+        for other in detail.links:
+            lines += [f'• {colored("dim", other["relation"])} {link(settings.jira_browse + other["key"], other["key"])} '
+                      f'{colored("dim", f"({jira.status_label(other["status"])})")}', f'  {escape(other["summary"])}']
+    if detail and detail.description:
+        shown = detail.description.splitlines()
         lines += ["", separator("description"), *(escape(line) for line in shown[:DESCRIPTION_LINES])]
         lines += [colored("dim", "… c to read it all")] if len(shown) > DESCRIPTION_LINES else []
-    return Entry([(ticket["key"], ""), (ticket["summary"], "")], "\n".join(lines), url, ticket["key"],
-                 f'{ticket["key"]} {ticket["summary"]} {status}', (f'{ticket["key"]} · {ticket["summary"]}', items), group=status)
+    return Entry([(ticket.key, ""), (ticket.summary, "")], "\n".join(lines), url, ticket.key,
+                 f'{ticket.key} {ticket.summary} {status}', (f'{ticket.key} · {ticket.summary}', items), group=status)
 
 
-def entries(board):
+def entries(board, settings):
     prs, by_key = board["prs"], board["by_key"]
     return {"attention": [attention_entry(item) for item in board["attention"]],
-            "prs": [pr_entry(pr, by_key) for pr in sorted(prs, key=lambda p: p["createdAt"])],
+            "prs": [pr_entry(pr, by_key, settings) for pr in sorted(prs, key=lambda p: p.created_at)],
             "changes": [change_entry(c) for c in board["changes"]],
-            "epics": [epic_entry(e, board["tickets_by_epic"][e["key"]]) for e in board["epics"]],
-            "mine_prs": [pr_entry(pr, by_key) for pr in sorted(board["my_prs"], key=lambda p: p["createdAt"])],
-            "mine_tickets": [ticket_entry(t, prs) for t in sorted(board["my_tickets"], key=fetch.ticket_order)]}
+            "epics": [epic_entry(e, board["tickets_by_epic"][e.key], settings) for e in board["epics"]],
+            "mine_prs": [pr_entry(pr, by_key, settings) for pr in sorted(board["my_prs"], key=lambda p: p.created_at)],
+            "mine_tickets": [ticket_entry(t, prs, settings) for t in sorted(board["my_tickets"], key=jira.ticket_order)]}
+
+
+def pill(value, width, tone):
+    if not value:
+        return Text(" " * width)
+    body, label = width - 2, value.upper().lstrip("✓✗…–⚠ ")
+    label = label if len(label) <= body else label[:body - 1] + "…"
+    return Text.assemble(("◖", COLORS[tone]), (label.ljust(body), f"{COLORS['bg']} on {COLORS[tone]}"), ("◗", COLORS[tone]))
 
 
 def cell_row(entry, widths):
     text = Text(no_wrap=True, overflow="ellipsis")
     for (value, tone), width in zip(entry.cells, widths):
+        if tone.endswith("-pill"):
+            tone = tone.removesuffix("-pill")
+            value = pill(value, width, tone) if theme == "lcars" else value
         if isinstance(value, Text):
             text.append_text(value)
             text.append(" ")
@@ -318,6 +349,15 @@ def open_in_browser(url):
 
 def pbcopy(text):
     subprocess.run(["pbcopy"], input=text, text=True, check=True)
+
+
+class SideButton(Static):
+    def __init__(self, key):
+        super().__init__(f"{NUMBERS[key]:02d}\n{SECTIONS[key][0].upper()}", id=f"side-{key}", classes="side")
+        self.key = key
+
+    def on_click(self):
+        self.app.action_focus_box(NUMBERS[self.key])
 
 
 class Board(OptionList):
@@ -409,7 +449,7 @@ CONFIG_FIELDS = {"team": ("GitHub users of your team", "alice, bob, carol"),
                  "github_org": ("GitHub organization", "acme"),
                  "jira_url": ("Jira site", "https://acme.atlassian.net")}
 
-BOARD_ACTIONS = {"focus_tab", "focus_box", "focus_filter", "clear_filter", "copy_current", "refresh", "open_review"}
+BOARD_ACTIONS = {"focus_tab", "focus_box", "focus_filter", "clear_filter", "copy_current", "refresh", "open_review", "toggle_theme"}
 
 
 class ConfigScreen(Screen):
@@ -446,13 +486,13 @@ class ConfigScreen(Screen):
             self.action_cancel()
 
     def action_save(self):
-        values = {name: self.query_one(f"#config-{name}", Input).value.strip() for name in config.FIELDS}
+        values = {name: self.query_one(f"#config-{name}", Input).value.strip() for name in CONFIG_FIELDS}
         missing = [CONFIG_FIELDS[name][0] for name, value in values.items() if not value]
         if missing:
             self.notify(f"Fill in every field: {', '.join(missing)}", severity="error", timeout=5)
             return
         values["team"] = values["team"].replace(",", " ").split()
-        self.dismiss(config.Settings(**values))
+        self.dismiss(config.Settings(**values, theme=self.current.theme if self.current else "default"))
 
     def action_cancel(self):
         if self.current is None:
@@ -464,50 +504,7 @@ class ConfigScreen(Screen):
 class TarkonApp(App):
     TITLE = "Tarkon"
     AUTO_FOCUS = "Board"
-    CSS = """
-    Screen { background: #0d1117; color: #d1d9e0; }
-    .masthead { height: 1; }
-    .masthead #logo { height: 1; margin-right: 1; }
-    .masthead Static { height: 1; }
-    #top { padding: 0 1; margin-bottom: 1; color: #6e7a87; }
-    #top .brand { color: #21cfac; text-style: bold; width: auto; }
-    #status { width: 1fr; text-align: right; color: #21cfac; }
-    .pane { height: 1fr; }
-    #panes { width: 1fr; height: 1fr; }
-    #panes > Vertical { height: 1fr; }
-    #panel-attention, #panel-epics { height: auto; max-height: 12; }
-    #list-attention, #list-epics { height: auto; }
-    .panel { border: round #30363d; border-title-color: #21cfac; padding: 0 1; height: 1fr; width: 1fr; background: #0d1117; }
-    .panel:focus-within { border: round #21cfac; }
-    .filter { border: none; height: 1; padding: 0; background: #0d1117; color: #d1d9e0; margin-bottom: 1; }
-    .filter:focus { border: none; background: #161b22; }
-    Board { border: none; padding: 0; background: #0d1117; height: 1fr; text-wrap: nowrap; text-overflow: ellipsis; }
-    Board:focus { border: none; }
-    Board > .option-list--option-highlighted { background: #1f6feb40; text-style: none; }
-    Board:focus > .option-list--option-highlighted { background: #1f6feb66; }
-    Board > .option-list--option-hover { background: #161b22; }
-    Board > .option-list--option-disabled { color: #6e7a87; }
-    .empty { color: #6e7a87; }
-    Footer { background: #161b22; }
-    ConfigScreen { align: center middle; background: #0d1117; }
-    #config { width: 72; height: auto; border: round #21cfac; padding: 1 2; background: #0d1117; }
-    #config .brand { color: #21cfac; text-style: bold; }
-    #config .masthead { margin-bottom: 1; }
-    #config .label { color: #6e7a87; margin-top: 1; }
-    #config-buttons { height: auto; margin-top: 2; }
-    #config Button { margin-right: 2; }
-    ReviewScreen { align: center middle; background: #01040980; }
-    #review { width: 94%; height: 90%; border: round #21cfac; border-title-color: #21cfac; border-title-style: bold;
-              background: #0d1117; padding: 0 1; }
-    #review-list { width: 34; height: 1fr; border: none; border-right: vkey #30363d; padding: 0; background: #0d1117;
-                   text-wrap: nowrap; text-overflow: ellipsis; }
-    #review-list > .option-list--option-highlighted { background: #1f6feb66; text-style: none; }
-    #review-thread { width: 1fr; padding: 0 0 0 2; }
-    #review-place { height: auto; margin: 1 0; }
-    #review-diff-box { height: auto; max-height: 60%; border: round #30363d; background: #0d1117; overflow-x: auto; }
-    #review-diff { width: auto; }
-    #review-comments-box { height: 1fr; margin-top: 1; }
-    """
+    CSS_PATH = "app.tcss"
     BINDINGS = [*(Binding(str(n), f"focus_tab({n})", "tabs", key_display="1-2", show=n == 1) for n in range(1, len(TABS) + 1)),
                 *(Binding(str(n), f"focus_box({n})", "boxes", key_display="3-8", show=n == 3) for n in NUMBERS.values()),
                 Binding("slash", "focus_filter", "filter", key_display="/"),
@@ -515,33 +512,49 @@ class TarkonApp(App):
                 Binding("c", "open_review", "comments"),
                 Binding("y", "copy_current", "copy"),
                 Binding("r", "refresh", "refresh"),
+                Binding("t", "toggle_theme", "theme"),
                 Binding("q", "quit", "quit")]
 
     def __init__(self, load=None, opener=open_in_browser, copier=pbcopy, clock=time.time, cache=CACHE,
                  config_path=config.PATH, edit_config=False):
         super().__init__()
         self.config_path, self.edit_config = config_path, edit_config
-        self.load = load or (lambda: g.collect(config.settings))
+        self.load = load or (lambda: g.collect(self.settings))
         self.opener, self.copier, self.clock, self.cache = opener, copier, clock, cache
         self.stamp = cache.with_name("last-refresh")
         self.refreshing = False
         self.last_refresh = None
         self.sections = {key: [] for key in SECTIONS}
+        self.board = None
+        self.settings = None
+        self.updated_at = None
+        self.refresh_failed = False
         self.current_section = "attention"
 
+    def get_css_variables(self):
+        return {**super().get_css_variables(), **{f"mc-{name}": value for name, value in COLORS.items()}}
+
     def compose(self) -> ComposeResult:
-        with Horizontal(id="top", classes="masthead"):
-            yield logo()
-            yield Static("Tarkon", classes="brand")
-            yield Static("loading…", id="status")
+        with Horizontal(id="header"):
+            yield Static("TARKON", id="elbow")
+            with Vertical(id="header-main"):
+                yield Static(id="bar")
+                with Horizontal(id="top", classes="masthead"):
+                    yield logo()
+                    yield Static("Tarkon", classes="brand")
+                    yield Static("loading…", id="status")
         yield Tabs(*(Tab(f"[{n}] {tab.capitalize()}", id=f"tab-{tab}") for n, tab in enumerate(TABS, 1)))
         with Horizontal(classes="pane"):
+            with Vertical(id="sidebar"):
+                for key in SECTIONS:
+                    yield SideButton(key)
+                yield Static(id="side-fill")
             with ContentSwitcher(initial=f"pane-{next(iter(TABS))}", id="panes"):
                 for tab, keys in TABS.items():
                     with Vertical(id=f"pane-{tab}"):
                         for key in keys:
                             with Vertical(id=f"panel-{key}", classes="panel") as panel:
-                                panel.border_title = f"[{NUMBERS[key]}] {SECTIONS[key][0]}"
+                                panel.border_title = panel_title(key, None)
                                 yield Input(placeholder="/ filter", id=f"filter-{key}", classes="filter")
                                 yield Board(key, id=f"list-{key}")
             with VerticalScroll(classes="panel") as panel:
@@ -565,9 +578,11 @@ class TarkonApp(App):
 
     def start(self, found, force=False):
         config.use(found)
+        self.settings = found
+        self.apply_theme(found.theme)
         saved = storage.read(self.cache)
         if saved:
-            self.show_board(saved["board"], saved["at"])
+            self.show_board(g.saved_board(saved["board"]), saved["at"])
         attempts = [saved["at"]] if saved else []
         if self.stamp.exists():
             attempts.append(float(self.stamp.read_text()))
@@ -626,24 +641,61 @@ class TarkonApp(App):
 
     def failed(self, error):
         self.refreshing = False
+        self.refresh_failed = True
         self.query_one("#status", Static).update(f"[{COLORS['bad']}]refresh failed[/]")
         message = error.stderr.strip() if isinstance(error, subprocess.CalledProcessError) and error.stderr else str(error)
         self.notify(message, title="Refresh failed", severity="error", timeout=10, markup=False)
 
     def show_board(self, board, at):
         self.refreshing = False
-        self.sections = entries(board)
-        for key in SECTIONS:
-            self.query_one(f"#panel-{key}").border_title = f"[{NUMBERS[key]}] {SECTIONS[key][0]} {len(self.sections[key])}"
-            self.fill(key)
-        self.query_one("#status", Static).update(f"updated {dt.datetime.fromtimestamp(at):%H:%M}")
+        self.fill_sections(board)
+        self.updated_at = at
+        self.refresh_failed = False
+        self.show_updated()
         self.current_board().focus()
+
+    def show_updated(self):
+        when = dt.datetime.fromtimestamp(self.updated_at)
+        self.query_one("#status", Static).update(f"STARDATE {stardate(when)} · {when:%H:%M}" if theme == "lcars" else f"updated {when:%H:%M}")
+
+    def title_panels(self):
+        for key in SECTIONS:
+            self.query_one(f"#panel-{key}").border_title = panel_title(key, len(self.sections[key]) if self.board else None)
+        self.query_one("#detail").parent.border_title = "DETAILS" if theme == "lcars" else "details"
+
+    def fill_sections(self, board):
+        self.board = board
+        self.sections = entries(board, self.settings)
+        self.title_panels()
+        for key in SECTIONS:
+            self.fill(key)
+
+    def apply_theme(self, name):
+        use_theme(name)
+        self.set_class(name == "lcars", "lcars")
+        self.refresh_css()
+        self.query_one("#bar", Static).update(Text("◗", f"{COLORS['accent']} on {COLORS['bg']}"))
+        self.query_one("#top .brand", Static).update("TARKON" if name == "lcars" else "Tarkon")
+        self.title_panels()
+        if self.updated_at and not self.refreshing and not self.refresh_failed:
+            self.show_updated()
+
+    def action_toggle_theme(self):
+        found = replace(self.settings, theme="default" if self.settings.theme == "lcars" else "lcars")
+        config.save(found, self.config_path)
+        config.use(found)
+        self.settings = found
+        self.apply_theme(found.theme)
+        if self.board:
+            self.fill_sections(self.board)
 
     def current_board(self):
         return self.query_one(f"#list-{self.current_section}", Board)
 
     def board_focused(self, board):
         self.current_section = board.section
+        for button in self.query(SideButton):
+            button.set_class(button.key == board.section, "-on")
         self.show_detail(board)
 
     def fill(self, key):

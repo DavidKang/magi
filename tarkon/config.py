@@ -14,13 +14,13 @@ class Settings:
     github_user: str
     github_org: str
     jira_url: str
+    theme: str = "default"
 
     @property
     def jira_browse(self):
         return f"{self.jira_url.rstrip('/')}/browse/"
 
 
-FIELDS = [field.name for field in fields(Settings)]
 settings = None
 
 
@@ -30,7 +30,10 @@ def use(found):
 
 
 def load(path=PATH):
-    return Settings(**json.loads(path.read_text())) if path.exists() else None
+    if not path.exists():
+        return None
+    names = {field.name for field in fields(Settings)}
+    return Settings(**{name: value for name, value in json.loads(path.read_text()).items() if name in names})
 
 
 def save(found, path=PATH):

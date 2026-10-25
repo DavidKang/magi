@@ -16,7 +16,9 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["tarkon"]
+packages = ["tarkon", "tarkon.tui", "tarkon.html"]
 
 [tool.setuptools.package-data]
-tarkon = ["tablero-template.html", "logo.png"]
+tarkon = ["logo.png"]
+"tarkon.tui" = ["app.tcss"]
+"tarkon.html" = ["template.html"]
