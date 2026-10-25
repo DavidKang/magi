@@ -75,7 +75,7 @@ def test_lcars_puts_old_team_prs_first():
     listed = entries.entries(found, STATED)["prs"]
     assert [(e.url, e.group) for e in listed] == [("u3", "PRIORITY ONE"), ("u2", "PRIORITY ONE"), ("u4", "ROUTINE"), ("u1", "ROUTINE")], \
         "LCARS lists team PRs open more than three days as PRIORITY ONE, then the ROUTINE ones, oldest first in each"
-    assert [e.cells[-1] for e in listed] == [("5d", "bad-pill"), ("4d", "bad-pill"), ("3d", "dim-right"), ("1d", "dim-right")], \
+    assert [e.cells[-1] for e in listed] == [("5d", "bad-alarm"), ("4d", "bad-alarm"), ("3d", "dim-right"), ("1d", "dim-right")], \
         "LCARS shows the days of a PRIORITY ONE PR in a red pill"
 
 

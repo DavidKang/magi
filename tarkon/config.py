@@ -29,8 +29,8 @@ def use(found):
     settings = found
 
 
-# Themes no longer offered, read as Okuda's so an old config still starts.
-DROPPED_THEMES = {"lcars", "voyager"}
+# Themes no longer offered, read as the closest one still offered so an old config still starts.
+DROPPED_THEMES = {"lcars": "okuda", "voyager": "okuda", "magi": "nerv"}
 
 
 def load(path=PATH):
@@ -38,7 +38,7 @@ def load(path=PATH):
         return None
     names = {field.name for field in fields(Settings)}
     found = Settings(**{name: value for name, value in json.loads(path.read_text()).items() if name in names})
-    return replace(found, theme="okuda") if found.theme in DROPPED_THEMES else found
+    return replace(found, theme=DROPPED_THEMES[found.theme]) if found.theme in DROPPED_THEMES else found
 
 
 def save(found, path=PATH):

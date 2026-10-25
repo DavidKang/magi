@@ -2,6 +2,7 @@ import re
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from rich.console import Console
 from rich.syntax import Syntax
 from rich.text import Text
 
@@ -14,7 +15,7 @@ from . import theme
 from .theme import COLORS, THEMES
 
 DESCRIPTION_LINES = 12
-DIFF_BACKGROUNDS = {"+": "#12261e", "-": "#2d1418", " ": THEMES["default"]["bg"]}
+DIFF_BACKGROUNDS = {"+": "#12261e", "-": "#2d1418"}
 DIFF_SIGNS = {"+": "ok", "-": "bad", " ": "dim"}
 HUNK_HEADER = re.compile(r"@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 
@@ -71,7 +72,7 @@ def pr_entry(pr, by_key, settings):
     ci_tone, ci_label = rows.TUI_CI[row["ci"]]
     conflict = ("⚠ conflict" if row["conflict"] else "", "bad-pill")
     cells = [(row["ref"], ""), (row["code"], "blue"), (row["author"], "dim"),
-             (label.lower(), f"{rows.TUI_REVIEW[tone]}-pill"), (ci_label, f"{ci_tone}-pill"), conflict, (f'{row["age"]}d', "dim-right")]
+             (label.lower(), f"{rows.TUI_REVIEW[tone]}-pill"), (ci_label, f"{ci_tone}-mark"), conflict, (f'{row["age"]}d', "dim-right")]
     events = [(e["at"], f'{state_label(e)} {escape(e["author"])}' if e["state"] else colored("dim", "commit")) for e in row["events"]]
     lines = [heading(row["title"]), "",
              field("pr", f'{link(row["url"], row["ref"])} {colored("dim", "by")} {escape(row["author"])} '
@@ -169,13 +170,15 @@ def ticket_items(ticket, settings):
                           for c in detail.comments]
 
 
-def diff_text(hunk, path):
+def diff_text(hunk, path, width):
     lexer = Syntax.guess_lexer(path)
     lines = hunk.splitlines()
-    width = max(len(line) for line in lines) + 1
     starts = [int(number) for match in map(HUNK_HEADER.match, lines) if match for number in match.groups()]
     digits = len(str(max(starts, default=0) + len(lines)))
     columns = 1 if all(line[:1] in "+@\\" for line in lines) else 2
+    gutter = columns * (digits + 1)
+    # Long lines go on below their own code, so the diff fits its box instead of scrolling sideways.
+    room = max(width - gutter - 1, 1)
     text = Text(no_wrap=True)
     old = new = 0
     for i, line in enumerate(lines):
@@ -184,17 +187,25 @@ def diff_text(hunk, path):
         start = HUNK_HEADER.match(line)
         if start or line.startswith("\\"):
             old, new = (int(start[1]), int(start[2])) if start else (old, new)
-            text.append(" " * (columns * (digits + 1)) + line, COLORS["blue" if start else "dim"])
+            heading = Text(line, COLORS["blue" if start else "dim"], overflow="fold")
+            for n, piece in enumerate(heading.wrap(Console(), max(width - gutter, 1))):
+                text.append("\n" * bool(n) + " " * gutter)
+                text.append_text(piece)
             continue
         sign = line[:1] if line[:1] in "+-" else " "
-        background = DIFF_BACKGROUNDS[sign]
+        background = DIFF_BACKGROUNDS.get(sign, COLORS["bg"])
         numbers = f'{"" if sign == "+" else old:>{digits}} ' * (columns == 2) + f'{"" if sign == "-" else new:>{digits}} '
         text.append(numbers, COLORS["accent" if i == len(lines) - 1 else "dim"])
         text.append(sign, f"{COLORS[DIFF_SIGNS[sign]]} on {background}")
         code = Syntax("", lexer, theme="github-dark", background_color=background).highlight(line[1:])
         code.right_crop(1)
-        text.append_text(code)
-        text.append(" " * (width - len(line)), f"on {background}")
+        code.no_wrap, code.overflow = False, "fold"
+        for n, piece in enumerate(code.wrap(Console(), room) if code else [code]):
+            if n:
+                text.append("\n" + " " * gutter)
+                text.append(" ", f"on {background}")
+            text.append_text(piece)
+            text.append(" " * (room - piece.cell_len), f"on {background}")
         old, new = old + (sign != "+"), new + (sign != "-")
     return text
 
@@ -211,10 +222,10 @@ def epic_entry(epic, tickets, settings):
             lines += ["", separator(f"{label.lower()} ({len(column)})")]
             lines += [f'{link(settings.jira_browse + t.key, t.key)} {escape(t.summary)} {colored("dim", t.assignee)}' for t in column]
     bar = Text()
-    if theme.lcars():
+    if theme.frame():
         segments = round(10 * done / len(tickets)) if tickets else 0
         bar.append("█ " * segments, COLORS["ok"])
-        bar.append("█ " * (10 - segments), COLORS["line"])
+        bar.append("█ " * (10 - segments), COLORS[EPIC_REST[theme.frame()]])
     else:
         bar.append("█" * filled, COLORS["ok"])
         bar.append("░" * (20 - filled), COLORS["dim"])
@@ -260,17 +271,26 @@ def ticket_entry(ticket, prs, settings):
                  f'{ticket.key} {ticket.summary} {status}', (f'{ticket.key} · {ticket.summary}', items), group=status)
 
 
+# Team PRs open over three days, then the rest, in each frame's words.
+PR_GROUPS = {"lcars": ("PRIORITY ONE", "ROUTINE"), "nerv": ("CRITICAL", "NOMINAL")}
+PILL_CAPS = {"lcars": ("◖", "◗"), "nerv": ("▕", "▏")}
+# Status cells: a review or conflict pill, CI's mark and a critical age's alarm. LCARS draws all three as pills.
+STATUS_KINDS = ("pill", "mark", "alarm")
+# NERV leaves the undone segments dark, after nerv-ui's sync bars.
+EPIC_REST = {"lcars": "line", "nerv": "raised"}
+
 def team_pr_entries(prs, by_key, settings):
     by_age = sorted(prs, key=lambda p: p.created_at)
-    if not theme.lcars():
+    if not theme.frame():
         return [pr_entry(pr, by_key, settings) for pr in by_age]
-    return [priority_entry(pr_entry(pr, by_key, settings)) if days_since(pr.created_at) > STALE_PR_DAYS
-            else replace(pr_entry(pr, by_key, settings), group="ROUTINE") for pr in by_age]
+    urgent, routine = PR_GROUPS[theme.frame()]
+    return [priority_entry(pr_entry(pr, by_key, settings), urgent) if days_since(pr.created_at) > STALE_PR_DAYS
+            else replace(pr_entry(pr, by_key, settings), group=routine) for pr in by_age]
 
 
-def priority_entry(entry):
+def priority_entry(entry, group):
     days, _ = entry.cells[-1]
-    return replace(entry, cells=[*entry.cells[:-1], (days, "bad-pill")], group="PRIORITY ONE")
+    return replace(entry, cells=[*entry.cells[:-1], (days, "bad-alarm")], group=group)
 
 
 def entries(board, settings):
@@ -288,15 +308,28 @@ def pill(value, width, tone):
         return Text(" " * width)
     body, label = width - 4, value.upper().lstrip("✓✗…–⚠ ")
     label = label if len(label) <= body else label[:body - 1] + "…"
-    return Text.assemble(("◖", COLORS[tone]), (f" {label.ljust(body)} ", f"{COLORS['bg']} on {COLORS[tone]}"), ("◗", COLORS[tone]))
+    left, right = PILL_CAPS[theme.frame()]
+    # NERV outlines its badges in their colour instead of filling them, after nerv-ui's.
+    fill = f"bold {COLORS[tone]}" if theme.frame() == "nerv" else f"{COLORS['bg']} on {COLORS[tone]}"
+    return Text.assemble((left, COLORS[tone]), (f" {label.ljust(body)} ", fill), (right, COLORS[tone]))
+
+
+def status(value, width, tone, kind):
+    if theme.frame() == "lcars" or kind == "pill":
+        return pill(value, width, tone)
+    label = value.upper().lstrip("✓✗…–⚠ ")
+    if kind == "mark":
+        return Text.assemble(("■ ", COLORS[tone]), (label.ljust(width - 2), COLORS["dim"]))
+    return Text(f"▲ {label}".rjust(width), f"bold {COLORS[tone]}")
 
 
 def cell_row(entry, widths):
     text = Text(no_wrap=True, overflow="ellipsis")
     for (value, tone), width in zip(entry.cells, widths):
-        if tone.endswith("-pill"):
-            tone = tone.removesuffix("-pill")
-            value = pill(value, width, tone) if theme.lcars() else value
+        kind = tone.rpartition("-")[2]
+        if kind in STATUS_KINDS:
+            tone = tone.removesuffix(f"-{kind}")
+            value = status(value, width, tone, kind) if theme.frame() else value
         if isinstance(value, Text):
             text.append_text(value)
             text.append(" ")

@@ -4,7 +4,7 @@ from dataclasses import replace
 import pytest
 from textual.widgets import OptionList, Static
 
-from builders import CHANGES, OUTDATED, PR_ONE, PR_TWO, THREAD, board, settings_file
+from builders import CHANGES, HUNK, OUTDATED, PR_ONE, PR_TWO, THREAD, board, settings_file
 from tarkon.tui import app as app_module
 from tarkon.tui.app import TarkonApp
 
@@ -65,3 +65,28 @@ async def review_popup(cache):
 @pytest.mark.usefixtures("settings", "aliases")
 def test_review_popup(cache):
     asyncio.run(review_popup(cache))
+
+
+async def long_diff(cache):
+    hunk = HUNK.replace("item.price * item.qty", " + ".join(f"item.price_{n} * item.qty_{n}" for n in range(12)))
+    thread = {**THREAD, "comments": [{**comment, "diffHunk": hunk} for comment in THREAD["comments"]]}
+    pr_two = replace(PR_TWO, threads=[thread])
+    app = TarkonApp(load=lambda: board([PR_ONE, pr_two]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
+                   config_path=settings_file(cache))
+    async with app.run_test(size=(100, 30)) as pilot:
+        await app.workers.wait_for_complete()
+        await pilot.press("4", "j", "c")
+        await pilot.pause()
+        box = app.screen.query_one("#review-diff-box")
+        assert box.max_scroll_x == 0, "a long diff line wraps inside the popup instead of scrolling sideways"
+        assert "item.qty_11 }" in str(app.screen.query_one("#review-diff", Static).render()), "the wrapped diff keeps the whole line"
+        await pilot.resize_terminal(70, 30)
+        await pilot.pause()
+        width = box.scrollable_content_region.width
+        lines = str(app.screen.query_one("#review-diff", Static).render()).splitlines()
+        assert (box.max_scroll_x, max(len(line) for line in lines)) == (0, width), "a narrower terminal wraps the diff again to the new width"
+
+
+@pytest.mark.usefixtures("settings", "default_theme")
+def test_long_diff_lines_wrap(cache):
+    asyncio.run(long_diff(cache))

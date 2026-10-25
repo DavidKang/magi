@@ -21,7 +21,7 @@ from ..domain import changes
 from ..domain.review import CONDITIONS, condition
 from . import theme
 from .entries import cell_row, entries, escape
-from .screens import LOGO_BLACK, ConfigScreen, ReviewScreen, ThemeScreen, logo
+from .screens import LOGO_BLACK, LOGO_WHITE, ConfigScreen, ReviewScreen, ThemeScreen, logo
 from .system import leave, open_in_browser, pbcopy
 from .theme import COLORS, use_theme
 
@@ -41,18 +41,41 @@ SECTIONS = {"attention": ("attention", "nothing to flag", [2, None]),
             "mine_prs": ("my prs", "no open prs", PR_WIDTHS),
             "mine_tickets": ("my tickets", "no open tickets", [10, None])}
 LCARS_NAMES = {"prs": "crew reports", "changes": "captain's log"}
+NERV_NAMES = {"attention": "emergency", "prs": "sorties", "changes": "operations log", "epics": "projects", "mine_prs": "my sorties",
+              "mine_tickets": "my orders", "details": "magi analysis"}
+FRAME_NAMES = {"lcars": LCARS_NAMES, "nerv": NERV_NAMES}
+# Evangelion's blood types: orange for an unknown pattern, blue for an Angel.
+NERV_CONDITIONS = {"green": "NORMAL", "yellow": "PATTERN ORANGE", "red": "PATTERN BLUE"}
+# EVA 01 reads the level as Unit-01's sync with its pilot, and berserk when it breaks.
+EVA_CONDITIONS = {"green": "SYNC STABLE", "yellow": "SYNC UNSTABLE", "red": "BERSERK"}
+THEME_CONDITIONS = {"nerv": NERV_CONDITIONS, "eva01": EVA_CONDITIONS}
 CONDITION_TONES = {"green": "ok", "yellow": "warn", "red": "bad"}
 TABS = {"overview": ["attention", "prs", "changes", "epics"], "mine": ["mine_prs", "mine_tickets"]}
 NUMBERS = {key: n for n, key in enumerate(SECTIONS, len(TABS) + 1)}
 TAB_OF = {key: tab for tab, keys in TABS.items() for key in keys}
 LEFT_CAP, RIGHT_CAP = "\ue0b6", "\ue0b4"
+# NERV writes titles into the box line and outlines its tabs, after nerv-ui's labels and navigation.
+TITLE_CAPS = {"lcars": (LEFT_CAP, RIGHT_CAP), "nerv": ("", "")}
+TAB_CAPS = {"lcars": (LEFT_CAP, RIGHT_CAP), "nerv": ("▕", "▏")}
+FRAME_EDGES = {"lcars": ("╭─", "─╮"), "nerv": ("┏━", "━┓")}
+HAZARD_STRIPE = "◢◤" * 200
+HEAVY_LINE = "━" * 400
 # Star Trek's running in-joke number, drawn in blocks: a terminal cell cannot grow its font.
 FORTY_SEVEN = "█ █ ███\n█ █   █\n███   █\n  █   █\n  █   █"
 
 
 def widths(key):
     found = SECTIONS[key][2]
-    return LCARS_PR_WIDTHS if found is PR_WIDTHS and theme.lcars() else found
+    return LCARS_PR_WIDTHS if found is PR_WIDTHS and theme.frame() else found
+
+
+def section_name(key):
+    default = SECTIONS[key][0] if key in SECTIONS else key
+    return FRAME_NAMES.get(theme.frame(), {}).get(key, default)
+
+
+def glyphs(table):
+    return table[theme.frame() or "lcars"]
 
 
 def seen_mark(change):
@@ -60,8 +83,8 @@ def seen_mark(change):
 
 
 def panel_title(key, count):
-    number, name = NUMBERS[key], LCARS_NAMES.get(key, SECTIONS[key][0]) if theme.lcars() else SECTIONS[key][0]
-    title = f"{number:02d}-{name.upper()}" if theme.lcars() else f"[{number}] {name}"
+    number, name = NUMBERS[key], section_name(key)
+    title = f"{number:02d}-{name.upper()}" if theme.frame() else f"[{number}] {name}"
     return title if count is None else f"{title} {count}"
 
 
@@ -98,8 +121,12 @@ class PanelTitle(Horizontal):
                          classes="ptitle")
 
     def show(self, code, name, count):
-        _, _, code_seg, name_seg, _, count_seg, _, _ = self.query(Static)
-        code_seg.update(code)
+        left_edge, left_cap, code_seg, name_seg, fill, count_seg, right_cap, right_edge = self.query(Static)
+        nerv = theme.frame() == "nerv"
+        for widget, glyph in zip((left_edge, right_edge, left_cap, right_cap), (*glyphs(FRAME_EDGES), *glyphs(TITLE_CAPS))):
+            widget.update(glyph)
+        fill.update(HEAVY_LINE if nerv else "")
+        code_seg.update(f"■ {code}" if nerv and code else code)
         code_seg.display = bool(code)
         name_seg.update(name)
         count_seg.update(count)
@@ -167,6 +194,7 @@ class TarkonApp(App):
                 yield Static(id="bar")
                 with Horizontal(id="top", classes="masthead"):
                     yield logo()
+                    yield logo(LOGO_WHITE, id="nerv-logo")
                     yield Static("TARKON", classes="brand")
                     yield Static(id="condition")
                     yield Static("loading…", id="status")
@@ -293,22 +321,27 @@ class TarkonApp(App):
 
     def show_updated(self):
         when = dt.datetime.fromtimestamp(self.updated_at)
-        self.query_one("#status", Static).update(rows.stardate(when) if theme.lcars() else f"updated {when:%H:%M}")
+        status = {"lcars": rows.stardate(when), "nerv": f"MAGI · MELCHIOR BALTHASAR CASPER · SYNC {when:%H:%M}"}
+        pilot = f"EVA-01 · PILOT {self.settings.github_user.upper()} · SYNC {when:%H:%M}"
+        self.query_one("#status", Static).update(pilot if theme.current == "eva01" else status.get(theme.frame(), f"updated {when:%H:%M}"))
 
     def title_panels(self):
         for n, (tab, keys) in enumerate(TABS.items(), 1):
             dot = " ●" if any(entry.url in self.news for key in keys for entry in self.sections[key]) else ""
             self.query_one(f"#tab-{tab}", Tab).label = f"[{n}] {tab.capitalize()}{dot}"
-            self.query_one(f"#pill-{tab} .seg", Static).update(f" {n:02d} {tab.upper()}{dot} ")
+            left, seg, right = self.query(f"#pill-{tab} Static")
+            left.update(glyphs(TAB_CAPS)[0])
+            right.update(glyphs(TAB_CAPS)[1])
+            seg.update(f" {n:02d} {tab.upper()}{dot} ")
         for key in SECTIONS:
             new = sum(1 for entry in self.sections[key] if entry.url in self.news)
             count = (f"{len(self.sections[key])} · {new} new" if new else len(self.sections[key])) if self.board else None
             self.query_one(f"#panel-{key}").border_title = panel_title(key, count)
-            self.query_one(f"#panel-{key} PanelTitle", PanelTitle).show(f"{NUMBERS[key]:02d}", LCARS_NAMES.get(key, SECTIONS[key][0]).upper(),
+            self.query_one(f"#panel-{key} PanelTitle", PanelTitle).show(f"{NUMBERS[key]:02d}", section_name(key).upper(),
                                                                        "" if count is None else str(count))
         details = self.query_one("#panel-details")
-        details.border_title = "DETAILS" if theme.lcars() else "details"
-        details.query_one(PanelTitle).show("", "DETAILS", "")
+        details.border_title = section_name("details").upper() if theme.frame() else "details"
+        details.query_one(PanelTitle).show("", section_name("details").upper(), "")
 
     def fill_sections(self, board):
         self.board = board
@@ -316,8 +349,11 @@ class TarkonApp(App):
         self.find_news(board["changes"])
         self.level = condition(board["prs"], self.settings.github_user)
         tone = COLORS[CONDITION_TONES[self.level]]
-        self.query_one("#condition", Static).update(Text.assemble((LEFT_CAP, tone), (f" {CONDITIONS[self.level]} ", f"bold {COLORS['title']} on {tone}"),
-                                                                  (RIGHT_CAP, tone)))
+        label = THEME_CONDITIONS.get(theme.current, CONDITIONS)[self.level]
+        pill = Text.assemble((LEFT_CAP, tone), (f" {label} ", f"bold {COLORS['title']} on {tone}"), (RIGHT_CAP, tone))
+        # NERV flags the level as a marked line, after nerv-ui's condition banner.
+        flag = Text.assemble(("■ ", tone), (label, f"bold {tone}"))
+        self.query_one("#condition", Static).update(flag if theme.frame() == "nerv" else pill)
         self.paint_frame()
         self.title_panels()
         for key in SECTIONS:
@@ -354,7 +390,10 @@ class TarkonApp(App):
 
     def apply_theme(self, name):
         use_theme(name)
+        self.set_class(bool(theme.frame()), "framed")
         self.set_class(theme.lcars(), "lcars")
+        self.set_class(theme.frame() == "nerv", "nerv")
+        self.set_class(theme.current == "eva01", "eva01")
         self.refresh_css()
         self.paint_frame()
         self.title_panels()
@@ -366,7 +405,11 @@ class TarkonApp(App):
         color = COLORS["bad" if red else "accent"]
         bar = self.query_one("#bar", Static)
         bar.set_class(red, "-red")
-        bar.update(Text(RIGHT_CAP, f"{color} on {COLORS['bg']}"))
+        stripe = Text(HAZARD_STRIPE if theme.frame() == "nerv" else RIGHT_CAP, f"{color} on {COLORS['bg']}")
+        if theme.current == "eva01" and not red:
+            # EVA 01 keeps the top quiet and saves the hazard stripe for an alarm.
+            stripe = Text(HEAVY_LINE, f"{COLORS['line']} on {COLORS['bg']}")
+        bar.update(stripe)
         self.query_one("#elbow", Static).update(elbow(color))
         self.query_one("#elbow-logo").styles.background = color
 

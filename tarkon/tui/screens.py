@@ -15,6 +15,7 @@ from .entries import diff_text, escape
 
 LOGO = Path(__file__).parent.parent / "logo.png"
 LOGO_BLACK = Path(__file__).parent.parent / "logo-black.png"
+LOGO_WHITE = Path(__file__).parent.parent / "logo-white.png"
 LOGO_ROWS = 1
 
 
@@ -38,7 +39,8 @@ class ThreadList(OptionList):
                 Binding("enter", "screen.open", "open")]
 
 
-THEME_LABELS = {"default": "Default", "okuda": "LCARS Okuda · TNG and DS9", "picard": "LCARS Picard"}
+THEME_LABELS = {"default": "Default", "okuda": "LCARS Okuda · TNG and DS9", "picard": "LCARS Picard", "nerv": "NERV Magi",
+                "eva01": "NERV - EVA 01"}
 
 
 class ThemeScreen(ModalScreen):
@@ -69,6 +71,12 @@ class ThemeScreen(ModalScreen):
         self.dismiss()
 
 
+class DiffBox(VerticalScroll):
+    # The diff wraps to the box's width, so it is drawn again whenever the box gets or changes its size.
+    def on_resize(self):
+        self.screen.show_diff()
+
+
 class ReviewScreen(ModalScreen):
     BINDINGS = [Binding("y", "copy", "copy link"), Binding("escape", "close", "close"), Binding("q", "close", show=False)]
 
@@ -83,7 +91,7 @@ class ReviewScreen(ModalScreen):
                 yield ThreadList(*options, id="review-list")
                 with Vertical(id="review-thread"):
                     yield Static(id="review-place")
-                    with VerticalScroll(id="review-diff-box"):
+                    with DiffBox(id="review-diff-box"):
                         yield Static(id="review-diff")
                     with VerticalScroll(id="review-comments-box"):
                         yield Static(id="review-comments")
@@ -104,11 +112,15 @@ class ReviewScreen(ModalScreen):
         self.query_one("#review-place", Static).update(item["place"])
         box = self.query_one("#review-diff-box")
         box.display = item["hunk"] is not None
-        if item["hunk"]:
-            self.query_one("#review-diff", Static).update(diff_text(item["hunk"], item["path"]))
-            self.call_after_refresh(box.scroll_end, animate=False)
+        self.call_after_refresh(self.show_diff)
         self.query_one("#review-comments", Static).update("\n".join(item["comments"]))
         self.query_one("#review-comments-box").scroll_home(animate=False)
+
+    def show_diff(self):
+        item, box = self.current(), self.query_one("#review-diff-box")
+        if item["hunk"] and box.scrollable_content_region.width:
+            self.query_one("#review-diff", Static).update(diff_text(item["hunk"], item["path"], box.scrollable_content_region.width))
+            self.call_after_refresh(box.scroll_end, animate=False)
 
     def action_open(self):
         self.app.opener(self.current()["url"])

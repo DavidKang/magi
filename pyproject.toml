@@ -19,7 +19,7 @@ build-backend = "setuptools.build_meta"
 packages = ["tarkon", "tarkon.adapters", "tarkon.application", "tarkon.domain", "tarkon.tui", "tarkon.html"]
 
 [tool.setuptools.package-data]
-tarkon = ["logo.png", "logo-black.png"]
+tarkon = ["logo.png", "logo-black.png", "logo-white.png"]
 "tarkon.tui" = ["app.tcss"]
 "tarkon.html" = ["template.html"]
 

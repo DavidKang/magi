@@ -1,6 +1,7 @@
 Screen { background: $mc-bg; color: $mc-fg; }
 .masthead { height: 1; }
-.masthead #logo { height: 1; margin-right: 1; }
+.masthead #logo, .masthead #nerv-logo { height: 1; margin-right: 1; }
+#nerv-logo { display: none; }
 .masthead Static { height: 1; }
 #top { padding: 0 1; margin-bottom: 1; color: $mc-dim; }
 #top .brand { color: $mc-accent; text-style: bold; width: auto; }
@@ -12,9 +13,9 @@ Screen { background: $mc-bg; color: $mc-fg; }
 #list-attention, #list-epics { height: auto; }
 .pbody { height: 1fr; }
 #panel-attention .pbody, #panel-epics .pbody { height: auto; max-height: 10; }
-.lcars #panel-attention .pbody, .lcars #panel-epics .pbody { max-height: 11; }
+.framed #panel-attention .pbody, .framed #panel-epics .pbody { max-height: 11; }
 .panel { border: round $mc-line; border-title-color: $mc-accent; padding: 0 1; height: 1fr; width: 1fr; background: $mc-bg; }
-.panel:focus-within { border: round $mc-accent; }
+.panel:focus-within { border: round $mc-focus; }
 .filter { border: none; height: 1; padding: 0; background: $mc-bg; color: $mc-fg; margin-bottom: 1; }
 .filter:focus { border: none; background: $mc-raised; }
 Board { border: none; padding: 0; background: $mc-bg; height: 1fr; text-wrap: nowrap; text-overflow: ellipsis; }
@@ -37,7 +38,7 @@ ThemeScreen { align: center middle; background: $mc-veil; }
           background: $mc-bg; }
 #theme-list { height: auto; border: none; padding: 0; background: $mc-bg; }
 #theme-list > .option-list--option-highlighted { background: $mc-pick-focus; text-style: none; }
-.lcars #themes { border: panel $mc-accent; border-title-color: $mc-title; }
+.framed #themes { border: panel $mc-accent; border-title-color: $mc-title; }
 ReviewScreen { align: center middle; background: $mc-veil; }
 #review { width: 94%; height: 90%; border: round $mc-accent; border-title-color: $mc-accent; border-title-style: bold;
           background: $mc-bg; padding: 0 1; }
@@ -46,40 +47,45 @@ ReviewScreen { align: center middle; background: $mc-veil; }
 #review-list > .option-list--option-highlighted { background: $mc-pick-focus; text-style: none; }
 #review-thread { width: 1fr; padding: 0 0 0 2; }
 #review-place { height: auto; margin: 1 0; }
-#review-diff-box { height: auto; max-height: 60%; border: round $mc-line; background: $mc-bg; overflow-x: auto; }
+#review-diff-box { height: auto; max-height: 60%; border: round $mc-line; background: $mc-bg; overflow-x: hidden; scrollbar-gutter: stable; }
 #review-diff { width: auto; }
 #review-comments-box { height: 1fr; margin-top: 1; }
-.lcars .panel { border: none; padding: 0; margin-bottom: 1; }
-.lcars #panes .panel:last-child { margin-bottom: 0; }
-.lcars .panel .filter, .lcars Board, .lcars #panel-details .pbody { padding: 0 1; }
-.lcars #review { border: panel $mc-accent; border-title-color: $mc-title; }
+.framed .panel { border: none; padding: 0; margin-bottom: 1; }
+.framed #panes .panel:last-child { margin-bottom: 0; }
+.framed .panel .filter, .framed Board, .framed #panel-details .pbody { padding: 0 1; }
+.framed #review { border: panel $mc-accent; border-title-color: $mc-title; }
 #header, #header-main { height: auto; }
 #elbow, #bar, #sidebar, #condition, #pills, .ptitle { display: none; }
 .lcars #elbow { display: block; width: 13; height: 5; margin-bottom: 1; background: $mc-bg; }
 #elbow-logo { display: none; }
 .lcars #elbow-logo { display: block; overlay: screen; position: absolute; height: 2; }
-.lcars #top #logo { display: none; }
-.lcars #bar { display: block; height: 1; background: $mc-accent; content-align: right middle; }
+.framed #top #logo { display: none; }
+.framed #bar { display: block; height: 1; }
+.lcars #bar { background: $mc-accent; content-align: right middle; }
 .lcars #bar.-red { background: $mc-bad; }
+.nerv #bar { background: $mc-bg; color: $mc-accent; }
+.nerv #bar.-red { color: $mc-bad; }
 #foot { dock: bottom; height: 1; }
 #foot Footer { dock: none; width: 1fr; }
 #footcap, #foot-cap { display: none; }
 .lcars #foot-cap { display: block; width: 1; height: 1; color: $mc-accent; }
 .lcars #footcap { display: block; width: 12; height: 1; margin-right: 1; background: $mc-line; }
-.lcars Footer { background: $mc-bg; }
-.lcars FooterKey { margin-right: 1; background: $mc-line; color: $mc-title; }
-.lcars FooterKey .footer-key--key { background: $mc-accent; color: $mc-title; }
-.lcars FooterKey .footer-key--description { color: $mc-title; }
-.lcars #top { margin: 1 0 0 0; }
-.lcars Tabs { display: none; }
-.lcars #pills { display: block; height: 1; padding: 0 1; margin: 1 0; }
-.lcars #panes { margin-right: 2; }
+.framed Footer { background: $mc-bg; }
+.framed FooterKey { margin-right: 1; background: $mc-line; color: $mc-title; }
+.framed FooterKey .footer-key--key { background: $mc-accent; color: $mc-title; }
+.framed FooterKey .footer-key--description { color: $mc-title; }
+.framed #top { margin: 1 0 0 0; }
+.framed Tabs { display: none; }
+.framed #pills { display: block; height: 1; padding: 0 1; margin: 1 0; }
+.framed #panes { margin-right: 2; }
 .tab-pill, .ptitle { height: 1; width: auto; }
 .tab-pill { margin-right: 1; }
 .tab-pill Static, .ptitle Static { width: auto; height: 1; }
-.lcars .ptitle { display: block; dock: top; width: 1fr; }
+.framed .ptitle { display: block; dock: top; width: 1fr; }
 .lcars .pbody { border: round $mc-line; border-top: none; }
 .lcars .panel:focus-within .pbody { border: round $mc-accent; border-top: none; }
+.nerv .pbody { border: heavy $mc-line; border-top: none; }
+.nerv .panel:focus-within .pbody { border: heavy $mc-focus; border-top: none; }
 .cap { color: $mc-line; background: $mc-bg; }
 .seg { background: $mc-line; color: $mc-title; text-style: bold; }
 .ptitle .code, .ptitle .count { padding: 0 1; }
@@ -89,9 +95,24 @@ ReviewScreen { align: center middle; background: $mc-veil; }
 .tab-pill.-on .cap, .panel:focus-within .cap, .panel:focus-within .edge { color: $mc-accent; }
 .tab-pill.-on .seg, .panel:focus-within .seg { background: $mc-accent; }
 .panel:focus-within .name { color: $mc-accent; }
-.lcars #top .brand { color: $mc-accent; }
-.lcars #condition { display: block; width: auto; margin-left: 2; text-style: bold; }
+.framed #top .brand { color: $mc-accent; }
+.framed #condition { display: block; width: auto; margin-left: 2; text-style: bold; }
 .lcars #sidebar { display: block; width: 12; height: 1fr; margin-right: 1; }
 .side { height: 3; margin-bottom: 1; padding: 0 1; background: $mc-line; color: $mc-title; content-align: right bottom; }
 .side.-on { background: $mc-accent; text-style: bold; }
 #side-fill { height: 1fr; background: $mc-line; color: $mc-title; content-align: center bottom; }
+.nerv .ptitle .seg, .nerv .panel:focus-within .ptitle .seg { background: $mc-bg; color: $mc-accent; }
+.nerv .ptitle .name { color: $mc-accent; }
+.nerv .ptitle .fill { color: $mc-line; }
+.nerv .panel:focus-within .ptitle .fill, .nerv .panel:focus-within .edge { color: $mc-focus; }
+.nerv .tab-pill .seg { background: $mc-bg; color: $mc-dim; }
+.nerv .tab-pill.-on .seg { background: $mc-bg; color: $mc-accent; }
+.nerv #review, .nerv #themes { border: heavy $mc-accent; border-title-color: $mc-accent; }
+.nerv #review-diff-box { border: heavy $mc-line; }
+.nerv #top #nerv-logo { display: block; }
+.nerv #top .brand { display: none; }
+.nerv .pane { padding: 0 1; }
+.nerv #foot { padding: 0 1; }
+.nerv FooterKey .footer-key--description { padding: 0 1; }
+.eva01 FooterKey { background: $mc-bg; }
+.eva01 FooterKey .footer-key--description { color: $mc-accent; }
