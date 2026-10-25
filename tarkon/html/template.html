@@ -58,6 +58,7 @@ code { font-family: var(--font-mono); font-size: .9em; }
 
 .logo { width: auto; height: 1.6em; flex: none; }
 .logo-lcars { display: none; }
+.lcars-only { display: none; }
 .masthead h1 { display: flex; align-items: center; gap: 10px; }
 .masthead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 24px;
   padding-bottom: 16px; border-bottom: 1px solid var(--line); }
@@ -276,6 +277,14 @@ footer { color: var(--muted); font-size: 13px; margin-top: 48px; border-top: 1px
 :root[data-design="lcars"] .masthead::before { content: ""; position: absolute; left: 0; top: 0; width: 32px; height: 32px;
   background: radial-gradient(circle at 100% 100%, transparent 31.5px, var(--lc-orange) 32px); }
 :root[data-design="lcars"] .masthead .logo { display: none; }
+:root[data-design="lcars"] .masthead::after { content: "04-1701"; position: absolute; left: -132px; bottom: 6px;
+  font: 600 13px/1 var(--font-display); letter-spacing: .08em; color: #000; }
+:root[data-design="lcars"] .lcars-only { display: revert; }
+:root[data-design="lcars"] .not-lcars { display: none; }
+:root[data-design="lcars"] .condition { margin: 6px 0 0; font: 700 15px/1 var(--font-display); text-transform: uppercase; letter-spacing: .1em; }
+:root[data-design="lcars"] .condition-green { color: var(--ok); }
+:root[data-design="lcars"] .condition-yellow { color: var(--warn); }
+:root[data-design="lcars"] .condition-red { color: var(--bad); }
 :root[data-design="lcars"] .masthead .logo-lcars { display: block; position: absolute; left: -70px; top: 8px; height: 64px; transform: translateX(-50%); }
 :root[data-design="lcars"] h1 { font: 700 44px/1 var(--font-display); text-transform: uppercase; letter-spacing: .04em; color: var(--lc-orange); }
 :root[data-design="lcars"] .masthead .meta { color: var(--lc-tan); font: 500 15px/1 var(--font-display); text-transform: uppercase; letter-spacing: .06em; }
@@ -318,6 +327,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 48px; border-top: 1px
 @media (max-width: 640px) {
   :root[data-design="lcars"] .masthead { border-left-width: 48px; border-top-left-radius: 32px; padding-left: 16px; }
   :root[data-design="lcars"] .masthead .logo-lcars { left: -24px; height: 32px; }
+  :root[data-design="lcars"] .masthead::after { display: none; }
   :root[data-design="lcars"] h1 { font-size: 30px; }
 }
 .tui { display: none; }
@@ -390,7 +400,8 @@ footer { color: var(--muted); font-size: 13px; margin-top: 48px; border-top: 1px
         <button type="button" data-design="tui" aria-pressed="false">Terminal</button>
         <button type="button" data-design="lcars" aria-pressed="false">LCARS</button>
       </div>
-      <p class="meta">Updated {{DATE}}</p>
+      <p class="meta"><span class="not-lcars">Updated {{DATE}}</span><span class="lcars-only">{{STARDATE}}</span></p>
+      <p class="condition condition-{{CONDITION_TONE}} lcars-only">{{CONDITION}}</p>
     </div>
   </header>
 
@@ -416,7 +427,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 48px; border-top: 1px
     </div>
 
     <aside class="rail">
-      <h2>Recent changes</h2>
+      <h2><span class="not-lcars">Recent changes</span><span class="lcars-only">Captain's Log</span></h2>
       <p class="meta">Last {{CHANGES_HOURS}} h, between board runs.</p>
       {{CHANGES}}
     </aside>

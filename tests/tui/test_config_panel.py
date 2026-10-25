@@ -26,7 +26,7 @@ async def first_run(cache):
         assert calls == [], "board waits until the config is saved"
         assert not app.check_action("focus_filter", ()), "config panel hides the board keys on first run"
         assert not app.check_action("refresh", ()), "config panel hides the board keys on first run"
-        assert not app.check_action("toggle_theme", ()), "config panel hides the board keys on first run"
+        assert not app.check_action("pick_theme", ()), "config panel hides the board keys on first run"
         assert app.screen.check_action("save", ()), "config panel hides the board keys on first run"
         inputs["team"].value = "alice, bob"
         await pilot.click("#config-save")

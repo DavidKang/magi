@@ -54,7 +54,7 @@ The browser page has three designs, picked from the switch in its header and rem
 | `/` | Filter the current box (`escape` clears it) |
 | `y` | Copy the selected link (the key, for an epic) |
 | `r` | Refresh (once every 30 seconds at most; it also refreshes every 5 minutes) |
-| `t` | Switch between the default theme and the LCARS one (Star Trek's computer screens); the choice is saved in your settings |
+| `t` | Pick a theme in a popup: the default one or an LCARS one (Star Trek's computer screens) in the Okuda (TNG and DS9), Picard or Voyager colours. LCARS shows a stardate for the last refresh, the board's alert level (CONDITION GREEN, YELLOW ALERT while a PR waits on CI or review or someone else's fails CI or conflicts, RED ALERT when one of yours does), the changes as the Captain's Log and team PRs in one SECTOR per repo; the choice is saved in your settings |
 | `q` | Quit |
 
 ## Where it keeps its files

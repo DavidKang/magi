@@ -14,6 +14,10 @@ TUI_REVIEW_EVENTS = {"APPROVED": "ok", "CHANGES_REQUESTED": "bad"}
 TUI_REPO_ALIASES = {}
 
 
+def stardate(when):
+    return f"STARDATE {when:%y%m}.{when:%d} · UPDATED {when:%H:%M}"
+
+
 def tui_repo(pr):
     return TUI_REPO_ALIASES.get(pr.repo, pr.repo)
 

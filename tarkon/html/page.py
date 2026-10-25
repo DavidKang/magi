@@ -12,7 +12,7 @@ from ..domain.ages import days_since
 from ..domain.attention import attention_items
 from ..domain.changes import CHANGES_HOURS, change_text, subject_text
 from ..domain.keys import title_keys_in, title_parts
-from ..domain.review import CI_LABELS, review_state
+from ..domain.review import CI_LABELS, CONDITIONS, condition, review_state
 from ..domain.status import COLUMNS, UnmappedStatus, status_label
 from ..rows import TUI_CI, TUI_REVIEW, TUI_REVIEW_EVENTS, local_time
 
@@ -305,8 +305,12 @@ def render(epics, tickets_by_epic, prs, merged_by_ticket, review_prs, my_tickets
                               changes, {t.key: t for t in all_tickets}, settings)
 
     boards = "".join(board(e, tickets_by_epic[e.key], settings) for e in epics)
+    when, level = dt.datetime.now(), condition(prs, settings.github_user)
     return (template
-            .replace("{{DATE}}", dt.datetime.now().strftime("%d/%m/%Y %H:%M"))
+            .replace("{{DATE}}", when.strftime("%d/%m/%Y %H:%M"))
+            .replace("{{STARDATE}}", rows.stardate(when))
+            .replace("{{CONDITION}}", CONDITIONS[level])
+            .replace("{{CONDITION_TONE}}", level)
             .replace("{{MINE}}", mine(my_prs, review_prs, my_tickets, settings))
             .replace("{{CHANGES}}", changes_section(changes, {url: pr["ci"] for url, pr in now["prs"].items()}, settings))
             .replace("{{CHANGES_HOURS}}", str(CHANGES_HOURS))

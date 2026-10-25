@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from builders import PR_ONE, ROOT, STATED, board
+from builders import PR_ONE, ROOT, STATED, board, make_pr
 from tarkon import config
 from tarkon.domain import status
 from tarkon.domain.entities import Ticket
@@ -74,3 +74,41 @@ def test_html_without_config():
                                 cwd=ROOT, env={**os.environ, "HOME": home})
     assert result.returncode == 1, "html without config asks to configure first"
     assert "Run `python -m tarkon config` first" in result.stderr, "html without config asks to configure first"
+
+
+@pytest.mark.usefixtures("settings")
+def test_html_lcars_masthead_and_log():
+    with tempfile.TemporaryDirectory() as scratch:
+        found = {**board([PR_ONE]), "merged_by_ticket": {}, "now": {"prs": {}}}
+        path, web.OUT = web.OUT, Path(scratch) / "board.html"
+        try:
+            page = web.build(lambda settings: found, STATED)["out"].read_text()
+        finally:
+            web.OUT = path
+    assert re.search(r'<span class="not-lcars">Updated \d\d/\d\d/\d{4} \d\d:\d\d</span>'
+                     r'<span class="lcars-only">STARDATE \d{4}\.\d\d · UPDATED \d\d:\d\d</span>', page), \
+        "LCARS dates the last regeneration in stardates; the other designs keep the date"
+    assert '<p class="condition condition-red lcars-only">RED ALERT</p>' in page, "LCARS shows the board's alert level"
+    assert '<h2><span class="not-lcars">Recent changes</span><span class="lcars-only">Captain\'s Log</span></h2>' in page, \
+        "LCARS calls the changes the Captain's Log"
+    assert ".lcars-only { display: none; }" in page, "only the LCARS design shows its own words"
+    assert ':root[data-design="lcars"] .lcars-only { display: revert; }' in page, "only the LCARS design shows its own words"
+    assert ':root[data-design="lcars"] .not-lcars { display: none; }' in page, "only the LCARS design shows its own words"
+    assert ':root[data-design="lcars"] .masthead::after { content: "04-1701";' in page, "the LCARS elbow carries a panel code"
+
+
+@pytest.mark.usefixtures("settings")
+@pytest.mark.parametrize("pr, tone, label", [
+    (make_pr(review_decision="APPROVED", ci="passing", mergeable="MERGEABLE"), "green", "CONDITION GREEN"),
+    (make_pr(ci="running", mergeable="MERGEABLE"), "yellow", "YELLOW ALERT"),
+    (make_pr(author={"login": "bob"}), "yellow", "YELLOW ALERT")])
+def test_html_condition_tones(pr, tone, label):
+    with tempfile.TemporaryDirectory() as scratch:
+        found = {**board([pr]), "merged_by_ticket": {}, "now": {"prs": {}}}
+        path, web.OUT = web.OUT, Path(scratch) / "board.html"
+        try:
+            page = web.build(lambda settings: found, STATED)["out"].read_text()
+        finally:
+            web.OUT = path
+    assert f'<p class="condition condition-{tone} lcars-only">{label}</p>' in page, "the alert level carries its tone"
+    assert f':root[data-design="lcars"] .condition-{tone} {{ color: var(--' in page, "every tone has its LCARS colour"

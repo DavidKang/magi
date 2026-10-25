@@ -14,20 +14,21 @@ from .. import config
 from .entries import diff_text, escape
 
 LOGO = Path(__file__).parent.parent / "logo.png"
+LOGO_BLACK = Path(__file__).parent.parent / "logo-black.png"
 LOGO_ROWS = 1
 
 
-def logo_image(rows, cell):
-    source = PILImage.open(LOGO)
+def logo_image(rows, cell, path=LOGO):
+    source = PILImage.open(path)
     columns = math.ceil(rows * cell.height * source.width / source.height / cell.width)
     image = PILImage.new("RGBA", (round(source.height * columns * cell.width / (rows * cell.height)), source.height))
     image.paste(source, ((image.width - source.width) // 2, 0))
     return image, columns
 
 
-def logo():
-    image, columns = logo_image(LOGO_ROWS, get_cell_size())
-    widget = Image(image, id="logo")
+def logo(path=LOGO, rows=LOGO_ROWS, id="logo"):
+    image, columns = logo_image(rows, get_cell_size(), path)
+    widget = Image(image, id=id)
     widget.styles.width = columns
     return widget
 
@@ -35,6 +36,37 @@ def logo():
 class ThreadList(OptionList):
     BINDINGS = [Binding("j", "cursor_down", "thread", key_display="j/k"), Binding("k", "cursor_up", show=False),
                 Binding("enter", "screen.open", "open")]
+
+
+THEME_LABELS = {"default": "Default", "okuda": "LCARS Okuda · TNG and DS9", "picard": "LCARS Picard", "voyager": "LCARS Voyager"}
+
+
+class ThemeScreen(ModalScreen):
+    BINDINGS = [Binding("escape", "close", "close"), Binding("q", "close", show=False)]
+
+    def __init__(self, current):
+        super().__init__()
+        self.current = current
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="themes"):
+            yield OptionList(*(Option(label, id=name) for name, label in THEME_LABELS.items()), id="theme-list")
+        yield Footer()
+
+    def on_mount(self):
+        self.query_one("#themes").border_title = "theme"
+        choices = self.query_one(OptionList)
+        choices.highlighted = choices.get_option_index(self.current)
+        choices.focus()
+
+    def on_option_list_option_highlighted(self, event):
+        event.stop()
+
+    def on_option_list_option_selected(self, event):
+        self.dismiss(event.option.id)
+
+    def action_close(self):
+        self.dismiss()
 
 
 class ReviewScreen(ModalScreen):

@@ -1,14 +1,16 @@
+import datetime as dt
 import re
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
 from textual.content import Content
 
-from builders import PR_ONE, PR_TWO, STATED, TICKETS
-from tarkon import config
+from builders import EPIC, PR_ONE, PR_TWO, STATED, TICKETS
+from tarkon import config, rows
 from tarkon.domain import ages
 from tarkon.tui import app as app_module
-from tarkon.tui import entries
+from tarkon.tui import entries, theme
 
 
 def test_rows_view_model():
@@ -49,3 +51,32 @@ def test_pr_rows():
     assert "alice" in row(PR_ONE), "team pr row shows the title's ticket code and the author"
     assert "[" not in row(replace(PR_ONE, title="No ticket")), "team pr row without a ticket code shows no code"
     assert "alice" in row(replace(PR_ONE, title="No ticket")), "team pr row without a ticket code shows no code"
+
+
+def test_stardate():
+    assert rows.stardate(dt.datetime(2026, 10, 25, 14, 32)) == "STARDATE 2610.25 · UPDATED 14:32", \
+        "the LCARS masthead reads the year and month, the day, then the time of the last refresh"
+
+
+@pytest.mark.usefixtures("default_theme")
+def test_lcars_groups_team_prs_by_repo():
+    prs = [replace(PR_ONE, repo="web", url="u1", created_at="2026-10-21T10:00:00Z"), replace(PR_TWO, repo="api", url="u2", created_at="2026-10-21T09:00:00Z"),
+           replace(PR_ONE, repo="web", url="u3", created_at="2026-10-20T10:00:00Z")]
+    found = {"prs": prs, "by_key": {}, "attention": [], "changes": [], "epics": [], "my_prs": [], "my_tickets": []}
+    assert [(e.url, e.group) for e in entries.entries(found, STATED)["prs"]] == [("u3", None), ("u2", None), ("u1", None)], \
+        "the default theme lists team PRs by age"
+    theme.use_theme("okuda")
+    assert [(e.url, e.group) for e in entries.entries(found, STATED)["prs"]] == [("u2", "SECTOR 1 · API"), ("u3", "SECTOR 2 · WEB"), ("u1", "SECTOR 2 · WEB")], \
+        "LCARS groups team PRs into one SECTOR per repo, oldest first within each"
+
+
+@pytest.mark.usefixtures("default_theme")
+def test_lcars_segments_epic_bars():
+    theme.use_theme("okuda")
+    bar = entries.epic_entry(EPIC, TICKETS, STATED).cells[1][0]
+    lcars = theme.THEMES["okuda"]
+    assert [(bar.plain[s.start:s.end], str(s.style)) for s in bar.spans] == [("█ " * 5, lcars["ok"]), ("█ " * 5, lcars["line"])], \
+        "LCARS splits epic progress into ten segments, done ones green"
+    two_of_three = [TICKETS[1], TICKETS[1], TICKETS[0]]
+    assert entries.epic_entry(EPIC, two_of_three, STATED).cells[1][0].plain.count("█") == 10, "LCARS splits epic progress into ten segments"
+    assert entries.epic_entry(EPIC, two_of_three, STATED).cells[1][0].spans[0].end == 14, "LCARS rounds done segments to the nearest tenth"

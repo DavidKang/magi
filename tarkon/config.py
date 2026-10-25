@@ -1,7 +1,7 @@
 """Per-user settings, kept in ~/.config/tarkon/config.json."""
 
 import json
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, fields, replace
 from pathlib import Path
 
 PATH = Path.home() / ".config" / "tarkon" / "config.json"
@@ -33,7 +33,8 @@ def load(path=PATH):
     if not path.exists():
         return None
     names = {field.name for field in fields(Settings)}
-    return Settings(**{name: value for name, value in json.loads(path.read_text()).items() if name in names})
+    found = Settings(**{name: value for name, value in json.loads(path.read_text()).items() if name in names})
+    return replace(found, theme="okuda") if found.theme == "lcars" else found
 
 
 def save(found, path=PATH):

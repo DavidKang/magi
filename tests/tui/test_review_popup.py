@@ -20,7 +20,7 @@ async def review_popup(cache):
         text = lambda selector: str(app.screen.query_one(selector, Static).render())
         await pilot.press("4", "j", "c")
         assert isinstance(app.screen, app_module.ReviewScreen), "c opens the review comments of the selected PR"
-        assert not app.check_action("toggle_theme", ()), "the review popup blocks the theme key"
+        assert not app.check_action("pick_theme", ()), "the review popup blocks the theme key"
         assert app.screen.query_one(OptionList).option_count == 3, "the popup lists the review and every open thread"
         assert "brs#2" in str(app.screen.query_one("#review").border_title), "the popup title names the PR"
         prompts = [str(app.screen.query_one(OptionList).get_option_at_index(i).prompt) for i in range(3)]

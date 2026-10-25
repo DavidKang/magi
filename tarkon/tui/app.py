@@ -14,13 +14,14 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import ContentSwitcher, Footer, Input, OptionList, Static, Tab, Tabs
 from textual.widgets.option_list import Option
 
-from .. import config
+from .. import config, rows
 from ..adapters import paths, storage
 from ..application.refresh import saved_board
 from ..domain import changes
+from ..domain.review import CONDITIONS, condition
 from . import theme
-from .entries import cell_row, entries, stardate
-from .screens import ConfigScreen, ReviewScreen, logo
+from .entries import cell_row, entries
+from .screens import LOGO_BLACK, ConfigScreen, ReviewScreen, ThemeScreen, logo
 from .system import leave, open_in_browser, pbcopy
 from .theme import COLORS, use_theme
 
@@ -37,24 +38,60 @@ SECTIONS = {"attention": ("attention", "nothing to flag", [2, None]),
             "epics": ("epics", "no epics", [9, 20, 6, None]),
             "mine_prs": ("my prs", "no open prs", PR_WIDTHS),
             "mine_tickets": ("my tickets", "no open tickets", [10, None])}
+LCARS_NAMES = {"changes": "captain's log"}
+CONDITION_TONES = {"green": "ok", "yellow": "warn", "red": "bad"}
 TABS = {"overview": ["attention", "prs", "changes", "epics"], "mine": ["mine_prs", "mine_tickets"]}
 NUMBERS = {key: n for n, key in enumerate(SECTIONS, len(TABS) + 1)}
 TAB_OF = {key: tab for tab, keys in TABS.items() for key in keys}
+LEFT_CAP, RIGHT_CAP = "\ue0b6", "\ue0b4"
+# Star Trek's running in-joke number, drawn in blocks: a terminal cell cannot grow its font.
+FORTY_SEVEN = "█ █ ███\n█ █   █\n███   █\n  █   █\n  █   █"
 
 
 def panel_title(key, count):
-    number, name = NUMBERS[key], SECTIONS[key][0]
-    title = f"{number:02d}-{name.upper()}" if theme.current == "lcars" else f"[{number}] {name}"
+    number, name = NUMBERS[key], LCARS_NAMES.get(key, SECTIONS[key][0]) if theme.lcars() else SECTIONS[key][0]
+    title = f"{number:02d}-{name.upper()}" if theme.lcars() else f"[{number}] {name}"
     return title if count is None else f"{title} {count}"
+
+
+def elbow(color):
+    """The LCARS corner joining the bar to the sidebar: a rounded outer corner, a fillet at the inner one and a panel code."""
+    curve, fill = f"{color} on {COLORS['bg']}", f"bold {COLORS['title']} on {color}"
+    return Text.assemble(("▗▄", curve), (" " * 11 + "\n" + " " * 12, fill), ("▘\n", curve), (" " * 12, fill), " \n", (" " * 12, fill), " \n",
+                         (f"{'04-1701':^12}", fill), " ")
 
 
 class SideButton(Static):
     def __init__(self, key):
-        super().__init__(f"{NUMBERS[key]:02d}\n{SECTIONS[key][0].upper()}", id=f"side-{key}", classes="side")
+        super().__init__(f"{NUMBERS[key]:02d}\n{LCARS_NAMES.get(key, SECTIONS[key][0]).upper()}", id=f"side-{key}", classes="side")
         self.key = key
 
     def on_click(self):
         self.app.action_focus_box(NUMBERS[self.key])
+
+
+class TabPill(Horizontal):
+    def __init__(self, number, tab):
+        super().__init__(Static(LEFT_CAP, classes="cap"), Static(f" {number:02d} {tab.upper()} ", classes="seg"),
+                         Static(RIGHT_CAP, classes="cap"), id=f"pill-{tab}", classes="tab-pill")
+        self.number = number
+
+    def on_click(self):
+        self.app.action_focus_tab(self.number)
+
+
+class PanelTitle(Horizontal):
+    def __init__(self):
+        super().__init__(Static("╭─", classes="edge"), Static(LEFT_CAP, classes="cap"), Static(classes="seg code"), Static(classes="name"),
+                         Static(classes="seg fill"), Static(classes="seg count"), Static(RIGHT_CAP, classes="cap"), Static("─╮", classes="edge"),
+                         classes="ptitle")
+
+    def show(self, code, name, count):
+        _, _, code_seg, name_seg, _, count_seg, _, _ = self.query(Static)
+        code_seg.update(code)
+        code_seg.display = bool(code)
+        name_seg.update(name)
+        count_seg.update(count)
 
 
 class Board(OptionList):
@@ -68,7 +105,7 @@ class Board(OptionList):
     def on_focus(self):
         self.app.board_focused(self)
 
-BOARD_ACTIONS = {"focus_tab", "focus_box", "focus_filter", "clear_filter", "copy_current", "refresh", "open_review", "toggle_theme"}
+BOARD_ACTIONS = {"focus_tab", "focus_box", "focus_filter", "clear_filter", "copy_current", "refresh", "open_review", "pick_theme"}
 
 
 class TarkonApp(App):
@@ -82,7 +119,7 @@ class TarkonApp(App):
                 Binding("c", "open_review", "comments"),
                 Binding("y", "copy_current", "copy"),
                 Binding("r", "refresh", "refresh"),
-                Binding("t", "toggle_theme", "theme"),
+                Binding("t", "pick_theme", "theme"),
                 Binding("q", "quit", "quit")]
 
     def __init__(self, collect=None, load=None, opener=open_in_browser, copier=pbcopy, clock=time.time, cache=CACHE,
@@ -100,40 +137,55 @@ class TarkonApp(App):
         self.updated_at = None
         self.refresh_failed = False
         self.current_section = "attention"
+        self.level = None
 
     def get_css_variables(self):
         return {**super().get_css_variables(), **{f"mc-{name}": value for name, value in COLORS.items()}}
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="header"):
-            yield Static("TARKON", id="elbow")
+            yield Static(id="elbow")
+            mark = logo(LOGO_BLACK, 2, "elbow-logo")
+            mark.styles.offset = ((12 - int(mark.styles.width.value)) // 2, 1)
+            yield mark
             with Vertical(id="header-main"):
                 yield Static(id="bar")
                 with Horizontal(id="top", classes="masthead"):
                     yield logo()
                     yield Static("TARKON", classes="brand")
+                    yield Static(id="condition")
                     yield Static("loading…", id="status")
+                with Horizontal(id="pills"):
+                    for n, tab in enumerate(TABS, 1):
+                        yield TabPill(n, tab)
         yield Tabs(*(Tab(f"[{n}] {tab.capitalize()}", id=f"tab-{tab}") for n, tab in enumerate(TABS, 1)))
         with Horizontal(classes="pane"):
             with Vertical(id="sidebar"):
                 for key in SECTIONS:
                     yield SideButton(key)
-                yield Static(id="side-fill")
+                yield Static(FORTY_SEVEN, id="side-fill")
             with ContentSwitcher(initial=f"pane-{next(iter(TABS))}", id="panes"):
                 for tab, keys in TABS.items():
                     with Vertical(id=f"pane-{tab}"):
                         for key in keys:
                             with Vertical(id=f"panel-{key}", classes="panel") as panel:
                                 panel.border_title = panel_title(key, None)
-                                yield Input(placeholder="/ filter", id=f"filter-{key}", classes="filter")
-                                yield Board(key, id=f"list-{key}")
-            with VerticalScroll(classes="panel") as panel:
+                                yield PanelTitle()
+                                with Vertical(classes="pbody"):
+                                    yield Input(placeholder="/ filter", id=f"filter-{key}", classes="filter")
+                                    yield Board(key, id=f"list-{key}")
+            with Vertical(id="panel-details", classes="panel") as panel:
                 panel.border_title = "details"
-                yield Static(id="detail")
-        yield Footer()
+                yield PanelTitle()
+                with VerticalScroll(classes="pbody"):
+                    yield Static(id="detail")
+        with Horizontal(id="foot"):
+            yield Static(id="footcap")
+            yield Static(LEFT_CAP, id="foot-cap")
+            yield Footer()
 
     def check_action(self, action, parameters):
-        return not isinstance(self.screen, (ConfigScreen, ReviewScreen)) or action not in BOARD_ACTIONS
+        return not isinstance(self.screen, (ConfigScreen, ReviewScreen, ThemeScreen)) or action not in BOARD_ACTIONS
 
     def on_mount(self):
         self.saved = config.load(self.config_path)
@@ -226,31 +278,55 @@ class TarkonApp(App):
 
     def show_updated(self):
         when = dt.datetime.fromtimestamp(self.updated_at)
-        self.query_one("#status", Static).update(f"STARDATE {stardate(when)} · {when:%H:%M}" if theme.current == "lcars" else f"updated {when:%H:%M}")
+        self.query_one("#status", Static).update(rows.stardate(when) if theme.lcars() else f"updated {when:%H:%M}")
 
     def title_panels(self):
         for key in SECTIONS:
-            self.query_one(f"#panel-{key}").border_title = panel_title(key, len(self.sections[key]) if self.board else None)
-        self.query_one("#detail").parent.border_title = "DETAILS" if theme.current == "lcars" else "details"
+            count = len(self.sections[key]) if self.board else None
+            self.query_one(f"#panel-{key}").border_title = panel_title(key, count)
+            self.query_one(f"#panel-{key} PanelTitle", PanelTitle).show(f"{NUMBERS[key]:02d}", LCARS_NAMES.get(key, SECTIONS[key][0]).upper(),
+                                                                       "" if count is None else str(count))
+        details = self.query_one("#panel-details")
+        details.border_title = "DETAILS" if theme.lcars() else "details"
+        details.query_one(PanelTitle).show("", "DETAILS", "")
 
     def fill_sections(self, board):
         self.board = board
         self.sections = entries(board, self.settings)
+        self.level = condition(board["prs"], self.settings.github_user)
+        tone = COLORS[CONDITION_TONES[self.level]]
+        self.query_one("#condition", Static).update(Text.assemble((LEFT_CAP, tone), (f" {CONDITIONS[self.level]} ", f"bold {COLORS['title']} on {tone}"),
+                                                                  (RIGHT_CAP, tone)))
+        self.paint_frame()
         self.title_panels()
         for key in SECTIONS:
             self.fill(key)
 
     def apply_theme(self, name):
         use_theme(name)
-        self.set_class(name == "lcars", "lcars")
+        self.set_class(theme.lcars(), "lcars")
         self.refresh_css()
-        self.query_one("#bar", Static).update(Text("◗", f"{COLORS['accent']} on {COLORS['bg']}"))
+        self.paint_frame()
         self.title_panels()
         if self.updated_at and not self.refreshing and not self.refresh_failed:
             self.show_updated()
 
-    def action_toggle_theme(self):
-        found = replace(self.settings, theme="default" if self.settings.theme == "lcars" else "lcars")
+    def paint_frame(self):
+        red = self.level == "red"
+        color = COLORS["bad" if red else "accent"]
+        bar = self.query_one("#bar", Static)
+        bar.set_class(red, "-red")
+        bar.update(Text(RIGHT_CAP, f"{color} on {COLORS['bg']}"))
+        self.query_one("#elbow", Static).update(elbow(color))
+        self.query_one("#elbow-logo").styles.background = color
+
+    def action_pick_theme(self):
+        self.push_screen(ThemeScreen(self.settings.theme), self.theme_picked)
+
+    def theme_picked(self, name):
+        if name is None:
+            return
+        found = replace(self.settings, theme=name)
         config.save(found, self.config_path)
         config.use(found)
         self.settings = found
@@ -328,6 +404,8 @@ class TarkonApp(App):
     def tab_activated(self, event):
         tab = event.tab.id.removeprefix("tab-")
         self.query_one(ContentSwitcher).current = f"pane-{tab}"
+        for pill in self.query(TabPill):
+            pill.set_class(pill.id == f"pill-{tab}", "-on")
         if TAB_OF[self.current_section] != tab:
             self.query_one(f"#list-{TABS[tab][0]}", Board).focus()
 

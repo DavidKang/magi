@@ -32,7 +32,7 @@ async def main(cache):
         assert [tab.label.plain for tab in app.query("Tab")] == ["[1] Overview", "[2] Mine"], "the tab bar shows Overview and Mine, Overview first"
         assert app.query_one("Tabs").active == "tab-overview", "the tab bar shows Overview and Mine, Overview first"
         assert app.query_one("Tabs").region.width == app.screen.region.width, "the tab bar spans the whole width"
-        assert app.query_one("#detail").parent.region.y == app.query_one("#panel-attention").region.y, "details starts level with the first box"
+        assert app.query_one("#panel-details").region.y == app.query_one("#panel-attention").region.y, "details starts level with the first box"
         assert isinstance(app.query_one("#top #logo"), Image), "the header shows the logo instead of the rocket"
         assert "🚀" not in str(app.query_one("#top .brand").render()), "the header shows the logo instead of the rocket"
         assert app.query_one("#top").outer_size.height == 1, "the header shows the logo instead of the rocket"

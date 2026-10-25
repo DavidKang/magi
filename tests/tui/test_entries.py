@@ -49,10 +49,6 @@ def test_escaping():
     assert "<i>" not in rendered, "jira links escape the site and the key"
 
 
-def test_stardate():
-    assert entries.stardate(dt.datetime(2026, 10, 25, 12, 0)) == "26298.5", "a stardate is the year, the day of the year and the tenth of the day"
-
-
 def test_pr_comments():
     review = {"submittedAt": "2026-10-22T09:00:00Z", "state": "CHANGES_REQUESTED", "body": "Please split this", "author": {"login": "carol"}}
     pr = replace(PR_TWO, reviews=[*PR_TWO.reviews, review], commits=[{"committedDate": "2026-10-23T08:00:00Z"}], threads=[THREAD])

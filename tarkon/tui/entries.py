@@ -1,5 +1,5 @@
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from rich.syntax import Syntax
@@ -30,10 +30,6 @@ class Entry:
 
 
 ZERO_WIDTH_SPACE = "\u200b"
-
-
-def stardate(when):
-    return f"{when:%y%j}.{when.hour * 10 // 24}"
 
 
 def escape(value):
@@ -214,8 +210,13 @@ def epic_entry(epic, tickets, settings):
             lines += ["", separator(f"{label.lower()} ({len(column)})")]
             lines += [f'{link(settings.jira_browse + t.key, t.key)} {escape(t.summary)} {colored("dim", t.assignee)}' for t in column]
     bar = Text()
-    bar.append("█" * filled, COLORS["ok"])
-    bar.append("░" * (20 - filled), COLORS["dim"])
+    if theme.lcars():
+        segments = round(10 * done / len(tickets)) if tickets else 0
+        bar.append("█ " * segments, COLORS["ok"])
+        bar.append("█ " * (10 - segments), COLORS["line"])
+    else:
+        bar.append("█" * filled, COLORS["ok"])
+        bar.append("░" * (20 - filled), COLORS["dim"])
     return Entry([(epic.key, ""), (bar, ""), (f"{done}/{len(tickets)}", "dim-right"), (epic.summary, "")],
                  "\n".join(lines), settings.jira_browse + epic.key, epic.key, f'{epic.key} {epic.summary}')
 
@@ -258,10 +259,18 @@ def ticket_entry(ticket, prs, settings):
                  f'{ticket.key} {ticket.summary} {status}', (f'{ticket.key} · {ticket.summary}', items), group=status)
 
 
+def team_pr_entries(prs, by_key, settings):
+    by_age = sorted(prs, key=lambda p: p.created_at)
+    if not theme.lcars():
+        return [pr_entry(pr, by_key, settings) for pr in by_age]
+    sectors = {repo: n for n, repo in enumerate(sorted({pr.repo for pr in prs}), 1)}
+    return [replace(pr_entry(pr, by_key, settings), group=f"SECTOR {sectors[pr.repo]} · {pr.repo.upper()}") for pr in sorted(by_age, key=lambda p: sectors[p.repo])]
+
+
 def entries(board, settings):
     prs, by_key = board["prs"], board["by_key"]
     return {"attention": [attention_entry(item) for item in board["attention"]],
-            "prs": [pr_entry(pr, by_key, settings) for pr in sorted(prs, key=lambda p: p.created_at)],
+            "prs": team_pr_entries(prs, by_key, settings),
             "changes": [change_entry(c) for c in board["changes"]],
             "epics": [epic_entry(e, board["tickets_by_epic"][e.key], settings) for e in board["epics"]],
             "mine_prs": [pr_entry(pr, by_key, settings) for pr in sorted(board["my_prs"], key=lambda p: p.created_at)],
@@ -281,7 +290,7 @@ def cell_row(entry, widths):
     for (value, tone), width in zip(entry.cells, widths):
         if tone.endswith("-pill"):
             tone = tone.removesuffix("-pill")
-            value = pill(value, width, tone) if theme.current == "lcars" else value
+            value = pill(value, width, tone) if theme.lcars() else value
         if isinstance(value, Text):
             text.append_text(value)
             text.append(" ")
