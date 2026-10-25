@@ -1,4 +1,4 @@
-"""Where a PR stands: its review, and its CI as a tone and a label."""
+"""Where a PR stands: its review, its CI as a tone and a label, and whose turn it is."""
 
 CI_LABELS = {"failing": ("changes", "CI red"), "running": ("commented", "CI running"),
              "passing": ("approved", "CI green"), "none": ("draft", "No CI")}
@@ -38,3 +38,32 @@ def review_state(pr):
     if pr.reviews:
         return "commented", "Commented"
     return "waiting", "Awaiting review"
+
+
+# The groups of team PRs, in the order the board lists them.
+TURNS = ["needs review", "on the author", "ready to merge", "drafts"]
+
+
+def answered(pr):
+    """The author pushed after the last change request, so the next move is the reviewers'."""
+    asked = [review["submittedAt"] for review in pr.reviews if review["state"] == "CHANGES_REQUESTED"]
+    return bool(asked) and any(commit["committedDate"] > max(asked) for commit in pr.commits)
+
+
+def turn(pr):
+    """Whose move a PR waits on, and what it is missing: only red CI, a conflict or unanswered changes put it on its author."""
+    if pr.is_draft:
+        return "drafts", "draft"
+    state = review_state(pr)[0]
+    blockers = [label for label, blocks in (("changes", state == "changes" and not answered(pr)), ("red CI", pr.ci == "failing"),
+                                            ("conflict", pr.mergeable == "CONFLICTING")) if blocks]
+    if blockers == ["changes"]:
+        return "on the author", "changes requested"
+    if blockers:
+        # Approved only leads a single blocker, so the longest label stays "changes · red CI · conflict".
+        return "on the author", " · ".join(["approved"] * (state == "approved" and len(blockers) == 1) + blockers)
+    if state == "approved":
+        return "ready to merge", "approved · CI running" if pr.ci == "running" else "approved"
+    if state == "changes":
+        return "needs review", "re-review"
+    return "needs review", "comments, no verdict" if state == "commented" else "no review yet"

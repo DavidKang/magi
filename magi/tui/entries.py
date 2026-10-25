@@ -10,6 +10,7 @@ from .. import rows
 from ..domain import changes
 from ..domain.attention import STALE_PR_DAYS
 from ..domain.ages import days_since
+from ..domain.review import TURNS, turn
 from ..domain.status import COLUMNS, status_label, ticket_order
 from . import theme
 from .theme import COLORS
@@ -66,28 +67,36 @@ def attention_entry(item):
                  url, url, f"{title} {reason}")
 
 
-def pr_entry(pr, by_key, settings):
+def pr_entry(pr, by_key, settings, asked=False):
     row = rows.pr_row(pr, by_key, settings)
-    tone, label = row["review"]
-    ci_tone, ci_label = rows.TUI_CI[row["ci"]]
-    conflict = ("⚠ conflict" if row["conflict"] else "", "bad-pill")
-    cells = [(row["ref"], ""), (row["code"], "blue"), (row["author"], "dim"),
-             (label.lower(), f"{rows.TUI_REVIEW[tone]}-pill"), (ci_label, f"{ci_tone}-mark"), conflict, (f'{row["age"]}d', "dim-right")]
-    events = [(e["at"], f'{state_label(e)} {escape(e["author"])}' if e["state"] else colored("dim", "commit")) for e in row["events"]]
+    group, missing = row["turn"]
+    missing, tone = ("your review", "warn") if yours(group, asked) else (missing, TURN_TONES[group])
+    cells = [(Text(row["title"]), ""), (row["author"], "dim"), (missing, f"{tone}-pill"), (f'{row["age"]}d', "dim-right"),
+             (rows.tui_repo(pr), "dim-right")]
+    pushed = max((c["committedDate"] for c in pr.commits), default=None)
     lines = [heading(row["title"]), "",
              field("pr", f'{link(row["url"], row["ref"])} {colored("dim", "by")} {escape(row["author"])} '
-                         f'{colored("dim", "open")} {row["age"]}d'),
-             field("review", escape(label) + (f' {colored("warn", "review requested")}' if row["review_requested"] else "")),
-             field("ci", row["ci"]),
-             field("merge", "conflicts" if row["conflict"] else "clean")]
+                         f'{colored("dim", "open")} {row["age"]}d' + (f' {colored("dim", "· last push")} {days_since(pushed)}d ago' if pushed else "")),
+             field("status", colored(tone, missing))]
     lines += [field("ticket", f'{link(t["url"], t["key"])} {colored("dim", f"({t["status"]})")} {escape(t["summary"])}')
               for t in row["tickets"]] or [field("ticket", "—")]
     items = review_items(pr)
     lines += comments_field(len(items)) if items else []
-    lines += ["", separator("activity")] + [f'{colored("dim", rows.local_time(at))}  {what}' for at, what in sorted(events, reverse=True)[:10]]
+    lines += ["", separator("activity"), *activity(row["events"])]
     return Entry(cells, "\n".join(lines), pr.url, pr.url,
                  f'{pr.repo} {rows.tui_repo(pr)} {pr.number} {pr.title} {row["author"]}',
                  (f'{row["ref"]} · {pr.title}', items))
+
+
+def activity(events):
+    """Newest first, with the commits of a day in one line."""
+    days = {}
+    for event in events:
+        if not event["state"]:
+            days.setdefault(rows.local(event["at"]).date(), []).append(event["at"])
+    commits = [(max(ats), day.strftime("%b %d").ljust(12), colored("dim", f"{len(ats)} commit" + "s" * (len(ats) > 1))) for day, ats in days.items()]
+    reviews = [(e["at"], rows.local_time(e["at"]), f'{state_label(e)} {escape(e["author"])}') for e in events if e["state"]]
+    return [f'{colored("dim", when)}  {what}' for _, when, what in sorted(commits + reviews, reverse=True)[:10]]
 
 
 def state_label(review):
@@ -271,32 +280,47 @@ def ticket_entry(ticket, prs, settings):
                  f'{ticket.key} {ticket.summary} {status}', (f'{ticket.key} · {ticket.summary}', items), group=status)
 
 
-# Team PRs open over three days, then the rest, in each frame's words.
-PR_GROUPS = {"lcars": ("PRIORITY ONE", "ROUTINE"), "nerv": ("CRITICAL", "NOMINAL")}
+TURN_TONES = {"needs review": "blue", "on the author": "bad", "ready to merge": "ok", "drafts": "dim"}
 PILL_CAPS = {"lcars": ("◖", "◗"), "nerv": ("▕", "▏")}
-# Status cells: a review or conflict pill, CI's mark and a critical age's alarm. LCARS draws all three as pills.
-STATUS_KINDS = ("pill", "mark", "alarm")
+# Status cells: what a PR is missing as a pill and a critical age's alarm. LCARS draws both as pills.
+STATUS_KINDS = ("pill", "alarm")
+# A PR row's days cell, before the repo at the right edge.
+DAYS_CELL = -2
 # NERV leaves the undone segments dark, after nerv-ui's sync bars.
 EPIC_REST = {"lcars": "line", "nerv": "raised"}
 
-def team_pr_entries(prs, by_key, settings):
-    by_age = sorted(prs, key=lambda p: p.created_at)
-    if not theme.frame():
-        return [pr_entry(pr, by_key, settings) for pr in by_age]
-    urgent, routine = PR_GROUPS[theme.frame()]
-    return [priority_entry(pr_entry(pr, by_key, settings), urgent) if days_since(pr.created_at) > STALE_PR_DAYS
-            else replace(pr_entry(pr, by_key, settings), group=routine) for pr in by_age]
+def yours(group, asked):
+    """A PR that asks for my review and waits on reviewers is mine to review."""
+    return asked and group == "needs review"
 
 
-def priority_entry(entry, group):
-    days, _ = entry.cells[-1]
-    return replace(entry, cells=[*entry.cells[:-1], (days, "bad-alarm")], group=group)
+def team_pr_entries(prs, by_key, settings, asked):
+    """Team PRs by whose turn it is, oldest first, with my review requests leading."""
+    def order(pr):
+        group = turn(pr)[0]
+        return TURNS.index(group), not yours(group, pr.url in asked), pr.created_at
+    return [turn_entry(pr_entry(pr, by_key, settings, pr.url in asked), turn(pr)[0], days_since(pr.created_at) > STALE_PR_DAYS)
+            for pr in sorted(prs, key=order)]
+
+
+def group_name(group):
+    return group.upper() if theme.frame() else group
+
+
+def turn_entry(entry, group, stale):
+    """The days of a PR open over three days turn red: a frame draws them as an alarm."""
+    entry = replace(entry, group=group_name(group))
+    if not stale:
+        return entry
+    cells = list(entry.cells)
+    cells[DAYS_CELL] = (cells[DAYS_CELL][0], "bad-alarm" if theme.frame() else "bad-right")
+    return replace(entry, cells=cells)
 
 
 def entries(board, settings):
     prs, by_key = board["prs"], board["by_key"]
     return {"attention": [attention_entry(item) for item in board["attention"]],
-            "prs": team_pr_entries(prs, by_key, settings),
+            "prs": team_pr_entries(prs, by_key, settings, {pr.url for pr in board["review_prs"]}),
             "changes": [change_entry(c) for c in board["changes"]],
             "epics": [epic_entry(e, board["tickets_by_epic"][e.key], settings) for e in board["epics"]],
             "mine_prs": [pr_entry(pr, by_key, settings) for pr in sorted(board["my_prs"], key=lambda p: p.created_at)],
@@ -317,10 +341,7 @@ def pill(value, width, tone):
 def status(value, width, tone, kind):
     if theme.frame() == "lcars" or kind == "pill":
         return pill(value, width, tone)
-    label = value.upper().lstrip("✓✗…–⚠ ")
-    if kind == "mark":
-        return Text.assemble(("■ ", COLORS[tone]), (label.ljust(width - 2), COLORS["dim"]))
-    return Text(f"▲ {label}".rjust(width), f"bold {COLORS[tone]}")
+    return Text(f"▲ {value.upper()}".rjust(width), f"bold {COLORS[tone]}")
 
 
 def cell_row(entry, widths):
@@ -331,6 +352,9 @@ def cell_row(entry, widths):
             tone = tone.removesuffix(f"-{kind}")
             value = status(value, width, tone, kind) if theme.frame() else value
         if isinstance(value, Text):
+            if width is not None:
+                value = value.copy()
+                value.truncate(width, overflow="ellipsis", pad=True)
             text.append_text(value)
             text.append(" ")
             continue

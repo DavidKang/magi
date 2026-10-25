@@ -83,7 +83,7 @@ async def lcars_theme(cache):
         assert str(app.query_one("#condition").render()) == "\ue0b6 RED ALERT \ue0b4", "LCARS shows the board's alert level as a pill"
         assert str(app.query_one("#panel-changes").border_title) == "05-CAPTAIN'S LOG 1", "LCARS calls the changes the Captain's Log"
         assert "CAPTAIN'S" in str(app.query_one("#side-changes").render()), "LCARS calls the changes the Captain's Log"
-        assert app.query_one("#list-prs").get_option_at_index(0).prompt.plain == "── PRIORITY ONE (1) ──", "LCARS puts old team PRs first"
+        assert app.query_one("#list-prs").get_option_at_index(0).prompt.plain == "── ON THE AUTHOR (1) ──", "LCARS writes the turn groups in capitals"
         assert str(app.query_one("#panel-prs").border_title) == "04-CREW REPORTS 1", "LCARS calls the team PRs crew reports"
         assert "REPORTS" in str(app.query_one("#side-prs").render()), "LCARS calls the team PRs crew reports"
         titles = {key: str(app.query_one(f"#panel-{key}").border_title) for key in ("attention", "epics", "mine_prs", "mine_tickets", "details")}
@@ -93,7 +93,7 @@ async def lcars_theme(cache):
         assert (app.query_one(Footer).styles.background, key.styles.background) == (Color.parse(lcars["bg"]), Color.parse(lcars["line"])), \
             "LCARS turns the footer into a row of buttons"
         assert key.get_component_rich_style("footer-key--key").bgcolor.triplet.hex == lcars["accent"], "LCARS turns the footer into a row of buttons"
-        assert "◖ AWAITING REVIEW " in app.query_one("#list-prs").get_option_at_index(1).prompt.plain, "LCARS shows review and CI states as pills"
+        assert "◖ RED CI · CONFLICT " in app.query_one("#list-prs").get_option_at_index(1).prompt.plain, "LCARS shows what a PR is missing as a pill"
         buttons = list(app.query(".side"))
         assert app.query_one("#sidebar").display, "LCARS adds a sidebar button per box, lit for the focused one"
         assert [str(b.render()).split() [0] for b in buttons] == ["03", "04", "05", "06", "07", "08"], \
@@ -145,7 +145,7 @@ async def lcars_theme(cache):
         assert app.screen.styles.background == Color.parse(theme.THEMES["default"]["bg"]), "t switches back to the default theme"
         assert json.loads(path.read_text())["theme"] == "default", "t switches back to the default theme"
         assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 1", "the default theme keeps its titles, states and header"
-        assert "awaiting review" in app.query_one("#list-prs").get_option_at_index(0).prompt.plain, \
+        assert "red CI · conflict" in app.query_one("#list-prs").get_option_at_index(1).prompt.plain, \
             "the default theme keeps its titles, states and header"
         assert str(app.query_one("#top .brand").render()) == "MAGI", "the default theme keeps its titles, states and header"
         assert not app.query_one("#sidebar").display, "the default theme keeps its titles, states and header"
@@ -155,7 +155,8 @@ async def lcars_theme(cache):
         assert not app.query_one("#condition").display, "the default theme drops the LCARS words"
         assert str(app.query_one("#panel-changes").border_title) == "[5] changes 1", "the default theme drops the LCARS words"
         assert str(app.query_one("#status").render()).startswith("updated "), "the default theme drops the LCARS words"
-        assert app.query_one("#list-prs").get_option_at_index(0).id == "0", "the default theme drops the LCARS words"
+        assert app.query_one("#list-prs").get_option_at_index(0).prompt.plain == "── on the author (1) ──", \
+            "the default theme drops the LCARS words and writes the turn groups in lowercase"
     app = MagiApp(load=failing_load, opener=print, copier=print, clock=lambda: 5000.0, cache=cache, config_path=path)
     async with app.run_test(size=(160, 40)) as pilot:
         await app.workers.wait_for_complete()
@@ -338,3 +339,26 @@ def test_framed_pr_rows_fit(cache, default_theme, name):
 
     room, rows = asyncio.run(run())
     assert rows and all(width <= room for width in rows), f"a PR row fits its box in a 180-column terminal: {rows} in {room}"
+
+
+def test_pr_rows_follow_their_box_when_it_resizes(cache, default_theme):
+    async def run():
+        app = MagiApp(load=lambda: board([PR_ONE, PR_TWO]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
+                      config_path=settings_file(cache))
+        async with app.run_test(size=(160, 50)) as pilot:
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            listing = app.query_one("#list-prs", OptionList)
+            row = lambda: listing.get_option_at_index(1).prompt
+            before = (listing.scrollable_content_region.width, row().cell_len)
+            await pilot.resize_terminal(200, 50)
+            for _ in range(50):
+                await pilot.pause()
+                if row().cell_len == listing.scrollable_content_region.width:
+                    break
+            return before, (listing.scrollable_content_region.width, row().cell_len), row().plain
+
+    before, after, plain = asyncio.run(run())
+    assert before[0] == before[1] and after[0] == after[1] and after[0] > before[0], \
+        f"a PR row fills its box, before and after the terminal resizes: {before} then {after}"
+    assert plain.rstrip().endswith(" app"), "the repo stays at the right edge after a resize"

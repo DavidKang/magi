@@ -72,8 +72,8 @@ async def nerv(cache):
         tabs = [app.query_one(f"#pill-{tab} .seg").styles.color for tab in ("overview", "mine")]
         assert tabs == [Color.parse(MAGI["accent"]), Color.parse(theme.THEMES["nerv"]["dim"])], "nerv lights the current tab orange and dims the rest"
         prompts = [app.query_one("#list-prs").get_option_at_index(i).prompt.plain for i in range(2)]
-        assert prompts[0] == "── CRITICAL (1) ──", "nerv puts team PRs open over three days first as CRITICAL"
-        assert "▕ AWAITING REVIEW   ▏" in prompts[1], "nerv outlines its badges, keeping their padding"
+        assert prompts[0] == "── ON THE AUTHOR (1) ──", "nerv writes the turn groups in capitals"
+        assert f"▕ {'RED CI · CONFLICT':<27} ▏" in prompts[1], "nerv outlines its badges, keeping their padding"
 
 
 @pytest.mark.usefixtures("default_theme")
@@ -168,21 +168,19 @@ def test_switching_themes_leaves_no_frame_behind(cache, names):
 @pytest.mark.usefixtures("default_theme")
 def test_nerv_outlines_its_badges():
     theme.use_theme("nerv")
-    late = replace(PR_ONE, created_at=f"{dt.date.today() - dt.timedelta(days=58)}T10:00:00Z", review_decision="CHANGES_REQUESTED")
-    found = {"prs": [late], "by_key": {}, "attention": [], "changes": [], "epics": [], "my_prs": [], "my_tickets": []}
+    late = replace(PR_ONE, created_at=f"{dt.date.today() - dt.timedelta(days=58)}T10:00:00Z", review_decision="CHANGES_REQUESTED",
+                   ci="passing")
+    found = {"prs": [late], "review_prs": [], "by_key": {}, "attention": [], "changes": [], "epics": [], "my_prs": [], "my_tickets": []}
     row = entries.cell_row(entries.entries(found, STATED)["prs"][0], app_module.widths("prs"))
     style = lambda text: row.get_style_at_offset(Console(), row.plain.index(text))
-    assert row.plain.endswith("▕ CHANGES REQUESTED ▏ ■ CI   ▕ CONFLICT ▏    ▲ 58D "), \
-        "nerv draws the review and conflict as outlined badges, CI as a mark and a critical age as an alarm, after nerv-ui"
-    for text in ("▕ CHANGES", "CHANGES", "▕ CONFLICT"):
+    assert f"▕ {'CHANGES · CONFLICT':<27} ▏    ▲ 58D " in row.plain, \
+        "nerv draws what a PR is missing as an outlined badge and a critical age as an alarm, after nerv-ui"
+    for text in ("▕ CHANGES", "CHANGES", "CONFLICT"):
         assert (style(text).color.triplet.hex, style(text).bgcolor) == (MAGI["bad"], None), "nerv badges are coloured text in a thin outline, not filled"
-    assert (style("■").color.triplet.hex, style("CI").color.triplet.hex) == (MAGI["bad"], theme.THEMES["nerv"]["dim"]), \
-        "nerv colours only CI's mark"
     assert (style("▲").color.triplet.hex, style("58D").bold) == (MAGI["bad"], True), "nerv flags a critical age in bold red"
     calm = replace(PR_ONE, created_at=f"{dt.date.today() - dt.timedelta(days=2)}T10:00:00Z", review_decision="APPROVED", ci="passing",
                    mergeable="MERGEABLE")
     row = entries.cell_row(entries.entries({**found, "prs": [calm]}, STATED)["prs"][0], app_module.widths("prs"))
-    assert row.plain.endswith(f"▕ APPROVED          ▏ ■ CI   {' ' * 12} {'2d':>8} "), \
-        "nerv leaves an empty conflict cell blank and a nominal age plain"
-    assert (style("■").color.triplet.hex, style("2d").color.triplet.hex) == (MAGI["ok"], theme.THEMES["nerv"]["dim"]), \
-        "nerv marks passing CI green and dims a nominal age"
+    assert f"▕ {'APPROVED':<27} ▏ {'2d':>8} " in row.plain, "nerv leaves a nominal age plain"
+    assert (style("APPROVED").color.triplet.hex, style("2d").color.triplet.hex) == (MAGI["ok"], theme.THEMES["nerv"]["dim"]), \
+        "nerv outlines a PR ready to merge in green and dims a nominal age"

@@ -149,6 +149,19 @@ Epics are not configured: the board shows every epic of the project in Developin
 | `t` | Pick a theme (see [Themes](#themes)) |
 | `q` | Quit |
 
+### Team PRs
+
+Team PRs are grouped by whose turn it is, oldest first in each group:
+
+| Group | When |
+|-------|------|
+| needs review | Nobody approved or asked for changes yet, or the author pushed after the last change request (`re-review`). PRs that ask for your review come first, as `your review` |
+| on the author | Changes requested, red CI or a conflict |
+| ready to merge | Approved, with no red CI or conflict |
+| drafts | Drafts |
+
+Each row starts with the PR's title, which stretches with the box up to 60 columns, then the author, what the PR is missing and its age, red after three days; the repo, without the PR number, sits at the right edge. A green CI shows nothing.
+
 ### What is new
 
 A change you have not seen yet puts a `●` on its rows in every box, a `N new` count in the box title and a `●` on its tab; the detail opens with the change and its time. Moving the cursor off the row marks it seen. The first start marks nothing.
@@ -197,8 +210,8 @@ The LCARS and NERV themes show how the board is doing in the header:
 | ![LCARS Okuda](assets/screenshots/okuda.png) | ![LCARS Picard](assets/screenshots/picard.png) |
 
 - A **stardate** marks the last refresh.
-- Review, CI, conflicts and age are drawn as **rounded pills**.
-- Team PRs open more than three days come first as **PRIORITY ONE**, with their age in red. The rest are **ROUTINE**.
+- What a PR is missing and its age are drawn as **rounded pills**.
+- Team PR groups are written in capitals, and a PR open more than three days shows its age in red.
 
 ### NERV
 
@@ -211,8 +224,8 @@ The LCARS and NERV themes show how the board is doing in the header:
 - Colours from [nerv-ui](https://github.com/mdrbx/nerv-ui), since the show has no official palette: black, orange text, green grid, red alert, amber warning.
 - A **hazard stripe** across the top turns red on alert.
 - The header shows the **MAGI's sync time**.
-- Heavy-lined boxes with **outlined badges**. CI is a coloured mark, and an old PR's age gets a red ▲.
-- Team PRs open more than three days come first as **CRITICAL**. The rest are **NOMINAL**.
+- Heavy-lined boxes with **outlined badges**, and the age of a PR open more than three days gets a red ▲.
+- Team PR groups are written in capitals.
 
 **NERV - EVA 01**
 

@@ -4,6 +4,7 @@ from dataclasses import replace
 from textual.content import Content
 
 from builders import CHANGES, NOTE, PR_ONE, PR_TWO, REPLY, STATED, THREAD, TICKET_DETAIL, board
+from magi.domain.ages import days_since
 from magi.domain.entities import Ticket
 from magi.tui import entries
 
@@ -67,3 +68,30 @@ def test_conversation_comments():
     assert items[0]["url"] == NOTE["url"], "enter on a conversation comment opens that comment"
     assert "comments 4 · c to open" in Content.from_markup(entries.pr_entry(pr, {}, STATED).detail).plain, \
         "the detail counts conversation comments too"
+
+
+def test_pr_detail_status_and_activity():
+    commits = [{"committedDate": at} for at in ("2026-10-23T08:00:00Z", "2026-10-23T15:00:00Z", "2026-10-21T11:00:00Z")]
+    pr = replace(PR_TWO, commits=commits, ci="failing")
+    lines = Content.from_markup(entries.pr_entry(pr, {}, STATED).detail).plain.splitlines()
+    assert "status   approved · red CI" in lines, "the detail says in one line what the pr is missing, as its row does"
+    assert not any(line.startswith(("review ", "ci ", "merge ")) for line in lines), "the status line replaces review, ci and merge"
+    assert f"last push {days_since('2026-10-23T15:00:00Z')}d ago" in next(line for line in lines if line.startswith("pr ")), \
+        "the pr line says how long ago the last commit was pushed"
+    activity = lines[lines.index("── activity ──") + 1:]
+    assert [line for line in activity if "commit" in line] == ["Oct 23        2 commits", "Oct 21        1 commit"], \
+        "activity groups the commits of a day in one line"
+    asked = Content.from_markup(entries.pr_entry(replace(PR_ONE, reviews=[], ci="passing", mergeable="MERGEABLE"), {}, STATED, asked=True).detail).plain
+    assert "status   your review" in asked, "a pr waiting on your review says so in its status line"
+    assert "last push" not in Content.from_markup(entries.pr_entry(PR_TWO, {}, STATED).detail).plain, \
+        "a pr without commits shows no last push"
+
+
+def test_activity_days():
+    commits = [{"committedDate": at} for at in ("2026-10-23T21:30:00Z", "2026-10-23T22:30:00Z", "2025-10-23T08:00:00Z")]
+    lines = Content.from_markup(entries.pr_entry(replace(PR_TWO, commits=commits), {}, STATED).detail).plain.splitlines()
+    activity = [line for line in lines[lines.index("── activity ──") + 1:] if "commit" in line]
+    assert activity == ["Oct 24        1 commit", "Oct 23        1 commit", "Oct 23        1 commit"], \
+        "activity groups commits by the local day, so a late UTC commit lands on the next day and last year's day stays apart"
+    assert f"last push {(dt.date.today() - dt.date(2026, 10, 24)).days}d ago" in next(line for line in lines if line.startswith("pr ")), \
+        "the last push counts days on the local calendar, as the activity does"

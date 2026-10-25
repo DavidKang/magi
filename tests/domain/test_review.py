@@ -1,7 +1,7 @@
 import pytest
 
 from builders import make_pr
-from magi.domain.review import CONDITIONS, condition, looks_ready_but_blocked, review_state
+from magi.domain.review import CONDITIONS, condition, looks_ready_but_blocked, review_state, turn
 
 
 def test_review_state_reads_the_pr():
@@ -58,3 +58,40 @@ def test_condition_is_the_worst_open_pr():
         "someone else's failing PR only raises a yellow alert, even next to a healthy PR of mine"
     assert level(green, make_pr(review_decision="APPROVED", ci="passing", mergeable="CONFLICTING", **theirs)) == "YELLOW ALERT", \
         "someone else's blocked PR only raises a yellow alert, even next to a healthy PR of mine"
+
+
+def test_turn_reads_whose_move_a_pr_waits_on():
+    changes = {"state": "CHANGES_REQUESTED", "submittedAt": "2026-10-22T09:00:00Z", "author": {"login": "bob"}}
+    green = {"ci": "passing", "mergeable": "MERGEABLE"}
+    cases = {
+        "draft": ({"is_draft": True, **green}, ("drafts", "draft")),
+        "approved and green": ({"review_decision": "APPROVED", **green}, ("ready to merge", "approved")),
+        "approved, CI running": ({"review_decision": "APPROVED", **green, "ci": "running"}, ("ready to merge", "approved · CI running")),
+        "approved, red CI": ({"review_decision": "APPROVED", **green, "ci": "failing"}, ("on the author", "approved · red CI")),
+        "changes requested": ({"reviews": [changes], **green, "commits": []}, ("on the author", "changes requested")),
+        "changes and conflict": ({"reviews": [changes], "ci": "passing", "mergeable": "CONFLICTING", "commits": []},
+                                 ("on the author", "changes · conflict")),
+        "pushed after the changes": ({"reviews": [changes], **green, "commits": [{"committedDate": "2026-10-23T09:00:00Z"}]},
+                                     ("needs review", "re-review")),
+        "commit before the changes": ({"reviews": [changes], **green, "commits": [{"committedDate": "2026-10-21T09:00:00Z"}]},
+                                      ("on the author", "changes requested")),
+        "red CI, no verdict": ({"ci": "failing", "mergeable": "MERGEABLE"}, ("on the author", "red CI")),
+        "approved, conflict": ({"review_decision": "APPROVED", "ci": "passing", "mergeable": "CONFLICTING"}, ("on the author", "approved · conflict")),
+        "approved, red CI and conflict": ({"review_decision": "APPROVED", "ci": "failing", "mergeable": "CONFLICTING"},
+                                          ("on the author", "red CI · conflict")),
+        "changes, red CI and conflict": ({"reviews": [changes], "ci": "failing", "mergeable": "CONFLICTING", "commits": []},
+                                         ("on the author", "changes · red CI · conflict")),
+        "answered, red CI": ({"reviews": [changes], **green, "ci": "failing", "commits": [{"committedDate": "2026-10-23T09:00:00Z"}]},
+                             ("on the author", "red CI")),
+        "answered, conflict": ({"reviews": [changes], **green, "mergeable": "CONFLICTING",
+                                "commits": [{"committedDate": "2026-10-23T09:00:00Z"}]}, ("on the author", "conflict")),
+        "asked again after the push": ({"reviews": [changes, {**changes, "submittedAt": "2026-10-24T09:00:00Z"}], **green,
+                                        "commits": [{"committedDate": "2026-10-23T09:00:00Z"}]}, ("on the author", "changes requested")),
+        "commit at the changes' time": ({"reviews": [changes], **green, "commits": [{"committedDate": "2026-10-22T09:00:00Z"}]},
+                                        ("on the author", "changes requested")),
+        "only comments": ({"reviews": [{"state": "COMMENTED"}], **green}, ("needs review", "comments, no verdict")),
+        "no review, CI running": ({**green, "ci": "running"}, ("needs review", "no review yet")),
+        "no review": (green, ("needs review", "no review yet")),
+    }
+    for name, (fields, expected) in cases.items():
+        assert turn(make_pr(**fields)) == expected, f"{name}: only red CI, a conflict or unanswered changes put a PR on its author"

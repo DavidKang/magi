@@ -15,7 +15,7 @@ from builders import PR_ONE, PR_THREE, PR_TWO, STATED, THREAD, board, failing_lo
 from magi.adapters import storage
 from magi.domain.status import column_for
 from magi.tui import app as app_module
-from magi.tui import screens
+from magi.tui import screens, theme
 from magi.tui.app import MagiApp
 
 
@@ -56,7 +56,10 @@ async def main(cache):
         assert heights["epics"] == 5, "epics box fits its items"
         assert abs(heights["prs"] - heights["changes"]) <= 1, "team prs and changes share the rest"
         assert heights["prs"] > 5, "team prs and changes share the rest"
-        await pilot.click("#list-prs", offset=(2, 1))
+        prompts = [app.query_one("#list-prs", OptionList).get_option_at_index(i).prompt for i in range(5)]
+        assert [p.plain for p in prompts[2:4]] == ["", "── ready to merge (1) ──"], "a blank line separates the groups"
+        assert str(prompts[0].style) == f"bold {theme.THEMES['default']['fg']}", "group headers stand out in bold, in the text colour"
+        await pilot.click("#list-prs", offset=(2, 4))
         assert "Second change" in detail(), "click in the team prs box shows that PR"
         await pilot.click("#list-changes", offset=(2, 0))
         assert "New PR" in detail(), "click in the changes box shows that change"
@@ -74,19 +77,21 @@ async def main(cache):
         segments = [(bar.plain[s.start:s.end], str(s.style)) for s in bar.spans if bar.plain[s.start] in "█░"]
         assert "█" * 10 + "░" * 10 in bar.plain, "epic progress is a block bar"
         assert segments == [("█" * 10, "#56d364"), ("░" * 10, "#6e7a87")], "done blocks are green and the rest dim"
-        assert "brs#2" in str(app.query_one("#list-prs", OptionList).get_option_at_index(1).prompt), "long repo shown as alias"
+        assert str(app.query_one("#list-prs", OptionList).get_option_at_index(4).prompt).rstrip().endswith(" brs"), "long repo shown as alias"
         await pilot.press("enter")
         assert opened == [PR_TWO.url], "enter opens the PR"
-        await pilot.click("#list-prs", offset=(2, 0))
+        await pilot.click("#list-prs", offset=(2, 1))
         assert "First change" in detail(), "click on a row selects it"
         await pilot.click("#detail", offset=(10, 2))
         assert opened[-1] == PR_ONE.url, "click on a detail link opens it"
         await pilot.press("slash")
         assert app.focused is app.query_one("#filter-prs"), "slash focuses the filter of the focused box"
         await pilot.press(*"second")
-        assert app.query_one("#list-prs", OptionList).option_count == 1, "filter narrows the list"
+        listed = lambda: [o.id for o in (app.query_one("#list-prs", OptionList).get_option_at_index(i)
+                                          for i in range(app.query_one("#list-prs", OptionList).option_count)) if not o.disabled]
+        assert len(listed()) == 1, "filter narrows the list"
         await pilot.press("escape")
-        assert app.query_one("#list-prs", OptionList).option_count == 2, "escape clears the filter"
+        assert len(listed()) == 2, "escape clears the filter"
         assert focused("prs"), "escape clears the filter"
         await pilot.press("3")
         assert focused("attention"), "3 focuses the attention box"
@@ -121,11 +126,12 @@ async def main(cache):
         await pilot.pause()
         tickets = app.query_one("#list-mine_tickets", OptionList)
         prompts = [str(tickets.get_option_at_index(i).prompt) for i in range(tickets.option_count)]
-        assert len(prompts) == 4, "my tickets are grouped under their status"
+        assert len(prompts) == 5, "my tickets are grouped under their status, a blank line between groups"
         assert prompts[0].startswith("── Todo (1)"), "my tickets are grouped under their status"
         assert "OPS-7" in prompts[1], "my tickets are grouped under their status"
-        assert prompts[2].startswith("── In Progress (1)"), "my tickets are grouped under their status"
-        assert "ACME-1" in prompts[3], "my tickets are grouped under their status"
+        assert prompts[2] == "", "my tickets are grouped under their status, a blank line between groups"
+        assert prompts[3].startswith("── In Progress (1)"), "my tickets are grouped under their status"
+        assert "ACME-1" in prompts[4], "my tickets are grouped under their status"
         assert focused("mine_tickets"), "8 focuses my tickets on the first ticket"
         assert "Ticket seven" in detail(), "8 focuses my tickets on the first ticket"
         assert "creator" not in detail(), "a ticket cached before the detail fetch shows no detail fields"

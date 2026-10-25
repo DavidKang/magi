@@ -29,9 +29,13 @@ from .theme import COLORS, use_theme
 REFRESH_SECONDS = 5 * 60
 REFRESH_COOLDOWN = 30
 CACHE = paths.CACHE_DIR / "cache.json"
-PR_WIDTHS = [15, 9, 10, 17, 4, 10, 4]
+# The title takes the room the other columns leave, up to MAX_TITLE; the rest goes to the repo, so it sits at the right edge.
+PR_WIDTHS = [None, 10, 27, 4, 18]
 # LCARS draws review, CI, conflict and days as padded pills, which need more room than their plain text.
-LCARS_PR_WIDTHS = [15, 9, 10, 21, 6, 12, 8]
+LCARS_PR_WIDTHS = [None, 10, 31, 8, 18]
+MIN_TITLE, MAX_TITLE = 20, 60
+# A box too narrow for MIN_TITLE still shows this much of the title.
+NARROW_TITLE = 10
 CHANGE_WIDTHS = [12, 18, None]
 NO_CHANGES = f"no changes in the last {changes.CHANGES_HOURS} h"
 SECTIONS = {"attention": ("attention", "nothing to flag", [2, None]),
@@ -65,9 +69,16 @@ HEAVY_LINE = "━" * 400
 FORTY_SEVEN = "█ █ ███\n█ █   █\n███   █\n  █   █\n  █   █"
 
 
-def widths(key):
+def widths(key, room=None):
     found = SECTIONS[key][2]
-    return LCARS_PR_WIDTHS if found is PR_WIDTHS and theme.frame() else found
+    found = LCARS_PR_WIDTHS if found is PR_WIDTHS and theme.frame() else found
+    if None not in found[:-1]:
+        return found
+    if not room:
+        return [MIN_TITLE if width is None else width for width in found]
+    left = room - sum(filter(None, found)) - len(found)
+    title = min(max(left, NARROW_TITLE), MAX_TITLE)
+    return [title, *found[1:-1], found[-1] + max(left - title, 0)]
 
 
 def section_name(key):
@@ -143,6 +154,9 @@ class Board(OptionList):
 
     def on_focus(self):
         self.app.board_focused(self)
+
+    def on_resize(self):
+        self.app.redraw(self.section)
 
 BOARD_ACTIONS = {"focus_tab", "focus_box", "focus_filter", "clear_filter", "copy_current", "refresh", "open_review", "pick_theme"}
 
@@ -389,7 +403,16 @@ class MagiApp(App):
         self.title_panels()
 
     def row(self, key, entry):
-        return Text.assemble(("● ", COLORS["accent"]) if entry.url in self.news else "  ", cell_row(entry, widths(key)))
+        room = self.query_one(f"#list-{key}", Board).scrollable_content_region.width - 2
+        return Text.assemble(("● ", COLORS["accent"]) if entry.url in self.news else "  ", cell_row(entry, widths(key, room)))
+
+    def redraw(self, key):
+        """A box that changes width redraws its rows, so a PR's title fills the room it has."""
+        board = self.query_one(f"#list-{key}", Board)
+        for index in range(board.option_count):
+            option_id = board.get_option_at_index(index).id
+            if option_id:
+                board.replace_option_prompt_at_index(index, self.row(key, self.sections[key][int(option_id)]))
 
     def apply_theme(self, name):
         use_theme(name)
@@ -398,7 +421,7 @@ class MagiApp(App):
         self.set_class(theme.frame() == "nerv", "nerv")
         self.set_class(theme.current == "eva01", "eva01")
         # A PR row's pills need more room than half the screen: the new mark, the cells and their gaps, the box's border and padding.
-        self.query_one("#panes").styles.min_width = 2 + sum(LCARS_PR_WIDTHS) + len(LCARS_PR_WIDTHS) + 4 if theme.frame() else None
+        self.query_one("#panes").styles.min_width = 2 + MIN_TITLE + sum(filter(None, LCARS_PR_WIDTHS)) + len(LCARS_PR_WIDTHS) + 4 if theme.frame() else None
         self.refresh_css()
         self.paint_frame()
         self.title_panels()
@@ -449,9 +472,11 @@ class MagiApp(App):
         group = None
         for i, entry in shown:
             if entry.group and entry.group != group:
+                if group:
+                    board.add_option(Option(Text(""), disabled=True))
                 group = entry.group
                 size = sum(1 for _, other in shown if other.group == group)
-                board.add_option(Option(Text(f"── {group} ({size}) ──", COLORS["dim"]), disabled=True))
+                board.add_option(Option(Text(f"── {group} ({size}) ──", f"bold {COLORS['fg']}"), disabled=True))
             board.add_option(Option(self.row(key, entry), id=str(i)))
         if not self.sections[key]:
             board.add_option(Option(Text(empty, COLORS["dim"]), disabled=True))

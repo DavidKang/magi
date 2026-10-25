@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from textual.content import Content
 
-from builders import EPIC, PR_ONE, PR_TWO, STATED, TICKETS
+from builders import EPIC, PR_ONE, PR_TWO, STATED, TICKETS, make_pr
 from magi import rows
 from magi.domain import ages
 from magi.tui import app as app_module
@@ -41,11 +41,17 @@ def test_rows_view_model():
 
 
 def test_pr_rows():
-    row = lambda pr: entries.cell_row(entries.pr_entry(pr, {}, STATED), app_module.PR_WIDTHS).plain
-    assert "[ACME-1]" in row(PR_ONE), "team pr row shows the title's ticket code and the author"
-    assert "alice" in row(PR_ONE), "team pr row shows the title's ticket code and the author"
-    assert "[" not in row(replace(PR_ONE, title="No ticket")), "team pr row without a ticket code shows no code"
-    assert "alice" in row(replace(PR_ONE, title="No ticket")), "team pr row without a ticket code shows no code"
+    row = lambda pr, room=100: entries.cell_row(entries.pr_entry(pr, {}, STATED), app_module.widths("prs", room)).plain
+    assert row(PR_ONE).startswith("[ACME-1] First change "), "a pr row starts with the PR's title"
+    assert row(PR_ONE).rstrip().endswith(" app") and "#1" not in row(PR_ONE), "a pr row ends with its repo, without the PR number"
+    assert len(row(PR_ONE)) == 100, "the title stretches with the box"
+    assert row(replace(PR_ONE, title="A" * 90), 160).startswith("A" * 59 + "… "), "the title stops growing at 60 columns"
+    assert len(row(PR_ONE, 160)) == 160 and row(PR_ONE, 160).rstrip().endswith(" app"), \
+        "the repo sits at the right edge however wide the box, past the title's 60 columns"
+    assert row(replace(PR_ONE, title="A" * 90)).startswith("A" * 35 + "… "), "a title longer than its room ends in an ellipsis"
+    assert "alice" in row(PR_ONE), "a pr row shows its author"
+    assert "red CI · conflict" in row(PR_ONE), "a pr row says only what blocks it"
+    assert "✓ ci" not in row(PR_TWO) and "approved" in row(PR_TWO), "a pr row hides a green CI"
 
 
 def test_stardate():
@@ -57,21 +63,39 @@ def opened(days):
     return f"{dt.date.today() - dt.timedelta(days=days)}T10:00:00Z"
 
 
+def by_turn(number, days, **fields):
+    green = {"ci": "passing", "mergeable": "MERGEABLE", "review_requests": [], "commits": []}
+    return make_pr(**{**green, "url": f"u{number}", "repo": "web", "number": number, "title": f"Change {number}",
+                      "created_at": opened(days), **fields})
+
+
 @pytest.mark.usefixtures("default_theme")
-def test_lcars_puts_old_team_prs_first():
-    prs = [replace(PR_ONE, repo="web", url="u1", created_at=opened(1)), replace(PR_TWO, repo="api", url="u2", created_at=opened(4)),
-           replace(PR_ONE, repo="web", url="u3", created_at=opened(5)), replace(PR_TWO, repo="app", url="u4", created_at=opened(3))]
-    found = {"prs": prs, "by_key": {}, "attention": [], "changes": [], "epics": [], "my_prs": [], "my_tickets": []}
+def test_team_prs_are_grouped_by_turn():
+    changes = {"state": "CHANGES_REQUESTED", "submittedAt": opened(5), "body": "", "author": {"login": "bob"}}
+    asked, old = by_turn(2, 2), by_turn(7, 4)
+    prs = [by_turn(1, 1), asked, by_turn(3, 5, reviews=[changes], mergeable="CONFLICTING"),
+           by_turn(4, 3, review_decision="APPROVED"), by_turn(5, 6, is_draft=True), by_turn(6, 1, is_draft=True), old]
+    found = {"prs": prs, "review_prs": [asked], "by_key": {}, "attention": [], "changes": [], "epics": [], "my_prs": prs, "my_tickets": []}
     listed = entries.entries(found, STATED)["prs"]
-    assert [(e.url, e.group, e.cells[-1][1]) for e in listed] == [("u3", None, "dim-right"), ("u2", None, "dim-right"),
-                                                                 ("u4", None, "dim-right"), ("u1", None, "dim-right")], \
-        "the default theme lists team PRs by age, days dimmed"
+    assert [(e.url, e.group) for e in listed] == [("u2", "needs review"), ("u7", "needs review"), ("u1", "needs review"),
+                                                 ("u3", "on the author"), ("u4", "ready to merge"), ("u5", "drafts"), ("u6", "drafts")], \
+        "team PRs are grouped by whose turn it is: my review requests first, then oldest first in each group, drafts last"
+    row = lambda entry: entries.cell_row(entry, app_module.widths("prs", 100)).plain
+    assert "your review" in row(listed[0]), "a PR that asks for my review says so"
+    assert "no review yet" in row(listed[1]), "a PR nobody reviewed says so"
+    assert "changes · conflict" in row(listed[3]), "a PR on its author says what blocks it"
+    assert row(listed[5]).startswith("Change 5 ") and "draft" in row(listed[5]), "a draft is a row like any other PR"
+    assert [e.group for e in entries.entries(found, STATED)["mine_prs"]] == [None] * len(prs), "my PRs keep one row each, without groups"
+    assert listed[3].cells[-2] == ("5d", "bad-right"), "the default theme shows the days of a PR open over three days in red"
+    assert listed[0].cells[-2] == ("2d", "dim-right"), "the default theme dims the days of a younger PR"
+    days = lambda: {e.url: e.cells[entries.DAYS_CELL] for e in entries.team_pr_entries([by_turn(8, 3), by_turn(9, 4)], {}, STATED, set())}
+    assert days() == {"u8": ("3d", "dim-right"), "u9": ("4d", "bad-right")}, "a PR's days turn red only once it is open over three days"
     theme.use_theme("okuda")
     listed = entries.entries(found, STATED)["prs"]
-    assert [(e.url, e.group) for e in listed] == [("u3", "PRIORITY ONE"), ("u2", "PRIORITY ONE"), ("u4", "ROUTINE"), ("u1", "ROUTINE")], \
-        "LCARS lists team PRs open more than three days as PRIORITY ONE, then the ROUTINE ones, oldest first in each"
-    assert [e.cells[-1] for e in listed] == [("5d", "bad-alarm"), ("4d", "bad-alarm"), ("3d", "dim-right"), ("1d", "dim-right")], \
-        "LCARS shows the days of a PRIORITY ONE PR in a red pill"
+    assert [e.group for e in listed] == ["NEEDS REVIEW"] * 3 + ["ON THE AUTHOR", "READY TO MERGE"] + ["DRAFTS"] * 2, \
+        "LCARS writes the turn groups in capitals"
+    assert listed[3].cells[-2] == ("5d", "bad-alarm"), "LCARS shows the days of a PR open over three days in a red pill"
+    assert days() == {"u8": ("3d", "dim-right"), "u9": ("4d", "bad-alarm")}, "LCARS turns a PR's days red only once it is open over three days"
 
 
 @pytest.mark.usefixtures("default_theme")
@@ -88,10 +112,26 @@ def test_lcars_segments_epic_bars():
 
 @pytest.mark.usefixtures("default_theme")
 def test_lcars_pills_fit_their_text():
-    pr = replace(PR_ONE, created_at=opened(123), review_decision="CHANGES_REQUESTED")
-    found = {"prs": [pr], "by_key": {}, "attention": [], "changes": [], "epics": [], "my_prs": [], "my_tickets": []}
+    pr = replace(PR_ONE, created_at=opened(123), review_decision="CHANGES_REQUESTED", ci="passing")
+    found = {"prs": [pr], "review_prs": [], "by_key": {}, "attention": [], "changes": [], "epics": [], "my_prs": [], "my_tickets": []}
     row = lambda: entries.cell_row(entries.entries(found, STATED)["prs"][0], app_module.widths("prs")).plain
-    assert row().endswith("✗ ci ⚠ conflict 123d "), "the default theme keeps its plain cells"
+    assert f"{'changes · conflict':<27} 123d" in row(), "the default theme keeps its plain cells"
     theme.use_theme("okuda")
-    for label in ("◖ CHANGES REQUESTED ◗", "◖ CI ◗", "◖ CONFLICT ◗", "◖ 123D ◗"):
+    for label in (f"◖ {'CHANGES · CONFLICT':<27} ◗", "◖ 123D ◗"):
         assert label in row(), f"LCARS pads {label} inside its pill and gives the cell room for all of it"
+
+
+@pytest.mark.usefixtures("default_theme")
+@pytest.mark.parametrize("name", ["default", "okuda", "nerv"])
+def test_longest_turn_label_fits(name):
+    theme.use_theme(name)
+    pr = make_pr(reviews=[{"state": "CHANGES_REQUESTED", "submittedAt": "2026-10-22T09:00:00Z", "author": {"login": "bob"}, "body": ""}],
+                 commits=[], ci="failing", mergeable="CONFLICTING")
+    entry = entries.team_pr_entries([pr], {}, STATED, set())[0]
+    row = entries.cell_row(entry, app_module.widths("prs", 160)).plain
+    assert "changes · red ci · conflict" in row.lower(), "the longest turn label shows whole in every theme"
+
+
+@pytest.mark.usefixtures("default_theme")
+def test_narrow_box_keeps_some_title():
+    assert app_module.widths("prs", 50)[0] == app_module.NARROW_TITLE, "a box too narrow for the columns still shows ten columns of title"
