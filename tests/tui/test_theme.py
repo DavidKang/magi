@@ -37,6 +37,7 @@ async def lcars_theme(cache):
         assert not any(app.query_one(f"#{name}").display for name in ("elbow", "bar", "sidebar", "condition", "pills")), "the default theme has no LCARS frame"
         assert app.query_one(Tabs).display, "the default theme keeps its tabs"
         assert app.query_one("#top #logo").display and not app.query_one("#elbow-logo").display, "the default theme keeps its logo in the masthead"
+        assert app.query_one("#top").region.y == 1, "the default theme leaves a row above its header"
         assert not any(app.query_one(f"#{name}").display for name in ("footcap", "foot-cap")) and app.query_one(Footer).region.x == 0, \
             "the default theme keeps its footer"
         assert not any(title.display for title in app.query(".ptitle")), "the default theme keeps its bordered titles"
