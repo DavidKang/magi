@@ -1,6 +1,5 @@
 import asyncio
 import datetime as dt
-import json
 import math
 import os
 import re
@@ -24,12 +23,13 @@ from textual.widgets.option_list import Option
 from textual_image.widget import Image, get_cell_size
 
 from . import board as g
-from . import config, fetch, web
+from . import config, fetch, storage
 
 COLORS = {"ok": "#56d364", "bad": "#ff7b72", "warn": "#e3b341", "blue": "#79c0ff", "dim": "#6e7a87"}
 ACCENT = "#21cfac"
-REFRESH_SECONDS = 20 * 60
-REFRESH_COOLDOWN = 60
+# A refresh costs about 5 s and at most 9 of GitHub's 5000 GraphQL points an hour.
+REFRESH_SECONDS = 5 * 60
+REFRESH_COOLDOWN = 30
 CACHE = Path.home() / ".cache" / "tarkon" / "cache.json"
 LOGO = Path(__file__).with_name("logo.png")
 LOGO_ROWS = 1
@@ -90,12 +90,11 @@ def separator(label=""):
     return colored("dim", f"── {label} ──" if label else "──")
 
 
-def attention_entry(subject, action):
-    url = re.search(r'href="([^"]+)"', subject).group(1)
-    title = g.plain(subject)
+def attention_entry(item):
+    url, title, reason = item["subject"]["url"], g.subject_text(item["subject"]), item["reason"]
     return Entry([("▲", "bad"), (title, "")],
-                 "\n".join([heading(title), "", colored("warn", g.plain(action)), "", separator(), link(url, url)]),
-                 url, url, f"{title} {g.plain(action)}")
+                 "\n".join([heading(title), "", colored("warn", reason), "", separator(), link(url, url)]),
+                 url, url, f"{title} {reason}")
 
 
 def pr_entry(pr, by_key):
@@ -109,7 +108,7 @@ def pr_entry(pr, by_key):
     events = [(c["committedDate"], colored("dim", "commit")) for c in pr["commits"]] + [
         (r["submittedAt"], f'{state_label(r)} '
                            f'{escape(r["author"]["login"])}') for r in pr["reviews"]]
-    tickets = [by_key[k] for k in sorted(g.ticket_keys_in(pr)) if k in by_key]
+    tickets = [by_key[k] for k in sorted(g.ticket_keys_in(pr, config.settings.jira_project)) if k in by_key]
     lines = [heading(pr["title"]), "",
              field("pr", f'{link(pr["url"], f"{g.tui_repo(pr)}#{pr['number']}")} {colored("dim", "by")} {escape(pr["author"]["login"])} '
                          f'{colored("dim", "open")} {fetch.days_since(pr["createdAt"])}d'),
@@ -252,9 +251,8 @@ def epic_entry(epic, tickets):
 
 
 def change_entry(change):
-    found = re.search(r'href="([^"]+)"', change["text"])
-    url = found.group(1) if found else ""
-    text = g.plain(change["text"])
+    url = change["item"]
+    text = g.change_text(change)
     lines = [heading(change["label"]), "", link(url, text) if url else escape(text), "", field("at", change["at"].replace("T", " "))]
     return Entry([(f'{change["at"][5:10]} {change["at"][11:16]}', "dim"), (change["label"].lower(), g.TUI_REVIEW.get(change["tone"], "dim")),
                   (text, "")],
@@ -262,7 +260,7 @@ def change_entry(change):
 
 
 def ticket_entry(ticket, prs):
-    linked = [pr for pr in prs if ticket["key"] in g.title_keys_in(pr)]
+    linked = [pr for pr in prs if ticket["key"] in g.title_keys_in(pr, config.settings.jira_project)]
     url = config.settings.jira_browse + ticket["key"]
     status = fetch.status_label(ticket["status"])
     kind = " · ".join(escape(value) for value in (ticket.get("type"), ticket.get("priority")) if value)
@@ -293,7 +291,7 @@ def ticket_entry(ticket, prs):
 
 def entries(board):
     prs, by_key = board["prs"], board["by_key"]
-    return {"attention": [attention_entry(*item) for item in board["attention"]],
+    return {"attention": [attention_entry(item) for item in board["attention"]],
             "prs": [pr_entry(pr, by_key) for pr in sorted(prs, key=lambda p: p["createdAt"])],
             "changes": [change_entry(c) for c in board["changes"]],
             "epics": [epic_entry(e, board["tickets_by_epic"][e["key"]]) for e in board["epics"]],
@@ -519,11 +517,12 @@ class TarkonApp(App):
                 Binding("r", "refresh", "refresh"),
                 Binding("q", "quit", "quit")]
 
-    def __init__(self, load=web.build, opener=open_in_browser, copier=pbcopy, clock=time.time, cache=CACHE,
+    def __init__(self, load=None, opener=open_in_browser, copier=pbcopy, clock=time.time, cache=CACHE,
                  config_path=config.PATH, edit_config=False):
         super().__init__()
         self.config_path, self.edit_config = config_path, edit_config
-        self.load, self.opener, self.copier, self.clock, self.cache = load, opener, copier, clock, cache
+        self.load = load or (lambda: g.collect(config.settings))
+        self.opener, self.copier, self.clock, self.cache = opener, copier, clock, cache
         self.stamp = cache.with_name("last-refresh")
         self.refreshing = False
         self.last_refresh = None
@@ -566,7 +565,7 @@ class TarkonApp(App):
 
     def start(self, found, force=False):
         config.use(found)
-        saved = json.loads(self.cache.read_text()) if self.cache.exists() else None
+        saved = storage.read(self.cache)
         if saved:
             self.show_board(saved["board"], saved["at"])
         attempts = [saved["at"]] if saved else []
@@ -607,10 +606,9 @@ class TarkonApp(App):
         outcome = loop.create_future()
 
         def load():
-            fetch.TODAY = dt.date.today()
             try:
                 found = (self.load(), None)
-            except (Exception, SystemExit) as error:
+            except Exception as error:
                 found = (None, error)
             try:
                 loop.call_soon_threadsafe(lambda: outcome.done() or outcome.set_result(found))
@@ -623,8 +621,7 @@ class TarkonApp(App):
         if error:
             self.failed(error)
             return
-        self.cache.parent.mkdir(parents=True, exist_ok=True)
-        self.cache.write_text(json.dumps({"at": started, "board": board}, default=str, ensure_ascii=False))
+        storage.write(self.cache, {"at": started, "board": board})
         self.show_board(board, started)
 
     def failed(self, error):

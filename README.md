@@ -51,7 +51,7 @@ Epics are not configured: the board shows every epic of the project in Developin
 | `c` | Open the selected PR's comments, reviews and code threads with their diff, or the selected ticket's description and comments (`j`/`k` move, `enter` opens it in the browser, `esc` closes) |
 | `/` | Filter the current box (`escape` clears it) |
 | `y` | Copy the selected link (the key, for an epic) |
-| `r` | Refresh (once a minute at most; it also refreshes every 20 minutes) |
+| `r` | Refresh (once every 30 seconds at most; it also refreshes every 5 minutes) |
 | `q` | Quit |
 
 ## Where it keeps its files
@@ -61,14 +61,17 @@ Epics are not configured: the board shows every epic of the project in Developin
 | `~/.config/tarkon/config.json` | Your settings |
 | `~/.local/state/tarkon/state.json` | Last snapshot, used to detect changes |
 | `~/.local/state/tarkon/board.html` | The browser page |
-| `~/.cache/tarkon/cache.json` | Last board, shown while the next refresh runs |
-| `~/.cache/tarkon/last-refresh` | When the last refresh started, so reopening the app or pressing `r` waits a minute |
+| `~/.cache/tarkon/cache.json` | Last board, shown while the next refresh runs; a cache from another version is dropped |
+| `~/.cache/tarkon/prs.json` | Comments, reviews and threads of the PRs on the board, reused until a PR changes |
+| `~/.cache/tarkon/updated.json` | When each in-progress ticket last changed, refetched only for tickets Jira reports as changed |
+| `~/.cache/tarkon/my-tickets.json` | Details of your own tickets, refetched only for tickets Jira reports as changed |
+| `~/.cache/tarkon/last-refresh` | When the last refresh started, so reopening the app or pressing `r` waits 30 seconds |
 
 ## Limits
 
 - macOS only: opening links and copying use `open` and `pbcopy`.
 - Jira columns are mapped from Spanish status names (`En proceso`, `Finalizado`...).
-- One refresh costs about 13 GitHub searches, out of a limit of 30 per minute.
+- PR searches use GitHub's GraphQL API, about 13 per refresh at 1 point each, out of 5000 points an hour. A PR's comments, reviews and threads are fetched again only when the PR changed.
 
 ## Development
 

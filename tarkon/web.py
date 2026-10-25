@@ -2,18 +2,63 @@
 
 import base64
 import datetime as dt
-import re
+import html
 import sys
 from pathlib import Path
 
 from . import config
-from .board import (CHANGES_HOURS, CI_LABELS, STATE_DIR, TUI_CI, TUI_REVIEW, TUI_REVIEW_EVENTS, attention_items,
-                    collect, esc, github_link, jira_link, local_time, plain, pr_titled, review_state,
-                    ticket_keys_in, title_keys_in, tui_repo)
-from .fetch import COLUMNS, days_since, status_label
+from .board import (CHANGES_HOURS, CI_LABELS, STATE_DIR, TUI_CI, TUI_REVIEW, TUI_REVIEW_EVENTS, attention_items, change_text,
+                    collect, local_time, review_state, subject_text, title_parts, ticket_keys_in, title_keys_in, tui_repo)
+from .fetch import COLUMNS, UnmappedStatus, days_since, status_label
 
 URGENT_PR_DAYS = 3
 LOGO = "data:image/png;base64," + base64.b64encode(Path(__file__).with_name("logo.png").read_bytes()).decode()
+
+
+def esc(text):
+    return html.escape(str(text))
+
+
+GITHUB_ICON = ('<svg class="icon github" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0c4.42 0 8 3.58 8 8a8.013 '
+               '8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2'
+               '.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 '
+               '2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 '
+               '1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg>')
+JIRA_ICON = ('<svg class="icon jira" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11.571 11.513H0a5.218 5.218 0 0 0 '
+             '5.232 5.215h2.13v2.057A5.215 5.215 0 0 0 12.575 24V12.518a1.005 1.005 0 0 0-1.005-1.005zm5.723-5.756H5.736a5.215 5.215 0 0 0 5.215 5.214h2.129v2.058'
+             'a5.218 5.218 0 0 0 5.215 5.214V6.758a1.001 1.001 0 0 0-1.001-1.001zM23.013 0H11.455a5.215 5.215 0 0 0 5.215 5.215h2.129v2.057A5.215 5.215 0 0 0 24 '
+             '12.483V1.005A1.001 1.001 0 0 0 23.013 0Z"/></svg>')
+
+
+def jira_link(key):
+    return f'<a class="key" href="{esc(config.settings.jira_browse + key)}">{JIRA_ICON}{esc(key)}</a>'
+
+
+def github_link(url, text, tooltip=""):
+    title = f' title="{esc(tooltip)}"' if tooltip else ""
+    linked, rest = title_parts(text)
+    return f'<a href="{esc(url)}"{title}>{GITHUB_ICON}{esc(linked)}</a>' + (f" {esc(rest)}" if rest else "")
+
+
+def pr_titled(pr):
+    return github_link(pr["url"], pr["title"], f'{pr["repo"]}#{pr["number"]}')
+
+
+def ticket_titled(ticket):
+    return f'{jira_link(ticket["key"])} {esc(ticket["summary"])}'
+
+
+def subject_html(subject):
+    if subject["kind"] == "pr":
+        return github_link(subject["url"], subject["title"], subject["ref"])
+    return jira_link(subject["ref"]) + (f' {esc(subject["title"])}' if subject["title"] else "")
+
+
+def change_html(change):
+    return (subject_html(change["subject"]) + (f' {esc(change["note"])}' if change["note"] else "")
+            + (f' <span class="age">{esc(change["aside"])}</span>' if change["aside"] else ""))
+
+
 def ci_pills(pr):
     tone, label = CI_LABELS[pr["ci"]]
     conflict = ' <span class="pill changes">Conflicts</span>' if pr["mergeable"] == "CONFLICTING" else ""
@@ -75,7 +120,7 @@ def pr_table(prs):
     rows = []
     for pr in sorted(prs, key=lambda p: p["createdAt"]):
         state, label = review_state(pr)
-        keys = sorted(title_keys_in(pr))
+        keys = sorted(title_keys_in(pr, config.settings.jira_project))
         rows.append(
             f'<tr><td>{pr_titled(pr)}</td><td>{" ".join(jira_link(k) for k in keys)}</td>'
             f'<td>{esc(pr["author"]["login"])}</td><td class="num">{days_since(pr["createdAt"])} d</td>'
@@ -89,8 +134,8 @@ def attention(items):
     if not items:
         return '<p class="empty">Nothing to flag.</p>'
     return '<div class="attention">' + "".join(
-        f'<div class="attention-item"><div>{subject}</div><div class="attention-action">{action}</div></div>'
-        for subject, action in items) + "</div>"
+        f'<div class="attention-item"><div>{subject_html(item["subject"])}</div><div class="attention-action">{esc(item["reason"])}</div></div>'
+        for item in items) + "</div>"
 
 
 def mine(my_prs, review_prs, my_tickets):
@@ -129,7 +174,7 @@ def changes_section(changes, ci_by_url):
         at = dt.datetime.fromisoformat(c["at"])
         by_day.setdefault(at.date(), []).append(
             f'<li><span class="time">{at.strftime("%H:%M")}</span>'
-            f'<span class="pill {c["tone"]}">{esc(c["label"])}</span><div class="what">{c["text"]}</div>'
+            f'<span class="pill {c["tone"]}">{esc(c["label"])}</span><div class="what">{change_html(c)}</div>'
             f'<span class="ci">{ci_pill(ci_by_url.get(c["item"]))}</span></li>')
     if not by_day:
         return f'<p class="empty">Nothing in the last {CHANGES_HOURS} h.</p>'
@@ -150,12 +195,12 @@ def tui_entry(row, detail, url, copy, search, grid=None, group=None):
     return {"row": row, "detail": detail, "url": url, "copy": copy, "search": search, "grid": grid, "group": group}
 
 
-def tui_attention(subject, action):
-    url = re.search(r'href="([^"]+)"', subject).group(1)
-    return tui_entry(f'<span class="bad">▲</span><span class="ell">{esc(plain(subject))}</span>',
-                     f'<div class="h">{esc(plain(subject))}</div><div class="warn">{esc(plain(action))}</div>'
+def tui_attention(item):
+    url, title, reason = item["subject"]["url"], subject_text(item["subject"]), item["reason"]
+    return tui_entry(f'<span class="bad">▲</span><span class="ell">{esc(title)}</span>',
+                     f'<div class="h">{esc(title)}</div><div class="warn">{esc(reason)}</div>'
                      f'<div class="sep">──</div><a href="{esc(url)}">{esc(url)}</a>',
-                     url, url, f"{plain(subject)} {plain(action)}")
+                     url, url, f"{title} {reason}")
 
 
 def tui_pr(pr, by_key, group=None):
@@ -167,7 +212,7 @@ def tui_pr(pr, by_key, group=None):
     events = [(c["committedDate"], '<span class="dim">commit</span>') for c in pr["commits"]] + [
         (r["submittedAt"], f'<span class="{TUI_REVIEW_EVENTS.get(r["state"], "blue")}">{r["state"].lower().replace("_", " ")}</span> '
                            f'{esc(r["author"]["login"])}') for r in pr["reviews"]]
-    linked = [by_key[k] for k in sorted(ticket_keys_in(pr)) if k in by_key]
+    linked = [by_key[k] for k in sorted(ticket_keys_in(pr, config.settings.jira_project)) if k in by_key]
     detail = (f'<div class="h">{esc(pr["title"])}</div>'
               + tui_field("pr", f'<a href="{esc(pr["url"])}">{esc(tui_repo(pr))}#{pr["number"]}</a> <span class="dim">by</span> '
                                 f'{esc(pr["author"]["login"])} <span class="dim">open</span> {days_since(pr["createdAt"])}d')
@@ -181,7 +226,7 @@ def tui_pr(pr, by_key, group=None):
 
 
 def tui_ticket(ticket, prs):
-    linked = [pr for pr in prs if ticket["key"] in ticket_keys_in(pr)]
+    linked = [pr for pr in prs if ticket["key"] in ticket_keys_in(pr, config.settings.jira_project)]
     row = (f'<span>{esc(ticket["key"])}</span><span class="warn">{esc(status_label(ticket["status"]))}</span>'
            f'<span class="dim ell">{esc(ticket["summary"])}</span>')
     detail = (f'<div class="h">{esc(ticket["summary"])}</div>'
@@ -212,13 +257,12 @@ def tui_epic(epic, tickets):
 
 
 def tui_change(change):
-    url = re.search(r'href="([^"]+)"', change["text"])
-    url = url.group(1) if url else ""
+    url = change["item"]
     row = (f'<span class="dim">{change["at"][5:10]} {change["at"][11:16]}</span>'
            f'<span class="{TUI_REVIEW.get(change["tone"], "dim")}">{esc(change["label"].lower())}</span>'
-           f'<span class="ell">{esc(plain(change["text"]))}</span>')
-    detail = f'<div class="h">{esc(change["label"])}</div><div>{change["text"]}</div>' + tui_field("at", change["at"].replace("T", " "))
-    return tui_entry(row, detail, url, url, f'{plain(change["text"])} {change["label"]}')
+           f'<span class="ell">{esc(change_text(change))}</span>')
+    detail = f'<div class="h">{esc(change["label"])}</div><div>{change_html(change)}</div>' + tui_field("at", change["at"].replace("T", " "))
+    return tui_entry(row, detail, url, url, f'{change_text(change)} {change["label"]}')
 
 
 def tui_pane(number, name, entries, empty):
@@ -239,7 +283,7 @@ def tui_pane(number, name, entries, empty):
 def tui(attention_found, prs, review_prs, my_prs, my_tickets, epics, tickets_by_epic, changes, by_key):
     desk = ([tui_pr(pr, by_key, "review requested") for pr in review_prs] + [tui_pr(pr, by_key, "my prs") for pr in my_prs]
             + [tui_ticket(t, prs) for t in my_tickets])
-    tabs = [("attention", [tui_attention(*item) for item in attention_found], "nothing to flag"),
+    tabs = [("attention", [tui_attention(item) for item in attention_found], "nothing to flag"),
             ("team prs", [tui_pr(pr, by_key) for pr in sorted(prs, key=lambda p: p["createdAt"])], "no open prs"),
             ("my desk", desk, "desk is empty"),
             ("epics", [tui_epic(e, tickets_by_epic[e["key"]]) for e in epics], "no epics"),
@@ -251,7 +295,7 @@ def tui(attention_found, prs, review_prs, my_prs, my_tickets, epics, tickets_by_
 
 def render(epics, tickets_by_epic, prs, merged_by_ticket, review_prs, my_tickets, changes, now, template):
     all_tickets = [t for ts in tickets_by_epic.values() for t in ts]
-    attention_found = attention_items(all_tickets, prs, merged_by_ticket)
+    attention_found = attention_items(all_tickets, prs, merged_by_ticket, config.settings)
     my_prs = [pr for pr in prs if pr["author"]["login"] == config.settings.github_user]
     tui_tabs, tui_panes = tui(attention_found, prs, review_prs, my_prs, my_tickets, epics, tickets_by_epic,
                               changes, {t["key"]: t for t in all_tickets})
@@ -276,7 +320,7 @@ OUT = STATE_DIR / "board.html"
 
 
 def build():
-    found = collect()
+    found = collect(config.settings)
     template = (Path(__file__).with_name("tablero-template.html")).read_text()
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(render(found["epics"], found["tickets_by_epic"], found["prs"], found["merged_by_ticket"], found["review_prs"],
@@ -289,4 +333,7 @@ def main():
     if found is None:
         sys.exit("No config found. Run `python -m tarkon config` first.")
     config.use(found)
-    print(build()["out"])
+    try:
+        print(build()["out"])
+    except UnmappedStatus as error:
+        sys.exit(str(error))
