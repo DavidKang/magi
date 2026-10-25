@@ -155,29 +155,70 @@ A change you have not seen yet puts a `●` on its rows in every box, a `N new` 
 
 ## Themes
 
-`t` opens a popup with the terminal themes. The choice is saved in your settings.
+Press `t` to pick a theme. Tarkon remembers your choice in its settings.
 
-Optional: the LCARS themes look best with any [Nerd Font](https://www.nerdfonts.com/font-downloads) as the terminal's font, for example FiraCode Nerd Font Mono (`brew install --cask font-fira-code-nerd-font`). Without one, the round caps of their pills (U+E0B6 and U+E0B4) show as empty boxes; everything else works. The default and NERV themes use only standard Unicode characters.
+| Theme | Inspired by |
+|-------|-------------|
+| **Default** | Plain terminal colours |
+| **LCARS Okuda · TNG and DS9** | Star Trek's LCARS computer screens, in the Okuda colours |
+| **LCARS Picard** | The same LCARS frame, in the Picard colours |
+| **NERV Magi** | Evangelion's NERV command screens |
+| **NERV - EVA 01** | The NERV frame, in Unit-01's purple and green |
 
-| Theme | Look |
-|-------|------|
-| Default | The default colours |
-| LCARS Okuda · TNG and DS9 | Star Trek's LCARS computer screens, in the Okuda colours (TNG and DS9) |
-| LCARS Picard | The same LCARS frame in the Picard colours |
-| NERV Magi | Evangelion's NERV screens |
-| NERV - EVA 01 | The NERV frame in Unit-01's colours |
+> [!TIP]
+> The LCARS themes look best with any [Nerd Font](https://www.nerdfonts.com/font-downloads) as your terminal's font, for example FiraCode Nerd Font Mono (`brew install --cask font-fira-code-nerd-font`). Without one, the round ends of their pills show as empty boxes; everything else works. The default and NERV themes need no special font.
+
+### Alert level
+
+The LCARS and NERV themes show how the board is doing in the header:
+
+| | When | LCARS | NERV Magi | NERV - EVA 01 |
+|---|------|-------|-----------|---------------|
+| 🟢 | Nothing is waiting | CONDITION GREEN | NORMAL | SYNC STABLE |
+| 🟡 | A PR waits on CI or review, or a teammate's fails CI or conflicts | YELLOW ALERT | PATTERN ORANGE | SYNC UNSTABLE |
+| 🔴 | One of your PRs fails CI or conflicts | RED ALERT | PATTERN BLUE | BERSERK |
+
+### Box names
+
+| Box | Default | LCARS | NERV |
+|-----|---------|-------|------|
+| What needs you | attention | ATTENTION | EMERGENCY |
+| Team PRs | team prs | CREW REPORTS | SORTIES |
+| Last 24 hours | changes | CAPTAIN'S LOG | OPERATIONS LOG |
+| Epics | epics | EPICS | PROJECTS |
+| Your PRs | my prs | MY PRS | MY SORTIES |
+| Your tickets | my tickets | MY TICKETS | MY ORDERS |
+| Details | details | DETAILS | MAGI ANALYSIS |
+
+### LCARS
 
 | LCARS Okuda | LCARS Picard |
 |---|---|
 | ![LCARS Okuda](assets/screenshots/okuda.png) | ![LCARS Picard](assets/screenshots/picard.png) |
-| **NERV Magi** | **NERV - EVA 01** |
+
+- A **stardate** marks the last refresh.
+- Review, CI, conflicts and age are drawn as **rounded pills**.
+- Team PRs open more than three days come first as **PRIORITY ONE**, with their age in red. The rest are **ROUTINE**.
+
+### NERV
+
+| NERV Magi | NERV - EVA 01 |
+|---|---|
 | ![NERV Magi](assets/screenshots/nerv.png) | ![NERV - EVA 01](assets/screenshots/eva01.png) |
 
-**LCARS** shows a stardate for the last refresh and the board's alert level: CONDITION GREEN, YELLOW ALERT while a PR waits on CI or review or someone else's fails CI or conflicts, RED ALERT when one of yours does. The changes become the Captain's Log, and team PRs become Crew Reports: the ones open more than three days come first as PRIORITY ONE with their days in red, then the ROUTINE ones.
+**NERV Magi**
 
-**NERV Magi** draws NERV's screens in their colours (black, orange text, green grid, red alert, amber warning), taken from [nerv-ui](https://github.com/mdrbx/nerv-ui) since the show has no official palette. It has a hazard stripe that turns red on alert, the alert level as NORMAL, PATTERN ORANGE or PATTERN BLUE, the MAGI's sync time, heavy-lined boxes named in NERV's words (EMERGENCY, SORTIES with the CRITICAL ones first, OPERATIONS LOG, PROJECTS) and outlined badges after nerv-ui's, with CI as a coloured mark and a critical age as a red ▲.
+- Colours from [nerv-ui](https://github.com/mdrbx/nerv-ui), since the show has no official palette: black, orange text, green grid, red alert, amber warning.
+- A **hazard stripe** across the top turns red on alert.
+- The header shows the **MAGI's sync time**.
+- Heavy-lined boxes with **outlined badges**. CI is a coloured mark, and an old PR's age gets a red ▲.
+- Team PRs open more than three days come first as **CRITICAL**. The rest are **NOMINAL**.
 
-**NERV - EVA 01** wears that frame in Unit-01's colours: purple lines, green titles and focus, a quiet purple line on top that turns into the red hazard stripe when it goes berserk, the alert level as SYNC STABLE, SYNC UNSTABLE or BERSERK, and you, by your GitHub user, as its pilot.
+**NERV - EVA 01**
+
+- The same frame in Unit-01's colours: **purple lines**, **green titles** and focus.
+- A quiet purple line on top turns into the red hazard stripe when it goes **berserk**.
+- You, by your GitHub user, are its **pilot**.
 
 ## Data locations
 
@@ -205,7 +246,7 @@ python3.12 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
 .venv/bin/python -m pytest -q
 .venv/bin/python scripts/profile_refresh.py  # one real refresh, timed per call; leaves your files alone
-.venv/bin/python scripts/screenshots.py      # the screenshots in assets/screenshots/, on made-up data; needs rsvg-convert and a Nerd Font
+.venv/bin/python scripts/screenshots.py      # the screenshots in assets/screenshots/, on made-up data; needs Ghostty, a Nerd Font and Screen Recording permission
 ```
 
 ### Where things live

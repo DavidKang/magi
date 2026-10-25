@@ -1,14 +1,21 @@
-"""Saves a screenshot of every theme, on made-up data, to assets/screenshots/; needs rsvg-convert and a Nerd Font."""
+"""Saves a screenshot of every theme, on made-up data, to assets/screenshots/.
+
+Each theme opens in its own Ghostty window, which closes by itself. Needs Ghostty, a Nerd Font, and Screen Recording
+permission for the terminal that runs this script.
+"""
 
 import asyncio
 import datetime as dt
 import json
 import os
 import subprocess
+import sys
 import tempfile
+import time
 from pathlib import Path
 
-# A throwaway home, so the run never touches your settings or caches.
+# A throwaway home, so the run never touches your settings or caches; the tools it calls keep the real one.
+REAL_ENV = dict(os.environ)
 HOME = Path(tempfile.mkdtemp())
 os.environ["HOME"] = str(HOME)
 
@@ -19,6 +26,17 @@ from tarkon.tui.app import TarkonApp  # noqa: E402
 OUT = Path(__file__).resolve().parents[1] / "assets" / "screenshots"
 FONT = "FiraCode Nerd Font Mono"
 SIZE = (180, 50)
+RENDER_SECONDS = 4
+HOLD_SECONDS = 8
+# CoreGraphics lists every window with its owner's pid; screencapture -l takes the id.
+WINDOW_ID = """
+import CoreGraphics
+let pid = Int(CommandLine.arguments[1])!
+let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as! [[String: Any]]
+for w in windows where (w[kCGWindowOwnerPID as String] as? Int) == pid && (w[kCGWindowLayer as String] as? Int) == 0 {
+    print(w[kCGWindowNumber as String]!)
+}
+"""
 NOW = dt.datetime.now(dt.UTC)
 SETTINGS = {"team": ["alice", "bob", "carol", "dave"], "jira_project": "ACME", "github_user": "alice", "github_org": "acme",
             "jira_url": "https://acme.atlassian.net"}
@@ -93,26 +111,50 @@ def board():
                         change(MINE[1], 20, "commented", "New PR")]}
 
 
-async def shoot(name):
-    cache = HOME / name / "cache.json"
-    cache.parent.mkdir(parents=True)
+def run(name):
+    """Shows the board in this terminal with the made-up data, for a few seconds."""
+    cache = HOME / "cache.json"
     config = cache.with_name("config.json")
     config.write_text(json.dumps({**SETTINGS, "theme": name}))
-    # Nothing seen yet, so the changes carry their new marks.
-    cache.with_name("seen.json").write_text(json.dumps({"seen": {}}))
-    app = TarkonApp(load=board, opener=print, copier=print, cache=cache, config_path=config)
-    async with app.run_test(size=SIZE) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
-        svg = Path(app.save_screenshot(f"{name}.svg", str(HOME)))
-    svg.write_text(svg.read_text().replace("Fira Code", FONT))
-    subprocess.run(["rsvg-convert", "--zoom", "2", str(svg), "-o", str(OUT / f"{name}.png")], check=True)
+
+    async def hold(pilot):
+        await asyncio.sleep(HOLD_SECONDS)
+        pilot.app.exit()
+
+    TarkonApp(load=board, opener=print, copier=print, cache=cache, config_path=config).run(auto_pilot=hold)
+
+
+def window(pid):
+    """The id of the window a process shows, once it shows one."""
+    for _ in range(20):
+        found = subprocess.run(["swift", "-e", WINDOW_ID, str(pid)], capture_output=True, text=True, env=REAL_ENV).stdout.split()
+        if found:
+            return found[0]
+        time.sleep(0.5)
+    raise SystemExit(f"Ghostty (pid {pid}) never showed a window")
+
+
+def shoot(name):
+    command = f"{sys.executable} {Path(__file__).resolve()} --run {name}"
+    subprocess.run(["open", "-na", "Ghostty.app", "--args", "--title=Tarkon", f"--window-width={SIZE[0]}",
+                    f"--window-height={SIZE[1]}", f"--font-family={FONT}", "--font-size=13", "--window-save-state=never",
+                    "--confirm-close-surface=false", "--quit-after-last-window-closed=true",
+                    f"--command={command}"], check=True)
+    time.sleep(1)
+    pid = subprocess.run(["pgrep", "-n", "-f", f"MacOS/ghostty.*--run {name}"], capture_output=True, text=True, check=True).stdout.strip()
+    window_id = window(pid)
+    time.sleep(RENDER_SECONDS)
+    subprocess.run(["screencapture", "-o", "-x", "-l", window_id, str(OUT / f"{name}.png")], check=True)
+    while subprocess.run(["pgrep", "-f", f"MacOS/ghostty.*--run {name}"], capture_output=True).returncode == 0:
+        time.sleep(0.5)
 
 
 def main():
+    if sys.argv[1:2] == ["--run"]:
+        return run(sys.argv[2])
     OUT.mkdir(parents=True, exist_ok=True)
     for name in theme.THEMES:
-        asyncio.run(shoot(name))
+        shoot(name)
         print(OUT / f"{name}.png")
 
 
