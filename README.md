@@ -4,6 +4,8 @@
 
 Tarkon shows your team's board on one screen: the PRs that need you, the team's open PRs, what changed in the last 24 hours, the progress of every Jira epic in Developing or Rollout, and your own open PRs and Jira tickets. It reads GitHub through the `gh` CLI and Jira through the Atlassian `acli` CLI, and runs as a terminal app built with [Textual](https://textual.textualize.io).
 
+![Tarkon's board in the default theme, on made-up data](assets/screenshots/default.png)
+
 ## Quick start
 
 ```bash
@@ -26,7 +28,7 @@ The first run opens the settings panel. Fill in every field and save with `ctrl+
 | Python 3.12 or newer | `requires-python = ">=3.12"` |
 | [`gh`](https://cli.github.com), logged in | Every GitHub call is `gh api graphql` |
 | [`acli`](https://developer.atlassian.com/cloud/acli/), logged in to Jira | Every Jira call is `acli jira workitem search` or `view` |
-| [pipx](https://pipx.pypa.io) (recommended) | Installs `tarkon` in its own environment |
+| [Homebrew](https://brew.sh) or [pipx](https://pipx.pypa.io) | Installs `tarkon` in its own environment |
 
 Tarkon checks for `gh` and `acli` on every start and exits with the install command for any that is missing.
 
@@ -165,6 +167,12 @@ Optional: the LCARS themes look best with any [Nerd Font](https://www.nerdfonts.
 | NERV Magi | Evangelion's NERV screens |
 | NERV - EVA 01 | The NERV frame in Unit-01's colours |
 
+| LCARS Okuda | LCARS Picard |
+|---|---|
+| ![LCARS Okuda](assets/screenshots/okuda.png) | ![LCARS Picard](assets/screenshots/picard.png) |
+| **NERV Magi** | **NERV - EVA 01** |
+| ![NERV Magi](assets/screenshots/nerv.png) | ![NERV - EVA 01](assets/screenshots/eva01.png) |
+
 **LCARS** shows a stardate for the last refresh and the board's alert level: CONDITION GREEN, YELLOW ALERT while a PR waits on CI or review or someone else's fails CI or conflicts, RED ALERT when one of yours does. The changes become the Captain's Log, and team PRs become Crew Reports: the ones open more than three days come first as PRIORITY ONE with their days in red, then the ROUTINE ones.
 
 **NERV Magi** draws NERV's screens in their colours (black, orange text, green grid, red alert, amber warning), taken from [nerv-ui](https://github.com/mdrbx/nerv-ui) since the show has no official palette. It has a hazard stripe that turns red on alert, the alert level as NORMAL, PATTERN ORANGE or PATTERN BLUE, the MAGI's sync time, heavy-lined boxes named in NERV's words (EMERGENCY, SORTIES with the CRITICAL ones first, OPERATIONS LOG, PROJECTS) and outlined badges after nerv-ui's, with CI as a coloured mark and a critical age as a red ▲.
@@ -197,6 +205,7 @@ python3.12 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
 .venv/bin/python -m pytest -q
 .venv/bin/python scripts/profile_refresh.py  # one real refresh, timed per call; leaves your files alone
+.venv/bin/python scripts/screenshots.py      # the screenshots in assets/screenshots/, on made-up data; needs rsvg-convert and a Nerd Font
 ```
 
 ### Where things live
