@@ -1,0 +1,10 @@
+import json
+
+from builders import SETTINGS
+from tarkon import config
+
+
+def test_config_ignores_unknown_keys(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({**SETTINGS, "theme": "lcars", "added_later": 1}))
+    assert config.load(path) == config.Settings(**SETTINGS, theme="lcars"), "a config written by a newer version still loads"

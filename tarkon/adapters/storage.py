@@ -30,3 +30,16 @@ def read(path):
         return None
     del data["version"]
     return data
+
+
+class JsonFiles:
+    """The refresh's store: each name it reads or writes is one of these json files."""
+
+    def __init__(self, paths):
+        self.paths = paths
+
+    def read(self, name):
+        return read(self.paths[name])
+
+    def write(self, name, data):
+        write(self.paths[name], data)

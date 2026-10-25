@@ -2,42 +2,14 @@
 
 import datetime as dt
 
-from . import fetch
-from .entities import Epic, Ticket, TicketDetail
-
-COLUMNS = [
-    ("todo", "To do", {"Backlog", "Tareas por hacer"}),
-    ("doing", "In progress", {"En proceso", "Developing", "Paused"}),
-    ("review", "In review", {"En revisión"}),
-    ("deploy", "Deploy", {"Ready To Deploy", "Rollout"}),
-    ("done", "Done", {"Finalizado"}),
-]
-DISCARDED = {"Rejected / Cancelled"}
-STATUS_RANK = {status: i for i, (_, _, statuses) in enumerate(COLUMNS) for status in statuses}
-STATUS_LABELS = {"Tareas por hacer": "Todo", "En proceso": "In Progress", "En revisión": "In review", "Finalizado": "Done"}
-EPIC_STATUSES = ["Developing", "Rollout"]
-
-
-class UnmappedStatus(Exception):
-    pass
-
-
-def column_for(status):
-    for key, _, statuses in COLUMNS:
-        if status in statuses:
-            return key
-    if status in DISCARDED:
-        return None
-    raise UnmappedStatus(f"Unmapped Jira status: {status}")
-
-
-def status_label(status):
-    return STATUS_LABELS.get(status, status)
+from . import process
+from ..domain.entities import Epic, Ticket, TicketDetail
+from ..domain.status import EPIC_STATUSES, column_for, ticket_order
 
 
 def fetch_epics(settings):
     statuses = ", ".join(f'"{status}"' for status in EPIC_STATUSES)
-    items = fetch.run_json(["acli", "jira", "workitem", "search", "--jql",
+    items = process.run_json(["acli", "jira", "workitem", "search", "--jql",
                             f"project = {settings.jira_project} AND issuetype = Epic AND status in ({statuses}) ORDER BY created DESC",
                             "--fields", "summary,status,assignee", "--limit", "100", "--json"])
     return [Epic(key=item["key"], summary=item["fields"]["summary"], status=item["fields"]["status"]["name"],
@@ -45,7 +17,7 @@ def fetch_epics(settings):
 
 
 def fetch_children(epic_key):
-    items = fetch.run_json(["acli", "jira", "workitem", "search", "--jql", f"parent = {epic_key} ORDER BY key",
+    items = process.run_json(["acli", "jira", "workitem", "search", "--jql", f"parent = {epic_key} ORDER BY key",
                             "--limit", "500", "--json"])
     tickets = []
     for item in items:
@@ -60,19 +32,19 @@ def fetch_children(epic_key):
 
 
 def fetch_updated(key):
-    return fetch.run_json(["acli", "jira", "workitem", "view", key, "--fields", "updated", "--json"])["fields"]["updated"]
+    return process.run_json(["acli", "jira", "workitem", "view", key, "--fields", "updated", "--json"])["fields"]["updated"]
 
 
 def changed_since(keys, minutes, linked_to=()):
     jql = " OR ".join([f"key in ({', '.join(keys)})"] + [f"issue in linkedIssues({key})" for key in linked_to])
     jql = f"({jql})" if linked_to else jql
-    items = fetch.run_json(["acli", "jira", "workitem", "search", "--jql", f"{jql} AND updated >= -{minutes}m",
+    items = process.run_json(["acli", "jira", "workitem", "search", "--jql", f"{jql} AND updated >= -{minutes}m",
                             "--fields", "summary", "--paginate", "--json"])
     return {item["key"] for item in items}
 
 
 def fetch_my_tickets(details):
-    items = fetch.run_json(["acli", "jira", "workitem", "search", "--jql",
+    items = process.run_json(["acli", "jira", "workitem", "search", "--jql",
                             "assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC",
                             "--limit", "100", "--json"])
     found = details([i["key"] for i in items])
@@ -81,15 +53,11 @@ def fetch_my_tickets(details):
     return sorted(tickets, key=ticket_order)
 
 
-def ticket_order(ticket):
-    return STATUS_RANK.get(ticket.status, len(COLUMNS)), ticket.status
-
-
 TICKET_FIELDS = "summary,status,description,creator,comment,parent,issuelinks,priority,labels,issuetype,created,updated"
 
 
 def fetch_ticket_detail(key):
-    fields = fetch.run_json(["acli", "jira", "workitem", "view", key, "--fields", TICKET_FIELDS, "--json"])["fields"]
+    fields = process.run_json(["acli", "jira", "workitem", "view", key, "--fields", TICKET_FIELDS, "--json"])["fields"]
     parent = fields.get("parent")
     return TicketDetail(
         type=fields["issuetype"]["name"], priority=(fields.get("priority") or {}).get("name"), labels=fields["labels"],

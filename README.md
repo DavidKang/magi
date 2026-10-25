@@ -59,6 +59,7 @@ The browser page has three designs, picked from the switch in its header and rem
 
 ## Where it keeps its files
 
+
 | Path | Content |
 |------|---------|
 | `~/.config/tarkon/config.json` | Your settings |
@@ -85,4 +86,4 @@ python3.12 -m venv .venv
 .venv/bin/python scripts/profile_refresh.py  # one real refresh, timed per call; leaves your files alone
 ```
 
-`board.py` builds the board as data from the `jira.py` and `github.py` adapters; `tui/` and `html/` render it, and both show PR and ticket rows from `rows.py`.
+`domain/` holds the business rules (entities, status columns, review state, attention items, changes) and imports nothing else from `tarkon`. `application/refresh.py` builds the board as data through the ports in `application/ports.py`; `adapters/` holds the real ones (Jira through acli, GitHub through gh, json files, data paths, the clock), and `cli.py` wires them together. `tui/` and `html/` render the board, and both show PR and ticket rows from `rows.py`. In `tui/`, `entries.py` turns the board into rows and detail text, `screens.py` holds the review popup and the config panel, `theme.py` the colors, `system.py` the browser, clipboard and exit glue, and `app.py` the app itself.

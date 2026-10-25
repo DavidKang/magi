@@ -2,8 +2,8 @@
 
 import json
 
-from . import fetch
-from .entities import FoundPr, PullRequest
+from . import process
+from ..domain.entities import FoundPr, PullRequest
 
 HEAD_CI = "head: commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }"
 LIGHT_FIELDS = f"url number updatedAt title headRefName mergeable author {{ login }} repository {{ nameWithOwner }} {HEAD_CI}"
@@ -22,7 +22,7 @@ CI_STATES = {"SUCCESS": "passing", "FAILURE": "failing", "ERROR": "failing", "PE
 
 
 def graphql(query):
-    return fetch.run_json(["gh", "api", "graphql", "-f", f"query=query {{ {query} }}"])["data"]
+    return process.run_json(["gh", "api", "graphql", "-f", f"query=query {{ {query} }}"])["data"]
 
 
 def repository(owner_repo, number, fields):
@@ -46,7 +46,7 @@ def fetch_pr_states(urls):
 def fetch_prs(candidates):
     candidates = list(candidates)
     batches = [candidates[start:start + PRS_PER_QUERY] for start in range(0, len(candidates), PRS_PER_QUERY)]
-    return [pr for batch in fetch.parallel(fetch_pr_batch, batches) for pr in batch]
+    return [pr for batch in process.parallel(fetch_pr_batch, batches) for pr in batch]
 
 
 def fetch_pr_batch(batch):

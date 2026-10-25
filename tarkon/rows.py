@@ -1,19 +1,34 @@
 """The rows the TUI and the html TUI design show for a PR or a ticket, as plain data each view formats its own way."""
 
+import datetime as dt
 import re
 
-from . import board as g
-from .fetch import days_since
-from .jira import status_label
+from .domain.ages import days_since
+from .domain.keys import ticket_keys_in, title_keys_in
+from .domain.review import review_state
+from .domain.status import status_label
+
+TUI_REVIEW = {"approved": "ok", "changes": "bad", "waiting": "warn", "commented": "blue", "draft": "dim"}
+TUI_CI = {"passing": ("ok", "✓ ci"), "failing": ("bad", "✗ ci"), "running": ("warn", "… ci"), "none": ("dim", "– ci")}
+TUI_REVIEW_EVENTS = {"APPROVED": "ok", "CHANGES_REQUESTED": "bad"}
+TUI_REPO_ALIASES = {}
+
+
+def tui_repo(pr):
+    return TUI_REPO_ALIASES.get(pr.repo, pr.repo)
+
+
+def local_time(iso):
+    return dt.datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone().strftime("%b %d %H:%M")
 
 
 def pr_row(pr, by_key, settings):
     code = re.search(r"\[[A-Z][A-Z0-9]+-\d+\]", pr.title)
-    return {"ref": f"{g.tui_repo(pr)}#{pr.number}", "repo": pr.repo, "number": pr.number, "url": pr.url, "title": pr.title,
-            "code": code.group() if code else "", "author": pr.author["login"], "review": g.review_state(pr), "ci": pr.ci,
+    return {"ref": f"{tui_repo(pr)}#{pr.number}", "repo": pr.repo, "number": pr.number, "url": pr.url, "title": pr.title,
+            "code": code.group() if code else "", "author": pr.author["login"], "review": review_state(pr), "ci": pr.ci,
             "conflict": pr.mergeable == "CONFLICTING", "review_requested": bool(pr.review_requests), "age": days_since(pr.created_at),
             "tickets": [{"key": t.key, "url": settings.jira_browse + t.key, "status": t.status, "summary": t.summary}
-                        for t in (by_key[k] for k in sorted(g.ticket_keys_in(pr, settings.jira_project)) if k in by_key)],
+                        for t in (by_key[k] for k in sorted(ticket_keys_in(pr, settings.jira_project)) if k in by_key)],
             "events": [{"at": c["committedDate"], "state": None, "author": None} for c in pr.commits]
             + [{"at": r["submittedAt"], "state": r["state"], "author": r["author"]["login"]} for r in pr.reviews]}
 
@@ -21,6 +36,6 @@ def pr_row(pr, by_key, settings):
 def ticket_row(ticket, prs, settings):
     # The TUI links a PR whose title names the ticket in brackets; the html design only one naming a key of the project.
     return {"key": ticket.key, "url": settings.jira_browse + ticket.key, "summary": ticket.summary, "status": status_label(ticket.status),
-            "prs": [{"ref": f"{g.tui_repo(pr)}#{pr.number}", "url": pr.url, "review": g.review_state(pr)[1],
-                     "project_key": ticket.key in g.ticket_keys_in(pr, settings.jira_project)}
-                    for pr in prs if ticket.key in g.title_keys_in(pr, settings.jira_project)]}
+            "prs": [{"ref": f"{tui_repo(pr)}#{pr.number}", "url": pr.url, "review": review_state(pr)[1],
+                     "project_key": ticket.key in ticket_keys_in(pr, settings.jira_project)}
+                    for pr in prs if ticket.key in title_keys_in(pr, settings.jira_project)]}

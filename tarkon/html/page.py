@@ -7,13 +7,18 @@ import sys
 from pathlib import Path
 
 from .. import config, rows
-from ..board import (CHANGES_HOURS, CI_LABELS, STATE_DIR, TUI_CI, TUI_REVIEW, TUI_REVIEW_EVENTS, attention_items, change_text,
-                     collect, local_time, review_state, subject_text, title_parts, title_keys_in)
-from ..fetch import days_since
-from ..jira import COLUMNS, UnmappedStatus, status_label
+from ..adapters.paths import STATE_DIR
+from ..domain.ages import days_since
+from ..domain.attention import attention_items
+from ..domain.changes import CHANGES_HOURS, change_text, subject_text
+from ..domain.keys import title_keys_in, title_parts
+from ..domain.review import CI_LABELS, review_state
+from ..domain.status import COLUMNS, UnmappedStatus, status_label
+from ..rows import TUI_CI, TUI_REVIEW, TUI_REVIEW_EVENTS, local_time
 
 URGENT_PR_DAYS = 3
 LOGO = "data:image/png;base64," + base64.b64encode((Path(__file__).parent.parent / "logo.png").read_bytes()).decode()
+LOGO_LCARS = "data:image/png;base64," + base64.b64encode((Path(__file__).parent.parent / "logo-black.png").read_bytes()).decode()
 
 
 def esc(text):
@@ -118,17 +123,17 @@ def pr_tables(prs, settings):
 def pr_table(prs, settings):
     if not prs:
         return '<p class="empty">None.</p>'
-    rows = []
+    body = []
     for pr in sorted(prs, key=lambda p: p.created_at):
         state, label = review_state(pr)
         keys = sorted(title_keys_in(pr, settings.jira_project))
-        rows.append(
+        body.append(
             f'<tr><td>{pr_titled(pr)}</td><td>{" ".join(jira_link(k, settings) for k in keys)}</td>'
             f'<td>{esc(pr.author["login"])}</td><td class="num">{days_since(pr.created_at)} d</td>'
             f'<td><span class="pill {state}">{label}</span></td><td>{ci_pills(pr)}</td></tr>')
     return ('<div class="table-wrap"><table><thead><tr><th>Title</th><th>Ticket</th><th>Author</th>'
             '<th class="num">Age</th><th>Review</th><th>CI</th></tr></thead>'
-            f'<tbody>{"".join(rows)}</tbody></table></div>')
+            f'<tbody>{"".join(body)}</tbody></table></div>')
 
 
 def attention(items, settings):
@@ -265,15 +270,15 @@ def tui_change(change, settings):
 
 
 def tui_pane(number, name, entries, empty):
-    rows, details, group = "", "", None
+    items, details, group = "", "", None
     for i, e in enumerate(entries):
         if e["group"] and e["group"] != group:
             group = e["group"]
-            rows += f'<li class="group">{group}</li>'
-        rows += (f'<li class="tui-item" data-i="{i}" data-url="{esc(e["url"])}" data-copy="{esc(e["copy"])}" '
+            items += f'<li class="group">{group}</li>'
+        items += (f'<li class="tui-item" data-i="{i}" data-url="{esc(e["url"])}" data-copy="{esc(e["copy"])}" '
                  f'data-search="{esc(e["search"].lower())}" style="grid-template-columns:{e["grid"] or TUI_GRIDS[name]}">{e["row"]}</li>')
         details += f'<div class="tui-detail" data-i="{i}">{e["detail"]}</div>'
-    listing = f"<ul>{rows}</ul>" if entries else f'<p class="dim">{empty}</p>'
+    listing = f"<ul>{items}</ul>" if entries else f'<p class="dim">{empty}</p>'
     return (f'<div class="tui-pane" data-tab="{number}"><section class="tui-panel"><span class="title">{name}</span>'
             f'<label class="filter">/ <input placeholder="filter" aria-label="Filter {name}"></label>{listing}</section>'
             f'<section class="tui-panel"><span class="title">details</span>{details}</section></div>')
@@ -312,14 +317,14 @@ def render(epics, tickets_by_epic, prs, merged_by_ticket, review_prs, my_tickets
             .replace("{{TEAM}}", ", ".join(settings.team))
             .replace("{{ORG}}", esc(settings.github_org))
             .replace("{{LOGO}}", LOGO)
+            .replace("{{LOGO_LCARS}}", LOGO_LCARS)
             .replace("{{BOARDS}}", boards))
 
 
 OUT = STATE_DIR / "board.html"
 
 
-def build():
-    settings = config.settings
+def build(collect, settings):
     found = collect(settings)
     template = (Path(__file__).with_name("template.html")).read_text()
     OUT.parent.mkdir(parents=True, exist_ok=True)
@@ -328,12 +333,11 @@ def build():
     return {**found, "out": OUT}
 
 
-def main():
+def main(collect):
     found = config.load()
     if found is None:
         sys.exit("No config found. Run `python -m tarkon config` first.")
-    config.use(found)
     try:
-        print(build()["out"])
+        print(build(collect, found)["out"])
     except UnmappedStatus as error:
         sys.exit(str(error))

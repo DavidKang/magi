@@ -16,9 +16,13 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["tarkon", "tarkon.tui", "tarkon.html"]
+packages = ["tarkon", "tarkon.adapters", "tarkon.application", "tarkon.domain", "tarkon.tui", "tarkon.html"]
 
 [tool.setuptools.package-data]
-tarkon = ["logo.png"]
+tarkon = ["logo.png", "logo-black.png"]
 "tarkon.tui" = ["app.tcss"]
 "tarkon.html" = ["template.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "tests"]

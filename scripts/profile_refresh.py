@@ -11,11 +11,15 @@ import threading
 import time
 from pathlib import Path
 
-from tarkon import board, config, fetch
+from tarkon import config
+from tarkon.adapters import github, jira, paths, process
+from tarkon.adapters.clock import SystemClock
+from tarkon.adapters.storage import JsonFiles
+from tarkon.application.refresh import Refresh
 
 calls = []
 lock = threading.Lock()
-original_run_json = fetch.run_json
+original_run_json = process.run_json
 
 
 def label(cmd):
@@ -45,11 +49,11 @@ def rate_used():
     return resources["graphql"]["used"], resources["search"]["used"]
 
 
-def profile(title):
+def profile(title, refresh):
     calls.clear()
     graphql_before, search_before = rate_used()
     started = time.perf_counter()
-    collect = board.collect(config.settings)
+    collect = refresh.collect(config.settings)
     total = time.perf_counter() - started
     graphql_after, search_after = rate_used()
     print(f"\n== {title}: {total:.2f}s | epics {len(collect['epics'])}, tickets {len(collect['by_key'])}, prs {len(collect['prs'])}")
@@ -68,14 +72,13 @@ def profile(title):
 def main():
     config.use(config.load())
     scratch = Path(tempfile.mkdtemp())
-    if board.STATE_PATH.exists():
-        shutil.copy(board.STATE_PATH, scratch / "state.json")
-    board.STATE_DIR, board.STATE_PATH = scratch, scratch / "state.json"
-    board.PR_CACHE_PATH = scratch / "prs.json"
-    board.UPDATED_CACHE_PATH, board.MY_TICKETS_CACHE_PATH = scratch / "updated.json", scratch / "my-tickets.json"
-    fetch.run_json = timed_run_json
-    profile("first refresh, no pr cache")
-    profile("next refresh, pr cache warm")
+    if paths.REFRESH_FILES["state"].exists():
+        shutil.copy(paths.REFRESH_FILES["state"], scratch / "state.json")
+    refresh = Refresh(jira, github, JsonFiles({name: scratch / path.name for name, path in paths.REFRESH_FILES.items()}),
+                      SystemClock(), process.parallel)
+    process.run_json = timed_run_json
+    profile("first refresh, no pr cache", refresh)
+    profile("next refresh, pr cache warm", refresh)
     shutil.rmtree(scratch)
 
 

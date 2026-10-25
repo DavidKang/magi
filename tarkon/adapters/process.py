@@ -1,6 +1,5 @@
 """Run the gh and acli processes the adapters read from."""
 
-import datetime as dt
 import json
 import shutil
 import subprocess
@@ -24,7 +23,3 @@ def parallel(fn, items):
     # Wide enough that one refresh's calls of a kind (epic children, PR searches) run in a single wave.
     with ThreadPoolExecutor(max_workers=16) as pool:
         return list(pool.map(fn, items))
-
-
-def days_since(iso):
-    return (dt.date.today() - dt.date.fromisoformat(iso[:10])).days
