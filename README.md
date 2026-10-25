@@ -146,6 +146,8 @@ A change you have not seen yet puts a `●` on its rows in every box, a `N new` 
 
 `t` opens a popup with the terminal themes. The choice is saved in your settings.
 
+Optional: the LCARS themes look best with any [Nerd Font](https://www.nerdfonts.com/font-downloads) as the terminal's font, for example FiraCode Nerd Font Mono (`brew install --cask font-fira-code-nerd-font`). Without one, the round caps of their pills (U+E0B6 and U+E0B4) show as empty boxes; everything else works. The default and NERV themes use only standard Unicode characters.
+
 | Theme | Look |
 |-------|------|
 | Default | The default colours |
