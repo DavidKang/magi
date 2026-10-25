@@ -1,4 +1,4 @@
-"""What the refresh needs from the outside world; tarkon/adapters holds the real ones, the tests hold fakes."""
+"""What the refresh needs from the outside world; magi/adapters holds the real ones, the tests hold fakes."""
 
 from typing import Protocol
 

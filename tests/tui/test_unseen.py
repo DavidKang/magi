@@ -4,14 +4,14 @@ import pytest
 from textual.widgets import OptionList, Tab
 
 from builders import PR_ONE, PR_TWO, SETTINGS, SUBJECT, board, settings_file
-from tarkon.adapters import storage
-from tarkon.tui.app import TarkonApp
+from magi.adapters import storage
+from magi.tui.app import MagiApp
 
 BOXES = ("attention", "prs", "changes", "mine_prs")
 
 
 def start(cache, name="default", load=lambda: board([PR_ONE, PR_TWO])):
-    return TarkonApp(load=load, opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
+    return MagiApp(load=load, opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
                     config_path=settings_file(cache, {**SETTINGS, "theme": name}))
 
 

@@ -2,8 +2,8 @@ import inspect
 
 import pytest
 
-from tarkon.adapters import clock, github, jira, storage
-from tarkon.application import ports
+from magi.adapters import clock, github, jira, storage
+from magi.application import ports
 
 
 def calls(port):

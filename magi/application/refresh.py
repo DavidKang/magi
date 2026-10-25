@@ -15,7 +15,7 @@ OPEN_PRS = "is:pr is:open archived:false"
 
 
 class Refresh:
-    """The refresh, wired to its ports (tarkon.application.ports); parallel(fn, items) maps fn over items at once."""
+    """The refresh, wired to its ports (magi.application.ports); parallel(fn, items) maps fn over items at once."""
 
     def __init__(self, tickets, pull_requests, store, clock, parallel):
         self.tickets, self.pull_requests, self.store, self.clock, self.parallel = tickets, pull_requests, store, clock, parallel

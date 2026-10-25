@@ -1,5 +1,5 @@
 from builders import make_pr
-from tarkon.domain.keys import title_keys_in
+from magi.domain.keys import title_keys_in
 
 
 def test_title_keys_join_bracketed_and_project_keys():

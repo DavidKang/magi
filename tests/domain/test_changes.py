@@ -3,8 +3,8 @@ from dataclasses import replace
 import pytest
 
 from builders import EPIC, PR_ONE, PR_TWO, STATED
-from tarkon.domain import changes, keys
-from tarkon.domain.entities import Ticket
+from magi.domain import changes, keys
+from magi.domain.entities import Ticket
 
 
 def test_epic_changes():

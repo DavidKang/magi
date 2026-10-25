@@ -5,8 +5,8 @@ from textual.widgets import Input
 from textual_image.widget import Image
 
 from builders import PR_ONE, SETTINGS, board, settings_file
-from tarkon.tui import screens
-from tarkon.tui.app import TarkonApp
+from magi.tui import screens
+from magi.tui.app import MagiApp
 
 
 async def first_run(cache):
@@ -15,12 +15,12 @@ async def first_run(cache):
     def load():
         calls.append(1)
         return board([PR_ONE])
-    app = TarkonApp(load=load, opener=print, copier=print, cache=cache, config_path=path)
+    app = MagiApp(load=load, opener=print, copier=print, cache=cache, config_path=path)
     async with app.run_test(size=(160, 40)) as pilot:
         await pilot.pause()
         assert isinstance(app.screen.query_one("#logo"), Image), "the config panel shows the logo instead of the rocket"
         assert all("🚀" not in str(brand.render()) for brand in app.screen.query(".brand")), "the config panel shows the logo instead of the rocket"
-        assert str(app.screen.query_one(".brand").render()) == "TARKON config", "the config panel is branded TARKON"
+        assert str(app.screen.query_one(".brand").render()) == "MAGI config", "the config panel is branded MAGI"
         inputs = {i.id.removeprefix("config-"): i for i in app.screen.query(Input)}
         assert sorted(inputs) == sorted(SETTINGS), "first run opens the config panel with the five fields"
         assert all(not i.value and i.placeholder for i in inputs.values()), "config fields start empty with a placeholder"
@@ -53,7 +53,7 @@ def test_first_run(cache):
 
 async def edit(cache):
     path = settings_file(cache)
-    app = TarkonApp(load=lambda: board([PR_ONE]), opener=print, copier=print, cache=cache, config_path=path, edit_config=True)
+    app = MagiApp(load=lambda: board([PR_ONE]), opener=print, copier=print, cache=cache, config_path=path, edit_config=True)
     async with app.run_test(size=(160, 40)) as pilot:
         await pilot.pause()
         inputs = {i.id.removeprefix("config-"): i for i in app.screen.query(Input)}
@@ -74,7 +74,7 @@ def test_edit(cache):
 
 async def first_run_cancel(cache):
     path, calls = cache.with_name("config.json"), []
-    app = TarkonApp(load=lambda: calls.append(1), opener=print, copier=print, cache=cache, config_path=path)
+    app = MagiApp(load=lambda: calls.append(1), opener=print, copier=print, cache=cache, config_path=path)
     async with app.run_test(size=(160, 40)) as pilot:
         await pilot.pause()
         await pilot.click("#config-cancel")
@@ -90,7 +90,7 @@ def test_first_run_cancel(cache):
 
 async def edit_cancel(cache):
     path = settings_file(cache)
-    app = TarkonApp(load=lambda: board([PR_ONE]), opener=print, copier=print, cache=cache, config_path=path, edit_config=True)
+    app = MagiApp(load=lambda: board([PR_ONE]), opener=print, copier=print, cache=cache, config_path=path, edit_config=True)
     async with app.run_test(size=(160, 40)) as pilot:
         await pilot.pause()
         app.screen.query_one("#config-team", Input).value = "zed"
@@ -109,7 +109,7 @@ def test_config_panel_without_graphics(cache, monkeypatch):
     monkeypatch.setattr(screens, "GRAPHICS", False)
 
     async def run():
-        app = TarkonApp(load=lambda: board([PR_ONE]), opener=print, copier=print, cache=cache, config_path=cache.with_name("config.json"))
+        app = MagiApp(load=lambda: board([PR_ONE]), opener=print, copier=print, cache=cache, config_path=cache.with_name("config.json"))
         async with app.run_test(size=(160, 40)) as pilot:
             await pilot.pause()
             assert not app.screen.query_one("#logo").display, "a terminal without Sixel or Kitty graphics shows no logo"

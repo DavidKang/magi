@@ -9,11 +9,11 @@ from textual.widgets._footer import FooterKey
 import datetime as dt
 
 from builders import PR_ONE, PR_TWO, SETTINGS, TICKETS, board, failing_load, make_epic, make_pr, settings_file
-from tarkon import rows
-from tarkon.tui import theme
-from tarkon.tui.app import TarkonApp
-from tarkon.tui import screens
-from tarkon.tui.screens import ThemeScreen
+from magi import rows
+from magi.tui import theme
+from magi.tui.app import MagiApp
+from magi.tui import screens
+from magi.tui.screens import ThemeScreen
 from textual_image.widget import get_cell_size
 
 
@@ -29,7 +29,7 @@ async def pick_theme(pilot, name):
 async def lcars_theme(cache):
     path = settings_file(cache)
     lcars = theme.THEMES["okuda"]
-    app = TarkonApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=path)
+    app = MagiApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=path)
     async with app.run_test(size=(160, 40)) as pilot:
         await app.workers.wait_for_complete()
         await pilot.pause()
@@ -44,7 +44,7 @@ async def lcars_theme(cache):
         await pick_theme(pilot, "okuda")
         assert app.query_one("#elbow").display, "LCARS frames the header with an elbow"
         assert app.query_one("#bar").display, "LCARS frames the header with an elbow"
-        assert str(app.query_one("#top .brand").render()) == "TARKON", "LCARS frames the header with an elbow"
+        assert str(app.query_one("#top .brand").render()) == "MAGI", "LCARS frames the header with an elbow"
         assert str(app.query_one("#elbow").render()).splitlines() == ["▗▄" + " " * 11, " " * 12 + "▘", " " * 13, " " * 13, "  04-1701    "], \
             "LCARS rounds the elbow's outer corner, fillets the inner one and carries a panel code"
         assert str(app.query_one("#bar").render()) == "\ue0b4", "the LCARS bar ends in a round cap"
@@ -131,7 +131,7 @@ async def lcars_theme(cache):
         assert app.query_one("#panel-prs .fill").styles.background == Color.parse(lcars["line"]), "t switches the TUI to LCARS"
         assert lcars["accent"] in app.sections["prs"][0].detail, "the switch repaints the board"
         assert json.loads(path.read_text()) == {**SETTINGS, "theme": "okuda"}, "the theme is saved in the config"
-    app = TarkonApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=path)
+    app = MagiApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=path)
     async with app.run_test(size=(160, 40)) as pilot:
         await app.workers.wait_for_complete()
         await pilot.pause()
@@ -147,7 +147,7 @@ async def lcars_theme(cache):
         assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 1", "the default theme keeps its titles, states and header"
         assert "awaiting review" in app.query_one("#list-prs").get_option_at_index(0).prompt.plain, \
             "the default theme keeps its titles, states and header"
-        assert str(app.query_one("#top .brand").render()) == "TARKON", "the default theme keeps its titles, states and header"
+        assert str(app.query_one("#top .brand").render()) == "MAGI", "the default theme keeps its titles, states and header"
         assert not app.query_one("#sidebar").display, "the default theme keeps its titles, states and header"
         assert app.query_one(Tabs).display and not app.query_one("#pills").display, "the default theme keeps its tabs"
         assert not any(title.display for title in app.query(".ptitle")), "the default theme keeps its bordered titles"
@@ -156,7 +156,7 @@ async def lcars_theme(cache):
         assert str(app.query_one("#panel-changes").border_title) == "[5] changes 1", "the default theme drops the LCARS words"
         assert str(app.query_one("#status").render()).startswith("updated "), "the default theme drops the LCARS words"
         assert app.query_one("#list-prs").get_option_at_index(0).id == "0", "the default theme drops the LCARS words"
-    app = TarkonApp(load=failing_load, opener=print, copier=print, clock=lambda: 5000.0, cache=cache, config_path=path)
+    app = MagiApp(load=failing_load, opener=print, copier=print, clock=lambda: 5000.0, cache=cache, config_path=path)
     async with app.run_test(size=(160, 40)) as pilot:
         await app.workers.wait_for_complete()
         await pilot.pause()
@@ -171,7 +171,7 @@ def test_lcars_theme(cache):
 
 async def lcars_edit(cache):
     path = settings_file(cache, {**SETTINGS, "theme": "okuda"})
-    app = TarkonApp(load=lambda: board([PR_ONE]), opener=print, copier=print, cache=cache, config_path=path, edit_config=True)
+    app = MagiApp(load=lambda: board([PR_ONE]), opener=print, copier=print, cache=cache, config_path=path, edit_config=True)
     async with app.run_test(size=(160, 40)) as pilot:
         await pilot.pause()
         app.screen.query_one("#config-team", Input).value = "alice bob, carol"
@@ -188,7 +188,7 @@ def test_lcars_edit(cache):
 
 async def lcars_condition(cache, prs):
     path = settings_file(cache, {**SETTINGS, "theme": "okuda"})
-    app = TarkonApp(load=lambda: board(prs), opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=path)
+    app = MagiApp(load=lambda: board(prs), opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=path)
     async with app.run_test(size=(160, 40)) as pilot:
         await app.workers.wait_for_complete()
         await pilot.pause()
@@ -220,7 +220,7 @@ async def long_boxes(cache, name):
     epics = [make_epic(key=f"ACME-{n}") for n in range(15)]
     full = {**board([PR_ONE]), "epics": epics, "tickets_by_epic": {e.key: TICKETS for e in epics},
             "attention": board([PR_ONE])["attention"] * 20}
-    app = TarkonApp(load=lambda: full, opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
+    app = MagiApp(load=lambda: full, opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
                    config_path=settings_file(cache, {**SETTINGS, "theme": name}))
     async with app.run_test(size=(160, 40)) as pilot:
         await app.workers.wait_for_complete()
@@ -252,7 +252,7 @@ def test_lcars_palettes():
 
 async def theme_picker(cache):
     path = settings_file(cache)
-    app = TarkonApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=path)
+    app = MagiApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=path)
     async with app.run_test(size=(160, 40)) as pilot:
         await app.workers.wait_for_complete()
         await pilot.press("t")
@@ -285,7 +285,7 @@ def test_every_theme_is_offered_by_one_name():
 
 async def saved_theme_start(cache, saved):
     path = settings_file(cache, {**SETTINGS, "theme": saved})
-    app = TarkonApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=path)
+    app = MagiApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=path)
     async with app.run_test() as pilot:
         await pilot.pause()
         return theme.current, app.settings.theme
@@ -311,7 +311,7 @@ def test_no_logo_without_graphics(cache, monkeypatch, default_theme, name):
     monkeypatch.setattr(screens, "GRAPHICS", False)
 
     async def run():
-        app = TarkonApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
+        app = MagiApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
                         config_path=settings_file(cache))
         async with app.run_test(size=(160, 40)) as pilot:
             await app.workers.wait_for_complete()
@@ -327,7 +327,7 @@ def test_no_logo_without_graphics(cache, monkeypatch, default_theme, name):
 @pytest.mark.parametrize("name", ["okuda", "nerv"])
 def test_framed_pr_rows_fit(cache, default_theme, name):
     async def run():
-        app = TarkonApp(load=lambda: board([PR_ONE, PR_TWO]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
+        app = MagiApp(load=lambda: board([PR_ONE, PR_TWO]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
                         config_path=settings_file(cache, {**SETTINGS, "theme": name}))
         async with app.run_test(size=(180, 50)) as pilot:
             await app.workers.wait_for_complete()

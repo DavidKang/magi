@@ -12,17 +12,17 @@ from textual.widgets import OptionList, Static
 from textual_image.widget import Image, get_cell_size
 
 from builders import PR_ONE, PR_THREE, PR_TWO, STATED, THREAD, board, failing_load, settings_file
-from tarkon.adapters import storage
-from tarkon.domain.status import column_for
-from tarkon.tui import app as app_module
-from tarkon.tui import screens
-from tarkon.tui.app import TarkonApp
+from magi.adapters import storage
+from magi.domain.status import column_for
+from magi.tui import app as app_module
+from magi.tui import screens
+from magi.tui.app import MagiApp
 
 
 async def main(cache):
     boards = [board([PR_ONE, PR_TWO]), board([PR_ONE, PR_TWO, PR_THREE])]
     opened, copied, now = [], [], [1000.0]
-    app = TarkonApp(load=lambda: boards.pop(0), opener=opened.append, copier=copied.append, clock=lambda: now[0], cache=cache, config_path=settings_file(cache))
+    app = MagiApp(load=lambda: boards.pop(0), opener=opened.append, copier=copied.append, clock=lambda: now[0], cache=cache, config_path=settings_file(cache))
     async with app.run_test(size=(160, 40)) as pilot:
         await app.workers.wait_for_complete()
         await pilot.pause()
@@ -38,8 +38,8 @@ async def main(cache):
         assert app.query_one("#top").outer_size.height == 1, "the header shows the logo instead of the rocket"
         logo, cell = app.query_one("#logo"), get_cell_size()
         width, height = PILImage.open(screens.LOGO).size
-        assert str(app.query_one("#top .brand").render()).strip() == "TARKON", "the title reads TARKON"
-        assert app.title == "TARKON", "the title reads TARKON"
+        assert str(app.query_one("#top .brand").render()).strip() == "MAGI", "the title reads MAGI"
+        assert app.title == "MAGI", "the title reads MAGI"
         assert app.query_one("#panel-attention").region.y >= app.query_one("#top").region.bottom + 1, "the boxes start one row below the header"
         assert abs(logo.size.width - logo.size.height * cell.height * width / height / cell.width) <= 1, "the logo keeps its proportions"
         status = app.query_one("#status", Static)
@@ -202,7 +202,7 @@ def unmapped_load():
 
 
 async def unmapped_status(cache):
-    app = TarkonApp(load=unmapped_load, opener=print, copier=print, cache=cache, config_path=settings_file(cache))
+    app = MagiApp(load=unmapped_load, opener=print, copier=print, cache=cache, config_path=settings_file(cache))
     async with app.run_test(size=(160, 40)) as pilot:
         try:
             await asyncio.wait_for(app.workers.wait_for_complete(), 5)
@@ -224,13 +224,13 @@ async def reopen(cache):
         calls.append(1)
         return board([PR_ONE, PR_TWO, PR_THREE])
     storage.write(cache, {"at": 1000.0, "board": board([PR_ONE])})
-    app = TarkonApp(load=load, opener=print, copier=print, clock=lambda: 1015.0, cache=cache, config_path=settings_file(cache))
+    app = MagiApp(load=load, opener=print, copier=print, clock=lambda: 1015.0, cache=cache, config_path=settings_file(cache))
     async with app.run_test(size=(160, 40)) as pilot:
         await app.workers.wait_for_complete()
         await pilot.pause()
         assert calls == [], "reopening within 30 seconds does not refresh"
         assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 1", "reopening within 30 seconds shows the saved board"
-    app = TarkonApp(load=load, opener=print, copier=print, clock=lambda: 1090.0, cache=cache, config_path=settings_file(cache))
+    app = MagiApp(load=load, opener=print, copier=print, clock=lambda: 1090.0, cache=cache, config_path=settings_file(cache))
     async with app.run_test(size=(160, 40)) as pilot:
         await app.workers.wait_for_complete()
         await pilot.pause()
@@ -247,7 +247,7 @@ async def stale_cache(cache):
     old = board([replace(PR_ONE, threads=[{**THREAD, "comments": [{**THREAD["comments"][0], "author": None}]}])])
     cache.write_text(json.dumps({"at": 1000.0, "board": old}, default=storage.encode))
     calls = []
-    app = TarkonApp(load=lambda: calls.append(1) or board([PR_ONE]), opener=print, copier=print, clock=lambda: 1030.0, cache=cache,
+    app = MagiApp(load=lambda: calls.append(1) or board([PR_ONE]), opener=print, copier=print, clock=lambda: 1030.0, cache=cache,
                          config_path=settings_file(cache))
     async with app.run_test(size=(160, 40)) as pilot:
         await app.workers.wait_for_complete()
@@ -264,11 +264,11 @@ async def throttle_across_runs(cache):
     def load():
         calls.append(1)
         return board([PR_ONE])
-    app = TarkonApp(load=failing_load, opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=settings_file(cache))
+    app = MagiApp(load=failing_load, opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=settings_file(cache))
     async with app.run_test(size=(160, 40)) as pilot:
         await app.workers.wait_for_complete()
         await pilot.pause()
-    app = TarkonApp(load=load, opener=print, copier=print, clock=lambda: 1015.0, cache=cache, config_path=settings_file(cache))
+    app = MagiApp(load=load, opener=print, copier=print, clock=lambda: 1015.0, cache=cache, config_path=settings_file(cache))
     async with app.run_test(size=(160, 40)) as pilot:
         await app.workers.wait_for_complete()
         await pilot.pause()
@@ -278,7 +278,7 @@ async def throttle_across_runs(cache):
         await pilot.pause()
         assert calls == [], "r within 30 seconds of a refresh in an earlier run is skipped"
         assert any("next refresh in 15s" in n.message for n in app._notifications), "r within 30 seconds of a refresh in an earlier run is skipped"
-    app = TarkonApp(load=load, opener=print, copier=print, clock=lambda: 1031.0, cache=cache, config_path=settings_file(cache))
+    app = MagiApp(load=load, opener=print, copier=print, clock=lambda: 1031.0, cache=cache, config_path=settings_file(cache))
     async with app.run_test(size=(160, 40)) as pilot:
         await app.workers.wait_for_complete()
         await pilot.pause()
@@ -296,7 +296,7 @@ async def running(cache):
         release.wait(5)
         return board([PR_ONE])
     now = [1000.0]
-    app = TarkonApp(load=slow_load, opener=print, copier=print, clock=lambda: now[0], cache=cache, config_path=settings_file(cache))
+    app = MagiApp(load=slow_load, opener=print, copier=print, clock=lambda: now[0], cache=cache, config_path=settings_file(cache))
     async with app.run_test(size=(160, 40)) as pilot:
         await pilot.pause()
         now[0] += 120
@@ -314,7 +314,7 @@ def test_running(cache):
 
 
 async def failure(cache):
-    app = TarkonApp(load=failing_load, opener=print, copier=print, cache=cache, config_path=settings_file(cache))
+    app = MagiApp(load=failing_load, opener=print, copier=print, cache=cache, config_path=settings_file(cache))
     async with app.run_test(size=(160, 40)) as pilot:
         await app.workers.wait_for_complete()
         await pilot.pause()
@@ -338,7 +338,7 @@ def test_quit_while_refreshing(cache):
         return board([PR_ONE])
 
     async def run():
-        app = TarkonApp(load=load, opener=print, copier=print, cache=cache, config_path=settings_file(cache))
+        app = MagiApp(load=load, opener=print, copier=print, cache=cache, config_path=settings_file(cache))
         async with app.run_test(size=(160, 40)) as pilot:
             await asyncio.to_thread(started.wait, 5)
             await pilot.press("q")
@@ -361,8 +361,8 @@ QUIT_SCRIPT = """
 import asyncio, sys, threading, time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from tarkon.adapters import process
-from tarkon.tui import app as app_module
+from magi.adapters import process
+from magi.tui import app as app_module
 
 cache, done, mode = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
 started = threading.Event()
@@ -387,7 +387,7 @@ def load():
 
 
 async def run():
-    app = app_module.TarkonApp(load=load, opener=print, copier=print, cache=cache, config_path=cache.with_name("config.json"))
+    app = app_module.MagiApp(load=load, opener=print, copier=print, cache=cache, config_path=cache.with_name("config.json"))
     async with app.run_test(size=(160, 40)) as pilot:
         if mode == "running":
             await asyncio.to_thread(started.wait, 5)
@@ -431,7 +431,7 @@ def test_quit_drops_queued_fetches(cache):
 
 def test_tui_loads_the_board():
     asked = []
-    app = TarkonApp(collect=lambda settings: asked.append(settings) or "board")
+    app = MagiApp(collect=lambda settings: asked.append(settings) or "board")
     app.settings = STATED
     assert app.load() == "board", "the TUI refresh collects the board with the app's settings"
     assert asked == [STATED], "the TUI refresh collects the board with the app's settings"

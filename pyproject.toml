@@ -1,6 +1,6 @@
 [project]
-name = "tarkon"
-version = "0.1.4"
+name = "magi"
+version = "0.2.0"
 description = "Team board of Jira epics and GitHub PRs, in the terminal."
 requires-python = ">=3.12"
 dependencies = ["textual>=8.2", "textual-image>=0.14", "pillow>=10"]
@@ -9,18 +9,18 @@ dependencies = ["textual>=8.2", "textual-image>=0.14", "pillow>=10"]
 dev = ["pytest>=8"]
 
 [project.scripts]
-tarkon = "tarkon.cli:main"
+magi = "magi.cli:main"
 
 [build-system]
 requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["tarkon", "tarkon.adapters", "tarkon.application", "tarkon.domain", "tarkon.tui"]
+packages = ["magi", "magi.adapters", "magi.application", "magi.domain", "magi.tui"]
 
 [tool.setuptools.package-data]
-tarkon = ["logo.png", "logo-black.png", "logo-white.png"]
-"tarkon.tui" = ["app.tcss"]
+magi = ["logo.png", "logo-black.png", "logo-white.png"]
+"magi.tui" = ["app.tcss"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

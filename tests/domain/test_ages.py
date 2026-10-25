@@ -1,6 +1,6 @@
 import datetime as dt
 
-from tarkon.domain import ages
+from magi.domain import ages
 
 
 def test_days_since_reads_today(monkeypatch):

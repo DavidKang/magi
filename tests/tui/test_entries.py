@@ -4,8 +4,8 @@ from dataclasses import replace
 from textual.content import Content
 
 from builders import CHANGES, NOTE, PR_ONE, PR_TWO, REPLY, STATED, THREAD, TICKET_DETAIL, board
-from tarkon.domain.entities import Ticket
-from tarkon.tui import entries
+from magi.domain.entities import Ticket
+from magi.tui import entries
 
 
 def test_ticket_detail_edges():

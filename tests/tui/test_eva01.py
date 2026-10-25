@@ -6,8 +6,8 @@ from rich.console import Console
 from textual.color import Color
 
 from builders import SETTINGS, board, make_pr, settings_file
-from tarkon.tui import theme
-from tarkon.tui.app import TarkonApp
+from magi.tui import theme
+from magi.tui.app import MagiApp
 
 # Unit-01 in nerv-ui's tokens: purple armour, LCD green trim, nerv white text.
 EVA01 = {"bg": "#000000", "fg": "#e0e0e0", "accent": "#39ff14", "line": "#9933ff", "focus": "#39ff14", "bad": "#ff0000", "ok": "#39ff14",
@@ -15,7 +15,7 @@ EVA01 = {"bg": "#000000", "fg": "#e0e0e0", "accent": "#39ff14", "line": "#9933ff
 
 
 def start(cache, pr):
-    return TarkonApp(load=lambda: board([pr]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
+    return MagiApp(load=lambda: board([pr]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
                     config_path=settings_file(cache, {**SETTINGS, "theme": "eva01"}))
 
 

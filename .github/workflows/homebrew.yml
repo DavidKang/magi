@@ -10,13 +10,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: DavidKang/homebrew-tarkon
+          repository: DavidKang/homebrew-magi
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
       - name: Point the formula at the pushed tag
         run: |
-          sed -i -E "s/tag: +\"v[^\"]+\"/tag:      \"$GITHUB_REF_NAME\"/; s/revision: \"[0-9a-f]+\"/revision: \"$GITHUB_SHA\"/" Formula/tarkon.rb
+          sed -i -E "s/tag: +\"v[^\"]+\"/tag:      \"$GITHUB_REF_NAME\"/; s/revision: \"[0-9a-f]+\"/revision: \"$GITHUB_SHA\"/" Formula/magi.rb
           git diff --quiet && exit 0
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "tarkon $GITHUB_REF_NAME"
+          git commit -am "magi $GITHUB_REF_NAME"
           git push

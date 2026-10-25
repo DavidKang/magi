@@ -1,8 +1,8 @@
 import re
 
 from builders import CHANGES, NOTE, PR_TWO, THREAD, light_node, pr_node
-from tarkon.adapters import github, process
-from tarkon.domain.entities import FoundPr
+from magi.adapters import github, process
+from magi.domain.entities import FoundPr
 
 
 def test_search_prs(monkeypatch):

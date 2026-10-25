@@ -1,7 +1,7 @@
 import pytest
 
-from tarkon import rows
-from tarkon.tui import screens, theme
+from magi import rows
+from magi.tui import screens, theme
 
 
 @pytest.fixture

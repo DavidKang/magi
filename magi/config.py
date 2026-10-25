@@ -1,10 +1,10 @@
-"""Per-user settings, kept in ~/.config/tarkon/config.json."""
+"""Per-user settings, kept in ~/.config/magi/config.json."""
 
 import json
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
-PATH = Path.home() / ".config" / "tarkon" / "config.json"
+PATH = Path.home() / ".config" / "magi" / "config.json"
 
 
 @dataclass

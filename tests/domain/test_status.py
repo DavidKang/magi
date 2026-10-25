@@ -1,7 +1,7 @@
 import pytest
 
 from builders import make_ticket
-from tarkon.domain.status import UnmappedStatus, column_for, status_label, ticket_order
+from magi.domain.status import UnmappedStatus, column_for, status_label, ticket_order
 
 
 def test_status_labels():
