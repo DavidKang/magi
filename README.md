@@ -182,13 +182,13 @@ The LCARS and NERV themes show how the board is doing in the header:
 
 | Box | Default | LCARS | NERV |
 |-----|---------|-------|------|
-| What needs you | attention | ATTENTION | EMERGENCY |
+| What needs you | attention | BRIDGE ALERTS | EMERGENCY |
 | Team PRs | team prs | CREW REPORTS | SORTIES |
 | Last 24 hours | changes | CAPTAIN'S LOG | OPERATIONS LOG |
-| Epics | epics | EPICS | PROJECTS |
-| Your PRs | my prs | MY PRS | MY SORTIES |
-| Your tickets | my tickets | MY TICKETS | MY ORDERS |
-| Details | details | DETAILS | MAGI ANALYSIS |
+| Epics | epics | MISSIONS | PROJECTS |
+| Your PRs | my prs | MY REPORTS | MY SORTIES |
+| Your tickets | my tickets | AWAY MISSIONS | MY ORDERS |
+| Details | details | SENSOR READINGS | MAGI ANALYSIS |
 
 ### LCARS
 

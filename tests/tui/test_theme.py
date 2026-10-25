@@ -64,7 +64,7 @@ async def lcars_theme(cache):
         assert title.display, "LCARS titles panels with a pill"
         assert [str(s.render()) for s in title.query(Static)] == ["╭─", "\ue0b6", "04", "CREW REPORTS", "", "1", "\ue0b4", "─╮"], \
             "LCARS titles panels with a pill set into the box's top line: code, name, filler and count"
-        assert [str(s.render()) for s in app.query_one("#panel-details").query(".ptitle Static")][3] == "DETAILS", "the details panel has a pill title too"
+        assert [str(s.render()) for s in app.query_one("#panel-details").query(".ptitle Static")][3] == "SENSOR READINGS", "the details panel has a pill title too"
         assert app.query_one("#top").region.y == app.query_one("#bar").region.y + 2, "the LCARS masthead leaves a row under the bar"
         assert app.query_one("#pills").region.y == app.query_one("#top").region.y + 2, "the LCARS pills leave a row around them"
         assert app.query_one("#sidebar").region.y == app.query_one("#pills").region.y + 2, "the LCARS pills leave a row around them"
@@ -86,7 +86,9 @@ async def lcars_theme(cache):
         assert app.query_one("#list-prs").get_option_at_index(0).prompt.plain == "── PRIORITY ONE (1) ──", "LCARS puts old team PRs first"
         assert str(app.query_one("#panel-prs").border_title) == "04-CREW REPORTS 1", "LCARS calls the team PRs crew reports"
         assert "REPORTS" in str(app.query_one("#side-prs").render()), "LCARS calls the team PRs crew reports"
-        assert str(app.query_one("#panel-details").border_title) == "DETAILS", "LCARS titles panels with a two-digit code in capitals"
+        titles = {key: str(app.query_one(f"#panel-{key}").border_title) for key in ("attention", "epics", "mine_prs", "mine_tickets", "details")}
+        assert titles == {"attention": "03-BRIDGE ALERTS 1", "epics": "06-MISSIONS 1", "mine_prs": "07-MY REPORTS 1", "mine_tickets": "08-AWAY MISSIONS 2",
+                          "details": "SENSOR READINGS"}, "LCARS names the boxes in Starfleet's words"
         key = app.query(FooterKey).first()
         assert (app.query_one(Footer).styles.background, key.styles.background) == (Color.parse(lcars["bg"]), Color.parse(lcars["line"])), \
             "LCARS turns the footer into a row of buttons"

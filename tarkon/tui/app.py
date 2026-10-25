@@ -40,7 +40,8 @@ SECTIONS = {"attention": ("attention", "nothing to flag", [2, None]),
             "epics": ("epics", "no epics", [9, 20, 6, None]),
             "mine_prs": ("my prs", "no open prs", PR_WIDTHS),
             "mine_tickets": ("my tickets", "no open tickets", [10, None])}
-LCARS_NAMES = {"prs": "crew reports", "changes": "captain's log"}
+LCARS_NAMES = {"attention": "bridge alerts", "prs": "crew reports", "changes": "captain's log", "epics": "missions", "mine_prs": "my reports",
+               "mine_tickets": "away missions", "details": "sensor readings"}
 NERV_NAMES = {"attention": "emergency", "prs": "sorties", "changes": "operations log", "epics": "projects", "mine_prs": "my sorties",
               "mine_tickets": "my orders", "details": "magi analysis"}
 FRAME_NAMES = {"lcars": LCARS_NAMES, "nerv": NERV_NAMES}
