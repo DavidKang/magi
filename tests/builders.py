@@ -1,10 +1,14 @@
 import ast
 import json
 import subprocess
+from contextlib import asynccontextmanager
 from pathlib import Path
+
+from textual.widgets import OptionList
 
 from magi import config
 from magi.domain.entities import Epic, PullRequest, Ticket, TicketDetail
+from magi.tui.app import MagiApp
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -72,6 +76,9 @@ PR_TWO = make_pr(url="https://github.com/acme/billing-reconciliation-service/pul
                  commits=[], updated_at="2026-10-22T09:00:00Z", head_ref_oid="b2")
 PR_THREE = make_pr(url="https://github.com/acme/app/pull/3", number=3, title="[ACME-3] Third change",
                    created_at="2026-10-23T10:00:00Z", head_ref_oid="c3")
+# A PR for each alert level, in the order green, yellow, red: make_pr's own PR fails its CI and conflicts.
+ALERT_PRS = {"ok": make_pr(review_decision="APPROVED", ci="passing", mergeable="MERGEABLE"), "warn": make_pr(ci="passing", mergeable="MERGEABLE"),
+             "bad": make_pr()}
 TICKETS = [make_ticket(), make_ticket(key="ACME-2", summary="Ticket two", status="Finalizado", column="done")]
 TICKET_DETAIL = make_ticket_detail()
 EPIC = make_epic()
@@ -87,10 +94,40 @@ def board(prs):
                          "item": PR_ONE.url}]}
 
 
+def bare_board(**sections):
+    """A board with nothing on it but the sections given."""
+    return {"prs": [], "review_prs": [], "by_key": {}, "attention": [], "changes": [], "epics": [], "my_prs": [], "my_tickets": [], **sections}
+
+
 def settings_file(cache, settings=SETTINGS):
     path = cache.with_name("config.json")
     path.write_text(json.dumps(settings))
     return path
+
+
+def magi_app(cache, load=lambda: board([PR_ONE]), theme=None, **options):
+    """The app on a fake load; unless a config path is given, its settings, in the theme given, are saved next to the cache."""
+    if "config_path" not in options:
+        options["config_path"] = settings_file(cache, SETTINGS if theme is None else {**SETTINGS, "theme": theme})
+    return MagiApp(load=load, **{"opener": print, "copier": print, "clock": lambda: 1000.0, "cache": cache, **options})
+
+
+@asynccontextmanager
+async def started(app, size=(160, 40)):
+    """The app running, its first refresh done and drawn."""
+    async with app.run_test(size=size) as pilot:
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        yield pilot
+
+
+async def pick_theme(pilot, name):
+    await pilot.press("t")
+    await pilot.pause()
+    choices = pilot.app.screen.query_one("#theme-list", OptionList)
+    choices.highlighted = choices.get_option_index(name)
+    await pilot.press("enter")
+    await pilot.pause()
 
 
 def failing_load():

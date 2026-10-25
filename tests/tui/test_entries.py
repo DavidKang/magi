@@ -3,10 +3,20 @@ from dataclasses import replace
 
 from textual.content import Content
 
-from builders import CHANGES, NOTE, PR_ONE, PR_TWO, REPLY, STATED, THREAD, TICKET_DETAIL, board
+from builders import CHANGES, NOTE, OUTDATED, PR_ONE, PR_TWO, REPLY, STATED, THREAD, TICKET_DETAIL, board
 from magi.domain.ages import days_since
 from magi.domain.entities import Ticket
 from magi.tui import entries
+
+
+def test_ticket_detail():
+    ticket = Ticket(key="ACME-1", summary="Ticket one", status="En proceso", detail=TICKET_DETAIL)
+    detail = Content.from_markup(entries.ticket_entry(ticket, [], STATED).detail).plain
+    assert "In Progress" in detail and "En proceso" not in detail, "my ticket detail names the status in English"
+    assert all(text in detail for text in ["Story", "Low", "ACME-100", "Epic one", "creator", "Bob", "Oct 08", "updated", "blocked"]), \
+        "my ticket detail shows type, priority, epic, creator, dates and labels"
+    assert "Use the new reason column." in detail, "my ticket detail previews the description and counts the comments"
+    assert "comments 1 · c to open" in detail, "my ticket detail previews the description and counts the comments"
 
 
 def test_ticket_detail_edges():
@@ -54,6 +64,16 @@ def test_pr_comments():
     assert activity.index("commit") < activity.index("approved"), "activity is newest first"
     assert "comments" not in Content.from_markup(entries.pr_entry(PR_ONE, {}, STATED).detail).plain, \
         "pr detail without comments has no comments line"
+
+
+def test_review_rows():
+    items = entries.review_items(replace(PR_TWO, reviews=[*PR_TWO.reviews, CHANGES], threads=[THREAD, OUTDATED]))
+    rows = [str(item["row"]).splitlines() for item in items]
+    assert rows[0] == ["changes requested", "carol", "Please split this"], "each thread shows file, author and description on their own lines"
+    assert rows[1] == ["order.rb:12", "carol · 2 comments", "Rename qty to quantity"], \
+        "each thread shows file, author and description on their own lines"
+    assert rows[2][0] == "README.md · outdated", "an outdated thread says so in the list"
+    assert "Typo" in rows[2], "each thread in the list previews its first comment"
 
 
 def test_conversation_comments():

@@ -4,7 +4,7 @@ import json
 from textual.widgets import Input
 from textual_image.widget import Image
 
-from builders import PR_ONE, SETTINGS, board, settings_file
+from builders import PR_ONE, SETTINGS, board, magi_app, started
 from magi.tui import screens
 from magi.tui.app import MagiApp
 
@@ -52,10 +52,8 @@ def test_first_run(cache):
 
 
 async def edit(cache):
-    path = settings_file(cache)
-    app = MagiApp(load=lambda: board([PR_ONE]), opener=print, copier=print, cache=cache, config_path=path, edit_config=True)
-    async with app.run_test(size=(160, 40)) as pilot:
-        await pilot.pause()
+    app = magi_app(cache, edit_config=True)
+    async with started(app) as pilot:
         inputs = {i.id.removeprefix("config-"): i for i in app.screen.query(Input)}
         assert app.screen.check_action("cancel", ()), "config command can be cancelled"
         assert inputs["team"].value == "alice, bob", "config command shows the saved values"
@@ -64,7 +62,7 @@ async def edit(cache):
         await pilot.click("#config-save")
         await app.workers.wait_for_complete()
         await pilot.pause()
-        assert json.loads(path.read_text())["team"] == ["alice", "bob", "carol"], "config command saves the changes"
+        assert json.loads(app.config_path.read_text())["team"] == ["alice", "bob", "carol"], "config command saves the changes"
         assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 1", "config command then opens the board"
 
 
@@ -89,15 +87,13 @@ def test_first_run_cancel(cache):
 
 
 async def edit_cancel(cache):
-    path = settings_file(cache)
-    app = MagiApp(load=lambda: board([PR_ONE]), opener=print, copier=print, cache=cache, config_path=path, edit_config=True)
-    async with app.run_test(size=(160, 40)) as pilot:
-        await pilot.pause()
+    app = magi_app(cache, edit_config=True)
+    async with started(app) as pilot:
         app.screen.query_one("#config-team", Input).value = "zed"
         await pilot.click("#config-cancel")
         await app.workers.wait_for_complete()
         await pilot.pause()
-        assert json.loads(path.read_text()) == {**SETTINGS, "theme": "default"}, "cancel keeps the saved config"
+        assert json.loads(app.config_path.read_text()) == {**SETTINGS, "theme": "default"}, "cancel keeps the saved config"
         assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 1", "cancel goes to the board"
 
 

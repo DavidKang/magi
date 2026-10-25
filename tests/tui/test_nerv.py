@@ -7,32 +7,27 @@ from rich.console import Console
 from textual.color import Color
 from textual.widgets import Static, Tabs
 
-from builders import CHANGES, EPIC, PR_ONE, PR_TWO, SETTINGS, STATED, THREAD, TICKETS, board, make_pr, settings_file
+from builders import ALERT_PRS, CHANGES, PR_ONE, PR_TWO, STATED, THREAD, bare_board, board, magi_app, pick_theme, started
 from magi.tui import app as app_module
 from magi.tui import entries, theme
-from magi.tui.app import MagiApp
-from test_theme import pick_theme
 
 # nerv-ui's design tokens (github.com/mdrbx/nerv-ui): black, orange text and focus, green grid, red alert, amber warning, cyan data.
 MAGI = {"bg": "#000000", "fg": "#ff9900", "accent": "#ff9900", "line": "#00ff00", "focus": "#ff9900", "bad": "#ff0000", "ok": "#00ff00", "warn": "#ffaa00",
         "blue": "#00ffff", "raised": "#1a1a1a"}
-
-
-def start(cache, name):
-    return MagiApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
-                    config_path=settings_file(cache, {**SETTINGS, "theme": name}))
+# Unit-01 in nerv-ui's tokens: purple armour, LCD green trim, nerv white text.
+EVA01 = {"bg": "#000000", "fg": "#e0e0e0", "accent": "#39ff14", "line": "#9933ff", "focus": "#39ff14", "bad": "#ff0000", "ok": "#39ff14",
+         "warn": "#ff9900"}
 
 
 def test_nerv_palettes():
     assert {key: theme.THEMES["nerv"][key] for key in MAGI} == MAGI, "NERV Magi uses the MAGI screens' colours"
+    assert {key: theme.THEMES["eva01"][key] for key in EVA01} == EVA01, "EVA 01 wears Unit-01's colours"
     assert "magi" not in theme.THEMES, "NERV Magi is the only NERV theme; the palette on the default layout is gone"
 
 
 async def nerv(cache):
-    app = start(cache, "nerv")
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
+    app = magi_app(cache, theme="nerv")
+    async with started(app) as pilot:
         assert app.has_class("nerv") and not app.has_class("lcars"), "nerv draws its own frame, not LCARS'"
         assert not app.query_one("#sidebar").display, "nerv has no sidebar: the boxes take the full width"
         assert not app.query_one("#elbow").display, "nerv has no LCARS elbow"
@@ -48,8 +43,6 @@ async def nerv(cache):
         assert key.get_component_styles("footer-key--description").padding.left == 1, "nerv sets the footer text off its key"
         bar = app.query_one("#bar")
         assert str(bar.render()).startswith("◢◤◢◤"), "a hazard stripe tops the screen"
-        assert bar.styles.color == Color.parse(MAGI["bad"]), "the hazard stripe turns red on alert"
-        assert str(app.query_one("#condition").render()) == "■ PATTERN BLUE", "nerv flags the red alert as PATTERN BLUE, after nerv-ui's condition line"
         assert str(app.query_one("#status").render()) == f"MAGI · MELCHIOR BALTHASAR CASPER · SYNC {dt.datetime.fromtimestamp(1000.0):%H:%M}", \
             "nerv times the last refresh by the MAGI"
         titles = {key: str(app.query_one(f"#panel-{key}").border_title) for key in ("attention", "prs", "changes", "epics", "mine_prs", "mine_tickets")}
@@ -71,9 +64,14 @@ async def nerv(cache):
         assert str(app.query_one("#pill-overview .cap").render()) == "▕", "nerv outlines its tabs, after nerv-ui's navigation"
         tabs = [app.query_one(f"#pill-{tab} .seg").styles.color for tab in ("overview", "mine")]
         assert tabs == [Color.parse(MAGI["accent"]), Color.parse(theme.THEMES["nerv"]["dim"])], "nerv lights the current tab orange and dims the rest"
-        prompts = [app.query_one("#list-prs").get_option_at_index(i).prompt.plain for i in range(2)]
-        assert prompts[0] == "── ON THE AUTHOR (1) ──", "nerv writes the turn groups in capitals"
-        assert f"▕ {'RED CI · CONFLICT':<27} ▏" in prompts[1], "nerv outlines its badges, keeping their padding"
+        for tone, label in zip(ALERT_PRS, ("NORMAL", "PATTERN ORANGE", "PATTERN BLUE")):
+            app.show_board(board([ALERT_PRS[tone]]), 1000.0)
+            await pilot.pause()
+            shown = app.query_one("#condition").render()
+            assert (shown.plain, [(span.style.foreground, span.style.bold) for span in shown.spans]) == \
+                (f"■ {label}", [(Color.parse(MAGI[tone]), None), (Color.parse(MAGI[tone]), True)]), \
+                "nerv marks the alert level in its own colour, PATTERN BLUE for red after nerv-ui's condition line"
+            assert bar.styles.color == Color.parse(MAGI["bad" if tone == "bad" else "accent"]), "the hazard stripe is orange, and red only on PATTERN BLUE"
 
 
 @pytest.mark.usefixtures("default_theme")
@@ -81,21 +79,10 @@ def test_nerv_frame(cache):
     asyncio.run(nerv(cache))
 
 
-@pytest.mark.usefixtures("default_theme")
-def test_nerv_segments_epic_bars():
-    theme.use_theme("nerv")
-    bar = entries.epic_entry(EPIC, TICKETS, STATED).cells[1][0]
-    nerv = theme.THEMES["nerv"]
-    assert [(bar.plain[s.start:s.end], str(s.style)) for s in bar.spans] == [("█ " * 5, nerv["ok"]), ("█ " * 5, nerv["raised"])], \
-        "nerv splits epic progress into segments like nerv-ui's sync bars, the rest dark"
-
-
 async def nerv_review(cache):
     pr_two = replace(PR_TWO, reviews=[*PR_TWO.reviews, CHANGES], threads=[THREAD])
-    app = MagiApp(load=lambda: board([PR_ONE, pr_two]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
-                   config_path=settings_file(cache, {**SETTINGS, "theme": "nerv"}))
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
+    app = magi_app(cache, load=lambda: board([PR_ONE, pr_two]), theme="nerv")
+    async with started(app) as pilot:
         await pilot.press("4", "j", "c", "j")
         await pilot.pause()
         popup = app.screen.query_one("#review")
@@ -109,27 +96,6 @@ def test_nerv_review_popup(cache):
     asyncio.run(nerv_review(cache))
 
 
-async def nerv_condition(cache, pr):
-    app = MagiApp(load=lambda: board([pr]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
-                   config_path=settings_file(cache, {**SETTINGS, "theme": "nerv"}))
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
-        shown = app.query_one("#condition").render()
-        return shown.plain, [(span.style.foreground, span.style.bold) for span in shown.spans], app.query_one("#bar").styles.color
-
-
-@pytest.mark.usefixtures("default_theme")
-@pytest.mark.parametrize("pr, label, tone", [
-    (make_pr(review_decision="APPROVED", ci="passing", mergeable="MERGEABLE"), "NORMAL", "ok"),
-    (make_pr(ci="passing", mergeable="MERGEABLE"), "PATTERN ORANGE", "warn"),
-    (make_pr(), "PATTERN BLUE", "bad")])
-def test_nerv_condition(cache, pr, label, tone):
-    shown, styles, bar = asyncio.run(nerv_condition(cache, pr))
-    assert (shown, styles) == (f"■ {label}", [(Color.parse(MAGI[tone]), None), (Color.parse(MAGI[tone]), True)]), "nerv marks the alert level in its own colour"
-    assert bar == Color.parse(MAGI["bad" if tone == "bad" else "accent"]), "the hazard stripe is orange, and red only on PATTERN BLUE"
-
-
 def frame_state(app):
     pieces = [str(s.render()) for s in app.query_one("#panel-prs .ptitle").query(Static)]
     return {"classes": {name for name in ("framed", "lcars", "nerv", "eva01") if app.has_class(name)},
@@ -139,30 +105,23 @@ def frame_state(app):
             "tab": str(app.query_one("#pill-overview .cap").render())}
 
 
-async def started_on(cache, name):
-    async with start(cache, name).run_test(size=(160, 40)) as pilot:
-        await pilot.app.workers.wait_for_complete()
-        await pilot.pause()
-        return frame_state(pilot.app)
-
-
-async def switched(cache, names):
-    async with start(cache, names[0]).run_test(size=(160, 40)) as pilot:
-        await pilot.app.workers.wait_for_complete()
-        await pilot.pause()
-        states = []
+async def frames(cache, names):
+    fresh = {}
+    for name in dict.fromkeys(names):
+        async with started(magi_app(cache, theme=name)) as pilot:
+            fresh[name] = frame_state(pilot.app)
+    async with started(magi_app(cache, theme=names[0])) as pilot:
+        switched = []
         for name in names[1:]:
             await pick_theme(pilot, name)
-            states.append(frame_state(pilot.app))
-        return states
+            switched.append(frame_state(pilot.app))
+    return switched, [fresh[name] for name in names[1:]]
 
 
 @pytest.mark.usefixtures("default_theme")
-@pytest.mark.parametrize("names", [("nerv", "okuda", "default"), ("okuda", "nerv", "okuda"), ("nerv", "eva01", "nerv")])
-def test_switching_themes_leaves_no_frame_behind(cache, names):
-    fresh = {name: asyncio.run(started_on(cache, name)) for name in set(names)}
-    assert asyncio.run(switched(cache, names)) == [fresh[name] for name in names[1:]], \
-        "switching theme draws the new frame as if the app had started in it, with nothing left from the old one"
+def test_switching_themes_leaves_no_frame_behind(cache):
+    switched, fresh = asyncio.run(frames(cache, ("okuda", "nerv", "eva01", "nerv", "okuda", "default")))
+    assert switched == fresh, "switching theme draws the new frame as if the app had started in it, with nothing left from the old one"
 
 
 @pytest.mark.usefixtures("default_theme")
@@ -170,7 +129,7 @@ def test_nerv_outlines_its_badges():
     theme.use_theme("nerv")
     late = replace(PR_ONE, created_at=f"{dt.date.today() - dt.timedelta(days=58)}T10:00:00Z", review_decision="CHANGES_REQUESTED",
                    ci="passing")
-    found = {"prs": [late], "review_prs": [], "by_key": {}, "attention": [], "changes": [], "epics": [], "my_prs": [], "my_tickets": []}
+    found = bare_board(prs=[late])
     row = entries.cell_row(entries.entries(found, STATED)["prs"][0], app_module.widths("prs"))
     style = lambda text: row.get_style_at_offset(Console(), row.plain.index(text))
     assert f"▕ {'CHANGES · CONFLICT':<27} ▏    ▲ 58D " in row.plain, \
@@ -184,3 +143,39 @@ def test_nerv_outlines_its_badges():
     assert f"▕ {'APPROVED':<27} ▏ {'2d':>8} " in row.plain, "nerv leaves a nominal age plain"
     assert (style("APPROVED").color.triplet.hex, style("2d").color.triplet.hex) == (MAGI["ok"], theme.THEMES["nerv"]["dim"]), \
         "nerv outlines a PR ready to merge in green and dims a nominal age"
+
+
+async def eva01(cache):
+    app = magi_app(cache, theme="eva01")
+    async with started(app) as pilot:
+        assert app.has_class("nerv") and app.query_one("#nerv-logo").display, "EVA 01 draws the NERV frame"
+        assert str(app.query_one("#panel-prs").border_title) == "04-SORTIES 1", "EVA 01 names the boxes in NERV's words"
+        for key, tone in (("attention", "focus"), ("prs", "line")):
+            box = app.query_one(f"#panel-{key}")
+            colours = [box.query_one(".pbody").styles.border_left[1], *[edge.styles.color for edge in box.query(".ptitle .edge")]]
+            assert colours == [Color.parse(EVA01[tone])] * 3, f"EVA 01 draws the {key} box {tone == 'focus' and 'green, focused' or 'purple'}"
+        assert app.query_one("#panel-prs .ptitle .name").styles.color == Color.parse(EVA01["accent"]), "EVA 01 titles its boxes in green"
+        key = app.query_one("FooterKey")
+        assert key.region.x == app.query_one("#panel-attention").region.x, "EVA 01 lines its footer up with the boxes"
+        description = key.get_component_rich_style("footer-key--description")
+        assert (description.color.triplet.hex, key.styles.background) == (EVA01["accent"], Color.parse(EVA01["bg"])), \
+            "EVA 01 writes the footer in green on black, since no text reads well on purple"
+        assert key.get_component_styles("footer-key--description").padding.left == 1, "EVA 01 sets the footer text off its key"
+        assert str(app.query_one("#status").render()) == f"EVA-01 · PILOT ALICE · SYNC {dt.datetime.fromtimestamp(1000.0):%H:%M}", \
+            "EVA 01 names you, by your GitHub user, as its pilot"
+        for tone, label in zip(ALERT_PRS, ("SYNC STABLE", "SYNC UNSTABLE", "BERSERK")):
+            app.show_board(board([ALERT_PRS[tone]]), 1000.0)
+            await pilot.pause()
+            shown, stripe = app.query_one("#condition").render(), app.query_one("#bar").content
+            assert (shown.plain, [str(span.style.foreground) for span in shown.spans]) == (f"■ {label}", [str(Color.parse(EVA01[tone]))] * 2), \
+                "EVA 01 reads the alert level as Unit-01's sync"
+            calm = tone != "bad"
+            assert stripe.plain[:8] == ("━" * 8 if calm else "◢◤" * 4), \
+                "EVA 01 tops the screen with a quiet line, and NERV's hazard stripe only when berserk"
+            assert [stripe.get_style_at_offset(Console(), n).color.triplet.hex for n in range(8)] == [EVA01["line" if calm else "bad"]] * 8, \
+                "the quiet line is purple, the berserk stripe red"
+
+
+@pytest.mark.usefixtures("default_theme")
+def test_eva01_frame(cache):
+    asyncio.run(eva01(cache))

@@ -4,7 +4,6 @@ import time
 import pytest
 
 
-
 @pytest.fixture(autouse=True, scope="session")
 def madrid():
     os.environ["TZ"] = "Europe/Madrid"

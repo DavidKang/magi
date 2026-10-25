@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from textual.content import Content
 
-from builders import EPIC, PR_ONE, PR_TWO, STATED, TICKETS, make_pr
+from builders import EPIC, PR_ONE, PR_TWO, STATED, TICKETS, bare_board, make_pr
 from magi import rows
 from magi.domain import ages
 from magi.tui import app as app_module
@@ -13,8 +13,6 @@ from magi.tui import entries, theme
 
 
 def test_rows_view_model():
-    from magi import rows
-    from magi.tui import app as tui_app
     ticket = TICKETS[0]
     row = rows.pr_row(PR_ONE, {ticket.key: ticket}, STATED)
     assert row["ref"] == "app#1", "a pr row is plain data built from the settings passed in"
@@ -35,9 +33,12 @@ def test_rows_view_model():
     assert linked["prs"][0]["review"] == "Awaiting review", "a ticket row is plain data with its linked prs"
     tui = Content.from_markup(entries.ticket_entry(ticket, [PR_ONE], STATED).detail).plain
     assert "app#1 Awaiting review" in tui, "the TUI shows the row data"
-    assert Path(tui_app.__file__).with_name("app.tcss").exists(), "the TUI styles live in a tcss file the app loads"
-    assert tui_app.MagiApp.CSS_PATH == "app.tcss", "the TUI styles live in a tcss file the app loads"
-    assert not tui_app.MagiApp.CSS, "the TUI styles live in a tcss file the app loads"
+
+
+def test_styles_live_in_a_tcss_file():
+    assert Path(app_module.__file__).with_name("app.tcss").exists(), "the TUI styles live in a tcss file the app loads"
+    assert app_module.MagiApp.CSS_PATH == "app.tcss", "the TUI styles live in a tcss file the app loads"
+    assert not app_module.MagiApp.CSS, "the TUI styles live in a tcss file the app loads"
 
 
 def test_pr_rows():
@@ -75,7 +76,7 @@ def test_team_prs_are_grouped_by_turn():
     asked, old = by_turn(2, 2), by_turn(7, 4)
     prs = [by_turn(1, 1), asked, by_turn(3, 5, reviews=[changes], mergeable="CONFLICTING"),
            by_turn(4, 3, review_decision="APPROVED"), by_turn(5, 6, is_draft=True), by_turn(6, 1, is_draft=True), old]
-    found = {"prs": prs, "review_prs": [asked], "by_key": {}, "attention": [], "changes": [], "epics": [], "my_prs": prs, "my_tickets": []}
+    found = bare_board(prs=prs, review_prs=[asked], my_prs=prs)
     listed = entries.entries(found, STATED)["prs"]
     assert [(e.url, e.group) for e in listed] == [("u2", "needs review"), ("u7", "needs review"), ("u1", "needs review"),
                                                  ("u3", "on the author"), ("u4", "ready to merge"), ("u5", "drafts"), ("u6", "drafts")], \
@@ -86,25 +87,30 @@ def test_team_prs_are_grouped_by_turn():
     assert "changes · conflict" in row(listed[3]), "a PR on its author says what blocks it"
     assert row(listed[5]).startswith("Change 5 ") and "draft" in row(listed[5]), "a draft is a row like any other PR"
     assert [e.group for e in entries.entries(found, STATED)["mine_prs"]] == [None] * len(prs), "my PRs keep one row each, without groups"
-    assert listed[3].cells[-2] == ("5d", "bad-right"), "the default theme shows the days of a PR open over three days in red"
-    assert listed[0].cells[-2] == ("2d", "dim-right"), "the default theme dims the days of a younger PR"
     days = lambda: {e.url: e.cells[entries.DAYS_CELL] for e in entries.team_pr_entries([by_turn(8, 3), by_turn(9, 4)], {}, STATED, set())}
     assert days() == {"u8": ("3d", "dim-right"), "u9": ("4d", "bad-right")}, "a PR's days turn red only once it is open over three days"
     theme.use_theme("okuda")
     listed = entries.entries(found, STATED)["prs"]
     assert [e.group for e in listed] == ["NEEDS REVIEW"] * 3 + ["ON THE AUTHOR", "READY TO MERGE"] + ["DRAFTS"] * 2, \
         "LCARS writes the turn groups in capitals"
-    assert listed[3].cells[-2] == ("5d", "bad-alarm"), "LCARS shows the days of a PR open over three days in a red pill"
     assert days() == {"u8": ("3d", "dim-right"), "u9": ("4d", "bad-alarm")}, "LCARS turns a PR's days red only once it is open over three days"
 
 
 @pytest.mark.usefixtures("default_theme")
-def test_lcars_segments_epic_bars():
-    theme.use_theme("okuda")
+@pytest.mark.parametrize("name, done, rest, tone, rule", [
+    ("default", "█" * 10, "░" * 10, "dim", "epic progress is a block bar, done blocks green and the rest dim"),
+    ("okuda", "█ " * 5, "█ " * 5, "line", "LCARS splits epic progress into ten segments, done ones green"),
+    ("nerv", "█ " * 5, "█ " * 5, "raised", "nerv splits epic progress into segments like nerv-ui's sync bars, the rest dark")])
+def test_epic_bars(name, done, rest, tone, rule):
+    theme.use_theme(name)
     bar = entries.epic_entry(EPIC, TICKETS, STATED).cells[1][0]
-    lcars = theme.THEMES["okuda"]
-    assert [(bar.plain[s.start:s.end], str(s.style)) for s in bar.spans] == [("█ " * 5, lcars["ok"]), ("█ " * 5, lcars["line"])], \
-        "LCARS splits epic progress into ten segments, done ones green"
+    colours = theme.THEMES[name]
+    assert [(bar.plain[s.start:s.end], str(s.style)) for s in bar.spans] == [(done, colours["ok"]), (rest, colours[tone])], rule
+
+
+@pytest.mark.usefixtures("default_theme")
+def test_lcars_epic_bars_round_to_tenths():
+    theme.use_theme("okuda")
     two_of_three = [TICKETS[1], TICKETS[1], TICKETS[0]]
     assert entries.epic_entry(EPIC, two_of_three, STATED).cells[1][0].plain.count("█") == 10, "LCARS splits epic progress into ten segments"
     assert entries.epic_entry(EPIC, two_of_three, STATED).cells[1][0].spans[0].end == 14, "LCARS rounds done segments to the nearest tenth"
@@ -113,8 +119,7 @@ def test_lcars_segments_epic_bars():
 @pytest.mark.usefixtures("default_theme")
 def test_lcars_pills_fit_their_text():
     pr = replace(PR_ONE, created_at=opened(123), review_decision="CHANGES_REQUESTED", ci="passing")
-    found = {"prs": [pr], "review_prs": [], "by_key": {}, "attention": [], "changes": [], "epics": [], "my_prs": [], "my_tickets": []}
-    row = lambda: entries.cell_row(entries.entries(found, STATED)["prs"][0], app_module.widths("prs")).plain
+    row = lambda: entries.cell_row(entries.entries(bare_board(prs=[pr]), STATED)["prs"][0], app_module.widths("prs")).plain
     assert f"{'changes · conflict':<27} 123d" in row(), "the default theme keeps its plain cells"
     theme.use_theme("okuda")
     for label in (f"◖ {'CHANGES · CONFLICT':<27} ◗", "◖ 123D ◗"):

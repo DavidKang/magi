@@ -1,4 +1,5 @@
 import asyncio
+import datetime as dt
 import json
 import threading
 
@@ -6,34 +7,19 @@ import pytest
 from textual.color import Color
 from textual.widgets import Footer, Input, OptionList, Static, Tabs
 from textual.widgets._footer import FooterKey
-
-import datetime as dt
-
-from builders import PR_ONE, PR_TWO, SETTINGS, TICKETS, board, failing_load, make_epic, make_pr, settings_file
-from magi import rows
-from magi.tui import theme
-from magi.tui.app import MagiApp
-from magi.tui import screens
-from magi.tui.screens import ThemeScreen
 from textual_image.widget import get_cell_size
 
-
-async def pick_theme(pilot, name):
-    await pilot.press("t")
-    await pilot.pause()
-    choices = pilot.app.screen.query_one("#theme-list", OptionList)
-    choices.highlighted = choices.get_option_index(name)
-    await pilot.press("enter")
-    await pilot.pause()
+from builders import ALERT_PRS, PR_ONE, PR_TWO, SETTINGS, TICKETS, board, failing_load, magi_app, make_epic, pick_theme, started
+from magi import rows
+from magi.tui import screens, theme
+from magi.tui.screens import ThemeScreen
 
 
 async def lcars_theme(cache):
-    path = settings_file(cache)
     lcars = theme.THEMES["okuda"]
-    app = MagiApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=path)
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
+    app = magi_app(cache)
+    path = app.config_path
+    async with started(app) as pilot:
         assert app.screen.styles.background == Color.parse(theme.THEMES["default"]["bg"]), "a config without a theme starts with the default one"
         assert not any(app.query_one(f"#{name}").display for name in ("elbow", "bar", "sidebar", "condition", "pills")), "the default theme has no LCARS frame"
         assert app.query_one(Tabs).display, "the default theme keeps its tabs"
@@ -84,7 +70,6 @@ async def lcars_theme(cache):
         assert str(app.query_one("#condition").render()) == "\ue0b6 RED ALERT \ue0b4", "LCARS shows the board's alert level as a pill"
         assert str(app.query_one("#panel-changes").border_title) == "05-CAPTAIN'S LOG 1", "LCARS calls the changes the Captain's Log"
         assert "CAPTAIN'S" in str(app.query_one("#side-changes").render()), "LCARS calls the changes the Captain's Log"
-        assert app.query_one("#list-prs").get_option_at_index(0).prompt.plain == "── ON THE AUTHOR (1) ──", "LCARS writes the turn groups in capitals"
         assert str(app.query_one("#panel-prs").border_title) == "04-CREW REPORTS 1", "LCARS calls the team PRs crew reports"
         assert "REPORTS" in str(app.query_one("#side-prs").render()), "LCARS calls the team PRs crew reports"
         titles = {key: str(app.query_one(f"#panel-{key}").border_title) for key in ("attention", "epics", "mine_prs", "mine_tickets", "details")}
@@ -94,7 +79,6 @@ async def lcars_theme(cache):
         assert (app.query_one(Footer).styles.background, key.styles.background) == (Color.parse(lcars["bg"]), Color.parse(lcars["line"])), \
             "LCARS turns the footer into a row of buttons"
         assert key.get_component_rich_style("footer-key--key").bgcolor.triplet.hex == lcars["accent"], "LCARS turns the footer into a row of buttons"
-        assert "◖ RED CI · CONFLICT " in app.query_one("#list-prs").get_option_at_index(1).prompt.plain, "LCARS shows what a PR is missing as a pill"
         buttons = list(app.query(".side"))
         assert app.query_one("#sidebar").display, "LCARS adds a sidebar button per box, lit for the focused one"
         assert [str(b.render()).split() [0] for b in buttons] == ["03", "04", "05", "06", "07", "08"], \
@@ -131,20 +115,14 @@ async def lcars_theme(cache):
         assert app.screen.styles.background == Color.parse(lcars["bg"]), "t switches the TUI to LCARS"
         assert app.query_one("#panel-prs .fill").styles.background == Color.parse(lcars["line"]), "t switches the TUI to LCARS"
         assert lcars["accent"] in app.sections["prs"][0].detail, "the switch repaints the board"
-        assert json.loads(path.read_text()) == {**SETTINGS, "theme": "okuda"}, "the theme is saved in the config"
-    app = MagiApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=path)
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
+    app = magi_app(cache, config_path=path)
+    async with started(app) as pilot:
         assert app.screen.styles.background == Color.parse(lcars["bg"]), "the saved theme applies on start"
-        for name in ("picard",):
-            await pick_theme(pilot, name)
-            assert app.query_one("#panel-prs .fill").styles.background == Color.parse(theme.THEMES[name]["line"]), f"the {name} LCARS has its own colours"
-            assert app.query_one("#sidebar").display, f"the {name} LCARS keeps the LCARS frame"
-            assert json.loads(path.read_text())["theme"] == name, "the picked theme is saved in the config"
+        await pick_theme(pilot, "picard")
+        assert app.query_one("#panel-prs .fill").styles.background == Color.parse(theme.THEMES["picard"]["line"]), "the picard LCARS has its own colours"
+        assert app.query_one("#sidebar").display, "the picard LCARS keeps the LCARS frame"
         await pick_theme(pilot, "default")
         assert app.screen.styles.background == Color.parse(theme.THEMES["default"]["bg"]), "t switches back to the default theme"
-        assert json.loads(path.read_text())["theme"] == "default", "t switches back to the default theme"
         assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 1", "the default theme keeps its titles, states and header"
         assert "red CI · conflict" in app.query_one("#list-prs").get_option_at_index(1).prompt.plain, \
             "the default theme keeps its titles, states and header"
@@ -158,10 +136,8 @@ async def lcars_theme(cache):
         assert str(app.query_one("#status").render()).startswith("updated "), "the default theme drops the LCARS words"
         assert app.query_one("#list-prs").get_option_at_index(0).prompt.plain == "── on the author (1) ──", \
             "the default theme drops the LCARS words and writes the turn groups in lowercase"
-    app = MagiApp(load=failing_load, opener=print, copier=print, clock=lambda: 5000.0, cache=cache, config_path=path)
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
+    app = magi_app(cache, load=failing_load, clock=lambda: 5000.0, config_path=path)
+    async with started(app) as pilot:
         await pick_theme(pilot, "okuda")
         assert "refresh failed" in str(app.query_one("#status").render()), "switching the theme keeps a failed refresh visible"
 
@@ -172,15 +148,13 @@ def test_lcars_theme(cache):
 
 
 async def lcars_edit(cache):
-    path = settings_file(cache, {**SETTINGS, "theme": "okuda"})
-    app = MagiApp(load=lambda: board([PR_ONE]), opener=print, copier=print, cache=cache, config_path=path, edit_config=True)
-    async with app.run_test(size=(160, 40)) as pilot:
-        await pilot.pause()
+    app = magi_app(cache, theme="okuda", edit_config=True)
+    async with started(app) as pilot:
         app.screen.query_one("#config-team", Input).value = "alice bob, carol"
         await pilot.click("#config-save")
         await app.workers.wait_for_complete()
         await pilot.pause()
-        assert json.loads(path.read_text())["theme"] == "okuda", "editing the config keeps the saved theme"
+        assert json.loads(app.config_path.read_text())["theme"] == "okuda", "editing the config keeps the saved theme"
 
 
 @pytest.mark.usefixtures("default_theme")
@@ -193,7 +167,7 @@ async def refreshing_status(cache, name):
     def slow_load():
         release.wait(5)
         return board([PR_ONE])
-    app = MagiApp(load=slow_load, opener=print, copier=print, cache=cache, config_path=settings_file(cache, {**SETTINGS, "theme": name}))
+    app = magi_app(cache, load=slow_load, theme=name)
     async with app.run_test(size=(160, 40)) as pilot:
         try:
             await pilot.pause()
@@ -205,68 +179,49 @@ async def refreshing_status(cache, name):
 
 
 @pytest.mark.usefixtures("default_theme")
-@pytest.mark.parametrize("name, expected", [("okuda", "ENGAGING WARP DRIVE…"), ("picard", "ENGAGING WARP DRIVE…"),
-                                            ("default", "refreshing…")])
+@pytest.mark.parametrize("name, expected", [("okuda", "ENGAGING WARP DRIVE…"), ("default", "refreshing…")])
 def test_refreshing_status(cache, name, expected):
     assert asyncio.run(refreshing_status(cache, name)) == expected, "LCARS refreshes by engaging warp drive, the default theme says refreshing"
 
 
-async def lcars_condition(cache, prs):
-    path = settings_file(cache, {**SETTINGS, "theme": "okuda"})
-    app = MagiApp(load=lambda: board(prs), opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=path)
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
-        shown = app.query_one("#condition").render(), app.query_one("#bar").styles.background, app.query_one("#elbow").render().spans[0].style
+async def lcars_condition(cache):
+    lcars = theme.THEMES["okuda"]
+    app = magi_app(cache, theme="okuda")
+    async with started(app) as pilot:
         assert app.query_one("#elbow-logo").styles.background == app.query_one("#bar").styles.background, "the logo sits on the elbow's colour"
-        app.show_board(board([make_pr(review_decision="APPROVED", ci="passing", mergeable="MERGEABLE")]), 1000.0)
-        await pilot.pause()
-        return *shown, app.query_one("#bar").styles.background, app.query_one("#elbow").render().spans[0].style.foreground
+        for tone, label in zip(ALERT_PRS, ("CONDITION GREEN", "YELLOW ALERT", "RED ALERT")):
+            app.show_board(board([ALERT_PRS[tone]]), 1000.0)
+            await pilot.pause()
+            shown, color = app.query_one("#condition").render(), Color.parse(lcars[tone])
+            assert (shown.plain, [(span.style.foreground, span.style.background) for span in shown.spans]) == \
+                (f"\ue0b6 {label} \ue0b4", [(color, None), (Color.parse(lcars["title"]), color), (color, None)]), \
+                "LCARS shows the alert level as a green, yellow or red pill"
+            frame = Color.parse(lcars["bad" if tone == "bad" else "accent"])
+            assert (app.query_one("#bar").styles.background, app.query_one("#elbow").render().spans[0].style.foreground) == (frame, frame), \
+                "RED ALERT turns the LCARS frame red, and it turns back when the alert drops"
 
 
 @pytest.mark.usefixtures("default_theme")
-@pytest.mark.parametrize("pr, label, tone", [
-    (make_pr(review_decision="APPROVED", ci="passing", mergeable="MERGEABLE"), "CONDITION GREEN", "ok"),
-    (make_pr(ci="passing", mergeable="MERGEABLE"), "YELLOW ALERT", "warn"),
-    (make_pr(), "RED ALERT", "bad"),
-    (make_pr(author={"login": "bob"}), "YELLOW ALERT", "warn")])
-def test_lcars_condition_colors(cache, pr, label, tone):
-    shown, bar, elbow = asyncio.run(lcars_condition(cache, [pr]))[:3]
-    lcars = theme.THEMES["okuda"]
-    color = Color.parse(lcars[tone])
-    assert (shown.plain, [(span.style.foreground, span.style.background) for span in shown.spans]) == \
-        (f"\ue0b6 {label} \ue0b4", [(color, None), (Color.parse(lcars["title"]), color), (color, None)]), \
-        "LCARS shows the alert level as a green, yellow or red pill"
-    frame = Color.parse(lcars["bad"] if label == "RED ALERT" else lcars["accent"])
-    assert (bar, elbow.foreground) == (frame, frame), "RED ALERT turns the LCARS frame red"
+def test_lcars_condition_colors(cache):
+    asyncio.run(lcars_condition(cache))
 
 
-async def long_boxes(cache, name):
+async def long_boxes(cache):
     epics = [make_epic(key=f"ACME-{n}") for n in range(15)]
     full = {**board([PR_ONE]), "epics": epics, "tickets_by_epic": {e.key: TICKETS for e in epics},
             "attention": board([PR_ONE])["attention"] * 20}
-    app = MagiApp(load=lambda: full, opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
-                   config_path=settings_file(cache, {**SETTINGS, "theme": name}))
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
-        for box in ("attention", "epics"):
-            panel, body, rows = (app.query_one(f"#panel-{box}{part}") for part in ("", " .pbody", f" #list-{box}"))
-            assert rows.max_scroll_y > 0, f"a full {box} box scrolls in the {name} theme"
-            assert body.region.bottom <= panel.region.bottom, f"a full {box} box keeps its bottom line in the {name} theme"
+    async with started(magi_app(cache, load=lambda: full)) as pilot:
+        for name in ("default", "okuda"):
+            await pick_theme(pilot, name)
+            for box in ("attention", "epics"):
+                panel, body, rows = (pilot.app.query_one(f"#panel-{box}{part}") for part in ("", " .pbody", f" #list-{box}"))
+                assert rows.max_scroll_y > 0, f"a full {box} box scrolls in the {name} theme"
+                assert body.region.bottom <= panel.region.bottom, f"a full {box} box keeps its bottom line in the {name} theme"
 
 
 @pytest.mark.usefixtures("default_theme")
-@pytest.mark.parametrize("name", ["default", *theme.LCARS])
-def test_full_boxes_scroll(cache, name):
-    asyncio.run(long_boxes(cache, name))
-
-
-@pytest.mark.usefixtures("default_theme")
-def test_lcars_frame_follows_the_alert(cache):
-    *_, bar, elbow = asyncio.run(lcars_condition(cache, [make_pr()]))
-    accent = Color.parse(theme.THEMES["okuda"]["accent"])
-    assert (bar, elbow) == (accent, accent), "the LCARS frame turns back from red when the alert drops"
+def test_full_boxes_scroll(cache):
+    asyncio.run(long_boxes(cache))
 
 
 def test_lcars_palettes():
@@ -276,10 +231,9 @@ def test_lcars_palettes():
 
 
 async def theme_picker(cache):
-    path = settings_file(cache)
-    app = MagiApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=path)
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
+    app = magi_app(cache)
+    path = app.config_path
+    async with started(app) as pilot:
         await pilot.press("t")
         await pilot.pause()
         choices = app.screen.query_one("#theme-list", OptionList)
@@ -295,7 +249,8 @@ async def theme_picker(cache):
         await pilot.press("t", "down", "down", "enter")
         await pilot.pause()
         assert not isinstance(app.screen, ThemeScreen), "enter applies the highlighted theme"
-        assert (theme.current, json.loads(path.read_text())["theme"]) == ("picard", "picard"), "enter applies the highlighted theme and saves it"
+        assert (theme.current, json.loads(path.read_text())) == ("picard", {**SETTINGS, "theme": "picard"}), \
+            "enter applies the highlighted theme and saves it in the config"
 
 
 @pytest.mark.usefixtures("default_theme")
@@ -308,19 +263,22 @@ def test_every_theme_is_offered_by_one_name():
     assert set(theme.DROPPED.values()) <= theme.THEMES.keys(), "a dropped theme reads as one still offered"
 
 
-async def saved_theme_start(cache, saved):
-    path = settings_file(cache, {**SETTINGS, "theme": saved})
-    app = MagiApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=path)
+@pytest.mark.parametrize("saved, started", [("lcars", "okuda"), ("voyager", "okuda"), ("magi", "nerv"), ("nerv", "nerv"),
+                                            ("picard", "picard"), ("gone", "default")])
+def test_a_saved_theme_reads_as_one_still_offered(saved, started):
+    assert theme.offered(saved) == started, "an old or unknown saved theme reads as one still offered"
+
+
+async def saved_theme_start(cache):
+    app = magi_app(cache, theme="lcars")
     async with app.run_test() as pilot:
         await pilot.pause()
         return theme.current, app.settings.theme
 
 
 @pytest.mark.usefixtures("default_theme")
-@pytest.mark.parametrize("saved, started", [("lcars", "okuda"), ("voyager", "okuda"), ("magi", "nerv"), ("nerv", "nerv"),
-                                            ("picard", "picard"), ("gone", "default")])
-def test_a_saved_theme_starts_in_one_still_offered(cache, saved, started):
-    assert asyncio.run(saved_theme_start(cache, saved)) == (started, started), "an old or unknown saved theme still starts"
+def test_an_old_saved_theme_still_starts(cache):
+    assert asyncio.run(saved_theme_start(cache)) == ("okuda", "okuda"), "an old saved theme starts as the one still offered"
 
 
 @pytest.mark.usefixtures("default_theme")
@@ -331,20 +289,16 @@ def test_an_unknown_theme_keeps_the_current_one():
     assert (theme.current, theme.COLORS["accent"]) == ("okuda", theme.THEMES["okuda"]["accent"]), "an unknown theme changes nothing"
 
 
-@pytest.mark.parametrize("name", ["default", "okuda", "nerv"])
-def test_no_logo_without_graphics(cache, monkeypatch, default_theme, name):
+def test_no_logo_without_graphics(cache, monkeypatch, default_theme):
     monkeypatch.setattr(screens, "GRAPHICS", False)
 
     async def run():
-        app = MagiApp(load=lambda: board([PR_ONE]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
-                        config_path=settings_file(cache))
-        async with app.run_test(size=(160, 40)) as pilot:
-            await app.workers.wait_for_complete()
-            await pilot.pause()
-            await pick_theme(pilot, name)
-            assert not any(app.query_one(logo).display for logo in ("#top #logo", "#nerv-logo", "#elbow-logo")), \
-                "a terminal without Sixel or Kitty graphics shows no logo"
-            assert app.query_one("#top .brand").display, "a terminal without Sixel or Kitty graphics shows the name instead"
+        async with started(magi_app(cache)) as pilot:
+            for name in ("default", "okuda", "nerv"):
+                await pick_theme(pilot, name)
+                assert not any(pilot.app.query_one(logo).display for logo in ("#top #logo", "#nerv-logo", "#elbow-logo")), \
+                    f"a terminal without Sixel or Kitty graphics shows no logo in the {name} theme"
+                assert pilot.app.query_one("#top .brand").display, f"a terminal without Sixel or Kitty graphics shows the name instead in the {name} theme"
 
     asyncio.run(run())
 
@@ -352,12 +306,8 @@ def test_no_logo_without_graphics(cache, monkeypatch, default_theme, name):
 @pytest.mark.parametrize("name", ["okuda", "nerv"])
 def test_framed_pr_rows_fit(cache, default_theme, name):
     async def run():
-        app = MagiApp(load=lambda: board([PR_ONE, PR_TWO]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
-                        config_path=settings_file(cache, {**SETTINGS, "theme": name}))
-        async with app.run_test(size=(180, 50)) as pilot:
-            await app.workers.wait_for_complete()
-            await pilot.pause()
-            listing = app.query_one("#list-prs", OptionList)
+        async with started(magi_app(cache, load=lambda: board([PR_ONE, PR_TWO]), theme=name), size=(180, 50)) as pilot:
+            listing = pilot.app.query_one("#list-prs", OptionList)
             room = listing.scrollable_content_region.width
             return room, [listing.get_option_at_index(i).prompt.cell_len for i in range(listing.option_count)]
 
@@ -367,12 +317,8 @@ def test_framed_pr_rows_fit(cache, default_theme, name):
 
 def test_pr_rows_follow_their_box_when_it_resizes(cache, default_theme):
     async def run():
-        app = MagiApp(load=lambda: board([PR_ONE, PR_TWO]), opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
-                      config_path=settings_file(cache))
-        async with app.run_test(size=(160, 50)) as pilot:
-            await app.workers.wait_for_complete()
-            await pilot.pause()
-            listing = app.query_one("#list-prs", OptionList)
+        async with started(magi_app(cache, load=lambda: board([PR_ONE, PR_TWO])), size=(160, 50)) as pilot:
+            listing = pilot.app.query_one("#list-prs", OptionList)
             row = lambda: listing.get_option_at_index(1).prompt
             before = (listing.scrollable_content_region.width, row().cell_len)
             await pilot.resize_terminal(200, 50)

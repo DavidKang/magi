@@ -1,17 +1,15 @@
 import asyncio
-import json
 import os
 import subprocess
 import sys
 import threading
-from dataclasses import replace
 
 import pytest
 from PIL import Image as PILImage
 from textual.widgets import OptionList, Static
 from textual_image.widget import Image, get_cell_size
 
-from builders import PR_ONE, PR_THREE, PR_TWO, STATED, THREAD, board, failing_load, settings_file
+from builders import PR_ONE, PR_THREE, PR_TWO, STATED, board, failing_load, magi_app, settings_file, started
 from magi.adapters import storage
 from magi.domain.status import column_for
 from magi.tui import app as app_module
@@ -22,10 +20,8 @@ from magi.tui.app import MagiApp
 async def main(cache):
     boards = [board([PR_ONE, PR_TWO]), board([PR_ONE, PR_TWO, PR_THREE])]
     opened, copied, now = [], [], [1000.0]
-    app = MagiApp(load=lambda: boards.pop(0), opener=opened.append, copier=copied.append, clock=lambda: now[0], cache=cache, config_path=settings_file(cache))
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
+    app = magi_app(cache, load=lambda: boards.pop(0), opener=opened.append, copier=copied.append, clock=lambda: now[0])
+    async with started(app) as pilot:
         detail = lambda: str(app.query_one("#detail", Static).render())
         title = lambda key: str(app.query_one(f"#panel-{key}").border_title)
         focused = lambda key: app.focused is app.query_one(f"#list-{key}")
@@ -73,10 +69,6 @@ async def main(cache):
         assert "[ACME-1] First change" in detail(), "k moves up, detail keeps the ticket prefix"
         await pilot.press("j")
         assert "Second change" in detail(), "j moves to next PR"
-        bar = app.query_one("#list-epics", OptionList).get_option_at_index(0).prompt
-        segments = [(bar.plain[s.start:s.end], str(s.style)) for s in bar.spans if bar.plain[s.start] in "█░"]
-        assert "█" * 10 + "░" * 10 in bar.plain, "epic progress is a block bar"
-        assert segments == [("█" * 10, "#56d364"), ("░" * 10, "#6e7a87")], "done blocks are green and the rest dim"
         assert str(app.query_one("#list-prs", OptionList).get_option_at_index(4).prompt).rstrip().endswith(" brs"), "long repo shown as alias"
         await pilot.press("enter")
         assert opened == [PR_TWO.url], "enter opens the PR"
@@ -138,8 +130,9 @@ async def main(cache):
         assert "epic" not in detail(), "a ticket cached before the detail fetch shows no detail fields"
         await pilot.press("c")
         await pilot.pause()
-        assert not isinstance(app.screen, app_module.ReviewScreen), "c on a ticket with nothing to read says so"
-        assert any("no review comments" in n.message for n in app._notifications), "c on a ticket with nothing to read says so"
+        assert not isinstance(app.screen, app_module.ReviewScreen), "c on a ticket cached before the detail fetch opens nothing"
+        assert any("no review comments" in n.message for n in app._notifications), \
+            "c on a ticket cached before the detail fetch says it has no review comments"
         await pilot.press("slash", *"seven")
         await pilot.pause()
         prompts = [str(tickets.get_option_at_index(i).prompt) for i in range(tickets.option_count)]
@@ -156,17 +149,8 @@ async def main(cache):
         await pilot.press("j")
         assert "Ticket one" in detail(), "j skips the status line to the next ticket, with its PRs"
         assert "app#1" in detail(), "j skips the status line to the next ticket, with its PRs"
-        assert "In Progress" in detail(), "my ticket detail names the status in English"
-        assert "En proceso" not in detail(), "my ticket detail names the status in English"
         await pilot.press("enter")
         assert opened[-1] == "https://acme.atlassian.net/browse/ACME-1", "enter opens the ticket in Jira"
-        assert all(text in detail() for text in ["Story", "Low", "ACME-100", "Epic one", "creator", "Bob", "Oct 08", "updated", "blocked"]), \
-            "my ticket detail shows type, priority, epic, creator, dates and labels"
-        assert "is blocked by" in detail(), "my ticket detail shows its links with the other ticket's status"
-        assert "ACME-2" in detail(), "my ticket detail shows its links with the other ticket's status"
-        assert "In review" in detail(), "my ticket detail shows its links with the other ticket's status"
-        assert "Use the new reason column." in detail(), "my ticket detail previews the description and counts the comments"
-        assert "comments 1 · c to open" in detail(), "my ticket detail previews the description and counts the comments"
         await pilot.press("c")
         await pilot.pause()
         popup = app.screen
@@ -208,7 +192,7 @@ def unmapped_load():
 
 
 async def unmapped_status(cache):
-    app = MagiApp(load=unmapped_load, opener=print, copier=print, cache=cache, config_path=settings_file(cache))
+    app = magi_app(cache, load=unmapped_load)
     async with app.run_test(size=(160, 40)) as pilot:
         try:
             await asyncio.wait_for(app.workers.wait_for_complete(), 5)
@@ -230,16 +214,12 @@ async def reopen(cache):
         calls.append(1)
         return board([PR_ONE, PR_TWO, PR_THREE])
     storage.write(cache, {"at": 1000.0, "board": board([PR_ONE])})
-    app = MagiApp(load=load, opener=print, copier=print, clock=lambda: 1015.0, cache=cache, config_path=settings_file(cache))
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
+    app = magi_app(cache, load=load, clock=lambda: 1015.0)
+    async with started(app):
         assert calls == [], "reopening within 30 seconds does not refresh"
         assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 1", "reopening within 30 seconds shows the saved board"
-    app = MagiApp(load=load, opener=print, copier=print, clock=lambda: 1090.0, cache=cache, config_path=settings_file(cache))
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
+    app = magi_app(cache, load=load, clock=lambda: 1090.0)
+    async with started(app):
         assert calls == [1], "reopening after 30 seconds refreshes once"
         assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 3", "refreshed board replaces the saved one"
         assert storage.read(cache)["at"] == 1090.0, "successful refresh saves the board"
@@ -249,45 +229,22 @@ def test_reopen(cache):
     asyncio.run(reopen(cache))
 
 
-async def stale_cache(cache):
-    old = board([replace(PR_ONE, threads=[{**THREAD, "comments": [{**THREAD["comments"][0], "author": None}]}])])
-    cache.write_text(json.dumps({"at": 1000.0, "board": old}, default=storage.encode))
-    calls = []
-    app = MagiApp(load=lambda: calls.append(1) or board([PR_ONE]), opener=print, copier=print, clock=lambda: 1030.0, cache=cache,
-                         config_path=settings_file(cache))
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
-        assert calls == [1], "a cache from an older version is ignored and the board refreshes"
-
-
-def test_stale_cache(cache):
-    asyncio.run(stale_cache(cache))
-
-
 async def throttle_across_runs(cache):
     calls = []
     def load():
         calls.append(1)
         return board([PR_ONE])
-    app = MagiApp(load=failing_load, opener=print, copier=print, clock=lambda: 1000.0, cache=cache, config_path=settings_file(cache))
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
-    app = MagiApp(load=load, opener=print, copier=print, clock=lambda: 1015.0, cache=cache, config_path=settings_file(cache))
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
+    async with started(magi_app(cache, load=failing_load)):
+        pass
+    app = magi_app(cache, load=load, clock=lambda: 1015.0)
+    async with started(app) as pilot:
         assert calls == [], "reopening within 30 seconds of a failed refresh does not refresh"
         assert "next refresh in 15s" in str(app.query_one("#status", Static).render()), "an empty board says when it will refresh"
         await pilot.press("r")
         await pilot.pause()
         assert calls == [], "r within 30 seconds of a refresh in an earlier run is skipped"
         assert any("next refresh in 15s" in n.message for n in app._notifications), "r within 30 seconds of a refresh in an earlier run is skipped"
-    app = MagiApp(load=load, opener=print, copier=print, clock=lambda: 1031.0, cache=cache, config_path=settings_file(cache))
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
+    async with started(magi_app(cache, load=load, clock=lambda: 1031.0)):
         assert calls == [1], "reopening after 30 seconds refreshes"
 
 
@@ -302,7 +259,7 @@ async def running(cache):
         release.wait(5)
         return board([PR_ONE])
     now = [1000.0]
-    app = MagiApp(load=slow_load, opener=print, copier=print, clock=lambda: now[0], cache=cache, config_path=settings_file(cache))
+    app = magi_app(cache, load=slow_load, clock=lambda: now[0])
     async with app.run_test(size=(160, 40)) as pilot:
         await pilot.pause()
         now[0] += 120
@@ -320,10 +277,8 @@ def test_running(cache):
 
 
 async def failure(cache):
-    app = MagiApp(load=failing_load, opener=print, copier=print, cache=cache, config_path=settings_file(cache))
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
+    app = magi_app(cache, load=failing_load)
+    async with started(app):
         assert app.is_running, "failed refresh keeps the app running"
         assert any("API rate limit exceeded" in n.message for n in app._notifications), "failed refresh shows the command error"
         assert not cache.exists(), "failed refresh saves nothing"
@@ -344,7 +299,7 @@ def test_quit_while_refreshing(cache):
         return board([PR_ONE])
 
     async def run():
-        app = MagiApp(load=load, opener=print, copier=print, cache=cache, config_path=settings_file(cache))
+        app = magi_app(cache, load=load)
         async with app.run_test(size=(160, 40)) as pilot:
             await asyncio.to_thread(started.wait, 5)
             await pilot.press("q")

@@ -3,16 +3,14 @@ import asyncio
 import pytest
 from textual.widgets import OptionList, Tab
 
-from builders import PR_ONE, PR_TWO, SETTINGS, SUBJECT, board, settings_file
+from builders import PR_ONE, PR_TWO, SUBJECT, board, magi_app, started
 from magi.adapters import storage
-from magi.tui.app import MagiApp
 
 BOXES = ("attention", "prs", "changes", "mine_prs")
 
 
-def start(cache, name="default", load=lambda: board([PR_ONE, PR_TWO])):
-    return MagiApp(load=load, opener=print, copier=print, clock=lambda: 1000.0, cache=cache,
-                    config_path=settings_file(cache, {**SETTINGS, "theme": name}))
+def two_prs():
+    return board([PR_ONE, PR_TWO])
 
 
 def rows(app, box):
@@ -26,10 +24,8 @@ def marked(app):
 
 async def unseen(cache):
     storage.write(cache.with_name("seen.json"), {"seen": {"https://github.com/acme/app/pull/99": "2026-10-20T10:00 Merged"}})
-    app = start(cache)
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
+    app = magi_app(cache, load=two_prs)
+    async with started(app) as pilot:
         assert marked(app) == {"attention": [True], "prs": [True, False], "changes": [True], "mine_prs": [True]}, \
             "every row of an item with an unseen change carries a dot, in every box"
         assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 2 · 1 new", "a box counts its unseen rows"
@@ -50,10 +46,8 @@ async def unseen(cache):
         assert not str(app.query_one("#detail").render()).startswith("●"), "a seen change leaves the detail as it was"
     assert storage.read(cache.with_name("seen.json")) == {"seen": {PR_ONE.url: "2026-10-24T02:04 New PR"}}, \
         "what was seen is saved, and items no longer on the board are dropped"
-    app = start(cache)
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
+    app = magi_app(cache, load=two_prs)
+    async with started(app) as pilot:
         assert not any(any(row) for row in marked(app).values()), "a seen change stays seen after a restart"
 
 
@@ -63,10 +57,8 @@ def test_unseen_changes(cache):
 
 
 async def first_run(cache):
-    app = start(cache)
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
+    app = magi_app(cache, load=two_prs)
+    async with started(app) as pilot:
         assert not any(any(row) for row in marked(app).values()), "the first run marks nothing"
     assert storage.read(cache.with_name("seen.json")) == {"seen": {PR_ONE.url: "2026-10-24T02:04 New PR"}}, \
         "the first run takes every change as seen"
@@ -79,10 +71,8 @@ def test_first_run_marks_nothing(cache):
 
 async def lcars_unseen(cache):
     storage.write(cache.with_name("seen.json"), {"seen": {}})
-    app = start(cache, "okuda")
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
+    app = magi_app(cache, load=two_prs, theme="okuda")
+    async with started(app) as pilot:
         assert marked(app)["prs"][0], "LCARS marks unseen rows too"
         assert str(app.query_one("#panel-prs .count").render()) == "2 · 1 new", "LCARS counts unseen rows in the title pill"
         assert "●" in str(app.query_one("#pill-mine .seg").render()), "LCARS marks a tab pill with unseen rows"
@@ -94,17 +84,16 @@ def test_lcars_unseen_changes(cache):
 
 
 def with_change(item, at, label):
-    found = board([PR_ONE, PR_TWO])
+    found = two_prs()
     found["changes"] = [*found["changes"], {"at": at, "tone": "commented", "label": label, "subject": {**SUBJECT, "url": item},
                                             "note": None, "aside": None, "item": item}]
     return found
 
 
 async def refresh_on_a_row(cache):
-    loaded = {"board": board([PR_ONE, PR_TWO])}
-    app = start(cache, load=lambda: loaded["board"])
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
+    loaded = {"board": two_prs()}
+    app = magi_app(cache, load=lambda: loaded["board"])
+    async with started(app) as pilot:
         await pilot.press("4", "j")
         await pilot.pause()
         loaded["board"] = with_change(PR_TWO.url, "2026-10-25T03:00", "New commits")
@@ -122,10 +111,8 @@ def test_a_refresh_keeps_new_changes_unseen(cache):
 
 async def changed_again(cache):
     storage.write(cache.with_name("seen.json"), {"seen": {PR_ONE.url: "2026-10-23T01:00 Old change"}})
-    app = start(cache)
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
-        await pilot.pause()
+    app = magi_app(cache, load=two_prs)
+    async with started(app) as pilot:
         assert marked(app)["prs"] == [True, False], "an item that changed again after it was seen is marked again"
         await pilot.press("4", "j")
         await pilot.pause()
@@ -140,9 +127,8 @@ def test_a_seen_item_that_changes_again_is_marked(cache):
 
 async def moving_between(cache):
     storage.write(cache.with_name("seen.json"), {"seen": {}})
-    app = start(cache, load=lambda: with_change(PR_TWO.url, "2026-10-25T03:00", "[bold]Re-review[/bold]"))
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
+    app = magi_app(cache, load=lambda: with_change(PR_TWO.url, "2026-10-25T03:00", "[bold]Re-review[/bold]"))
+    async with started(app) as pilot:
         await pilot.press("4", "j")
         await pilot.pause()
         assert marked(app)["prs"] == [False, True], "moving between two unseen rows marks only the one left"
@@ -160,9 +146,8 @@ def test_moving_between_rows_and_boxes(cache):
 
 async def filtering(cache):
     storage.write(cache.with_name("seen.json"), {"seen": {}})
-    app = start(cache)
-    async with app.run_test(size=(160, 40)) as pilot:
-        await app.workers.wait_for_complete()
+    app = magi_app(cache, load=two_prs)
+    async with started(app) as pilot:
         await pilot.press("4", "slash", *"second", "escape")
         await pilot.pause()
         assert marked(app)["prs"] == [True, False], "a filter that hides the cursor's row does not mark it seen"
