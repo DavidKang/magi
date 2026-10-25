@@ -16,10 +16,14 @@ THEMES = {"default": {"ok": "#56d364", "bad": "#ff7b72", "warn": "#e3b341", "blu
           # Unit-01 in nerv-ui's tokens: purple armour (--color-nerv-purple), LCD green trim, nerv white text.
           "eva01": {"ok": "#39ff14", "bad": "#ff0000", "warn": "#ff9900", "blue": "#00ffff", "dim": "#808080", "accent": "#39ff14",
                     "focus": "#39ff14", "bg": "#000000", "fg": "#e0e0e0", "line": "#9933ff", "raised": "#1f0d33", "title": "#000000",
-                    "pick": "#9933ff33", "pick-focus": "#9933ff59", "veil": "#000000c0"}}
+                    "pick": "#9933ff33", "pick-focus": "#9933ff59", "veil": "#000000c0"},
+          # Cyberpunk 2077 has no published palette: its HUD's off-red text, cyan lines and the brand's yellow, picked by eye.
+          "cyberpunk": {"ok": "#1ced7a", "bad": "#ff003c", "warn": "#ff9a00", "blue": "#00f0ff", "dim": "#7a6a6a", "accent": "#fcee0a",
+                        "focus": "#fcee0a", "bg": "#000000", "fg": "#ff5c57", "line": "#00f0ff", "raised": "#1a0d0d", "title": "#000000",
+                        "pick": "#fcee0a33", "pick-focus": "#fcee0a59", "veil": "#000000c0"}}
 LCARS = ["okuda", "picard"]
 # The themes that draw their own frame instead of the default layout.
-FRAMES = {**{name: "lcars" for name in LCARS}, "nerv": "nerv", "eva01": "nerv"}
+FRAMES = {**{name: "lcars" for name in LCARS}, "nerv": "nerv", "eva01": "nerv", "cyberpunk": "cyberpunk"}
 # Themes no longer offered, read as the closest one still offered so an old config still starts.
 DROPPED = {"lcars": "okuda", "voyager": "okuda", "magi": "nerv"}
 COLORS = dict(THEMES["default"])

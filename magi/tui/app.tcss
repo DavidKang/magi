@@ -68,6 +68,8 @@ TicketScreen { align: center middle; background: $tk-veil; }
 .lcars #bar.-red { background: $tk-bad; }
 .nerv #bar { background: $tk-bg; color: $tk-accent; }
 .nerv #bar.-red { color: $tk-bad; }
+.cyberpunk #bar { background: $tk-bg; color: $tk-accent; }
+.cyberpunk #bar.-red { color: $tk-bad; }
 #foot { dock: bottom; height: 1; }
 #foot Footer { dock: none; width: 1fr; }
 #footcap, #foot-cap { display: none; }
@@ -89,6 +91,8 @@ TicketScreen { align: center middle; background: $tk-veil; }
 .lcars .panel:focus-within .pbody { border: round $tk-accent; border-top: none; }
 .nerv .pbody { border: heavy $tk-line; border-top: none; }
 .nerv .panel:focus-within .pbody { border: heavy $tk-focus; border-top: none; }
+.cyberpunk .pbody { border: solid $tk-line; border-top: none; }
+.cyberpunk .panel:focus-within .pbody { border: solid $tk-focus; border-top: none; }
 .cap { color: $tk-line; background: $tk-bg; }
 .seg { background: $tk-line; color: $tk-title; text-style: bold; }
 .ptitle .code, .ptitle .count { padding: 0 1; }

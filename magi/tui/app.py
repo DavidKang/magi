@@ -48,23 +48,29 @@ LCARS_NAMES = {"attention": "bridge alerts", "prs": "crew reports", "changes": "
                "mine_tickets": "away missions", "details": "sensor readings"}
 NERV_NAMES = {"attention": "emergency", "prs": "sorties", "changes": "operations log", "epics": "projects", "mine_prs": "my sorties",
               "mine_tickets": "my orders", "details": "magi analysis"}
-FRAME_NAMES = {"lcars": LCARS_NAMES, "nerv": NERV_NAMES}
+CYBERPUNK_NAMES = {"attention": "ncpd scanner", "prs": "fixer gigs", "changes": "datashards", "epics": "main jobs", "mine_prs": "my gigs",
+                   "mine_tickets": "side jobs", "details": "kiroshi scan"}
+FRAME_NAMES = {"lcars": LCARS_NAMES, "nerv": NERV_NAMES, "cyberpunk": CYBERPUNK_NAMES}
 # Evangelion's blood types: orange for an unknown pattern, blue for an Angel.
 NERV_CONDITIONS = {"green": "NORMAL", "yellow": "PATTERN ORANGE", "red": "PATTERN BLUE"}
 # EVA 01 reads the level as Unit-01's sync with its pilot, and berserk when it breaks.
 EVA_CONDITIONS = {"green": "SYNC STABLE", "yellow": "SYNC UNSTABLE", "red": "BERSERK"}
-THEME_CONDITIONS = {"nerv": NERV_CONDITIONS, "eva01": EVA_CONDITIONS}
-REFRESHING = {"lcars": "ENGAGING WARP DRIVE…"}
+# Night City's wanted level: five stars send MaxTac.
+CYBERPUNK_CONDITIONS = {"green": "NO HEAT", "yellow": "HEAT ★★", "red": "HEAT ★★★★★"}
+THEME_CONDITIONS = {"nerv": NERV_CONDITIONS, "eva01": EVA_CONDITIONS, "cyberpunk": CYBERPUNK_CONDITIONS}
+REFRESHING = {"lcars": "ENGAGING WARP DRIVE…", "cyberpunk": "JACKING IN…"}
 CONDITION_TONES = {"green": "ok", "yellow": "warn", "red": "bad"}
 TABS = {"overview": ["attention", "prs", "changes", "epics"], "mine": ["mine_prs", "mine_tickets"]}
 NUMBERS = {key: n for n, key in enumerate(SECTIONS, len(TABS) + 1)}
 TAB_OF = {key: tab for tab, keys in TABS.items() for key in keys}
 LEFT_CAP, RIGHT_CAP = "\ue0b6", "\ue0b4"
 # NERV writes titles into the box line and outlines its tabs, after nerv-ui's labels and navigation.
-TITLE_CAPS = {"lcars": (LEFT_CAP, RIGHT_CAP), "nerv": ("", "")}
-TAB_CAPS = {"lcars": (LEFT_CAP, RIGHT_CAP), "nerv": ("▕", "▏")}
-FRAME_EDGES = {"lcars": ("╭─", "─╮"), "nerv": ("┏━", "━┓")}
+# Cyberpunk slants its blocks and keeps its lines square, after the game's HUD.
+TITLE_CAPS = {"lcars": (LEFT_CAP, RIGHT_CAP), "nerv": ("", ""), "cyberpunk": ("◢", "◤")}
+TAB_CAPS = {"lcars": (LEFT_CAP, RIGHT_CAP), "nerv": ("▕", "▏"), "cyberpunk": ("◢", "◤")}
+FRAME_EDGES = {"lcars": ("╭─", "─╮"), "nerv": ("┏━", "━┓"), "cyberpunk": ("┌─", "─┐")}
 HAZARD_STRIPE = "◢◤" * 200
+HATCHED_LINE = "╱" * 400
 HEAVY_LINE = "━" * 400
 # Star Trek's running in-joke number, drawn in blocks: a terminal cell cannot grow its font.
 FORTY_SEVEN = "█ █ ███\n█ █   █\n███   █\n  █   █\n  █   █"
@@ -340,7 +346,8 @@ class MagiApp(App):
 
     def show_updated(self):
         when = dt.datetime.fromtimestamp(self.updated_at)
-        status = {"lcars": rows.stardate(when), "nerv": f"MAGI · MELCHIOR BALTHASAR CASPER · SYNC {when:%H:%M}"}
+        status = {"lcars": rows.stardate(when), "nerv": f"MAGI · MELCHIOR BALTHASAR CASPER · SYNC {when:%H:%M}",
+                  "cyberpunk": f"NIGHT CITY · NET UPLINK {when:%H:%M}"}
         pilot = f"EVA-01 · PILOT {self.settings.github_user.upper()} · SYNC {when:%H:%M}"
         self.query_one("#status", Static).update(pilot if theme.current == "eva01" else status.get(theme.frame(), f"updated {when:%H:%M}"))
 
@@ -369,7 +376,8 @@ class MagiApp(App):
         self.level = condition(board["prs"], self.settings.github_user)
         tone = COLORS[CONDITION_TONES[self.level]]
         label = THEME_CONDITIONS.get(theme.current, CONDITIONS)[self.level]
-        pill = Text.assemble((LEFT_CAP, tone), (f" {label} ", f"bold {COLORS['title']} on {tone}"), (RIGHT_CAP, tone))
+        left, right = glyphs(TITLE_CAPS)
+        pill = Text.assemble((left, tone), (f" {label} ", f"bold {COLORS['title']} on {tone}"), (right, tone))
         # NERV flags the level as a marked line, after nerv-ui's condition banner.
         flag = Text.assemble(("■ ", tone), (label, f"bold {tone}"))
         self.query_one("#condition", Static).update(flag if theme.frame() == "nerv" else pill)
@@ -422,6 +430,7 @@ class MagiApp(App):
         self.set_class(theme.lcars(), "lcars")
         self.set_class(theme.frame() == "nerv", "nerv")
         self.set_class(theme.current == "eva01", "eva01")
+        self.set_class(theme.frame() == "cyberpunk", "cyberpunk")
         # A PR row's pills need more room than half the screen: the new mark, the cells and their gaps, the box's border and padding.
         self.query_one("#panes").styles.min_width = 2 + MIN_TITLE + sum(filter(None, LCARS_PR_WIDTHS)) + len(LCARS_PR_WIDTHS) + 4 if theme.frame() else None
         self.refresh_css()
@@ -435,7 +444,8 @@ class MagiApp(App):
         color = COLORS["bad" if red else "accent"]
         bar = self.query_one("#bar", Static)
         bar.set_class(red, "-red")
-        stripe = Text(HAZARD_STRIPE if theme.frame() == "nerv" else RIGHT_CAP, f"{color} on {COLORS['bg']}")
+        top = {"nerv": HAZARD_STRIPE, "cyberpunk": HATCHED_LINE}.get(theme.frame(), RIGHT_CAP)
+        stripe = Text(top, f"{color} on {COLORS['bg']}")
         if theme.current == "eva01" and not red:
             # EVA 01 keeps the top quiet and saves the hazard stripe for an alarm.
             stripe = Text(HEAVY_LINE, f"{COLORS['line']} on {COLORS['bg']}")

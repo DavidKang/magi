@@ -45,7 +45,7 @@ class ThreadList(OptionList):
 
 
 THEME_LABELS = {"default": "Default", "okuda": "LCARS Okuda · TNG and DS9", "picard": "LCARS Picard", "nerv": "NERV Magi",
-                "eva01": "NERV - EVA 01"}
+                "eva01": "NERV - EVA 01", "cyberpunk": "Cyberpunk · Night City"}
 
 
 class ThemeScreen(ModalScreen):

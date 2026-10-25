@@ -178,31 +178,32 @@ Press `t` to pick a theme. Magi remembers your choice in its settings.
 | **LCARS Picard** | The same LCARS frame, in the Picard colours |
 | **NERV Magi** | Evangelion's NERV command screens |
 | **NERV - EVA 01** | The NERV frame, in Unit-01's purple and green |
+| **Cyberpunk · Night City** | Cyberpunk 2077's HUD |
 
 > [!TIP]
-> The LCARS themes look best with any [Nerd Font](https://www.nerdfonts.com/font-downloads) as your terminal's font, for example FiraCode Nerd Font Mono (`brew install --cask font-fira-code-nerd-font`). Without one, the round ends of their pills show as empty boxes; everything else works. The default and NERV themes need no special font.
+> The LCARS themes look best with any [Nerd Font](https://www.nerdfonts.com/font-downloads) as your terminal's font, for example FiraCode Nerd Font Mono (`brew install --cask font-fira-code-nerd-font`). Without one, the round ends of their pills show as empty boxes; everything else works. The default, NERV and Cyberpunk themes need no special font.
 
 ### Alert level
 
-The LCARS and NERV themes show how the board is doing in the header:
+The LCARS, NERV and Cyberpunk themes show how the board is doing in the header:
 
-| | When | LCARS | NERV Magi | NERV - EVA 01 |
-|---|------|-------|-----------|---------------|
-| 🟢 | Nothing is waiting | CONDITION GREEN | NORMAL | SYNC STABLE |
-| 🟡 | A PR waits on CI or review, or a teammate's fails CI or conflicts | YELLOW ALERT | PATTERN ORANGE | SYNC UNSTABLE |
-| 🔴 | One of your PRs fails CI or conflicts | RED ALERT | PATTERN BLUE | BERSERK |
+| | When | LCARS | NERV Magi | NERV - EVA 01 | Cyberpunk |
+|---|------|-------|-----------|---------------|-----------|
+| 🟢 | Nothing is waiting | CONDITION GREEN | NORMAL | SYNC STABLE | NO HEAT |
+| 🟡 | A PR waits on CI or review, or a teammate's fails CI or conflicts | YELLOW ALERT | PATTERN ORANGE | SYNC UNSTABLE | HEAT ★★ |
+| 🔴 | One of your PRs fails CI or conflicts | RED ALERT | PATTERN BLUE | BERSERK | HEAT ★★★★★ |
 
 ### Box names
 
-| Box | Default | LCARS | NERV |
-|-----|---------|-------|------|
-| What needs you | attention | BRIDGE ALERTS | EMERGENCY |
-| Team PRs | team prs | CREW REPORTS | SORTIES |
-| Last 24 hours | changes | CAPTAIN'S LOG | OPERATIONS LOG |
-| Epics | epics | MISSIONS | PROJECTS |
-| Your PRs | my prs | MY REPORTS | MY SORTIES |
-| Your tickets | my tickets | AWAY MISSIONS | MY ORDERS |
-| Details | details | SENSOR READINGS | MAGI ANALYSIS |
+| Box | Default | LCARS | NERV | Cyberpunk |
+|-----|---------|-------|------|-----------|
+| What needs you | attention | BRIDGE ALERTS | EMERGENCY | NCPD SCANNER |
+| Team PRs | team prs | CREW REPORTS | SORTIES | FIXER GIGS |
+| Last 24 hours | changes | CAPTAIN'S LOG | OPERATIONS LOG | DATASHARDS |
+| Epics | epics | MISSIONS | PROJECTS | MAIN JOBS |
+| Your PRs | my prs | MY REPORTS | MY SORTIES | MY GIGS |
+| Your tickets | my tickets | AWAY MISSIONS | MY ORDERS | SIDE JOBS |
+| Details | details | SENSOR READINGS | MAGI ANALYSIS | KIROSHI SCAN |
 
 ### LCARS
 
@@ -233,6 +234,13 @@ The LCARS and NERV themes show how the board is doing in the header:
 - The same frame in Unit-01's colours: **purple lines**, **green titles** and focus.
 - A quiet purple line on top turns into the red hazard stripe when it goes **berserk**.
 - You, by your GitHub user, are its **pilot**.
+
+### Cyberpunk
+
+- Colours picked by eye from Cyberpunk 2077's HUD, since the game has no published palette: off-red text, cyan lines, yellow focus.
+- A **hatched line** across the top turns red at five stars.
+- The header shows the **net uplink** time, and a refresh under way reads `JACKING IN…`.
+- Square boxes with **slanted titles, tabs and badges**, and the age of a PR open more than three days gets a red ▲.
 
 ## Data locations
 

@@ -282,13 +282,13 @@ def ticket_entry(ticket, prs, settings):
 
 
 TURN_TONES = {"needs review": "blue", "on the author": "bad", "ready to merge": "ok", "drafts": "dim"}
-PILL_CAPS = {"lcars": ("◖", "◗"), "nerv": ("▕", "▏")}
+PILL_CAPS = {"lcars": ("◖", "◗"), "nerv": ("▕", "▏"), "cyberpunk": ("◢", "◤")}
 # Status cells: what a PR is missing as a pill and a critical age's alarm. LCARS draws both as pills.
 STATUS_KINDS = ("pill", "alarm")
 # A PR row's days cell, before the repo at the right edge.
 DAYS_CELL = -2
 # NERV leaves the undone segments dark, after nerv-ui's sync bars.
-EPIC_REST = {"lcars": "line", "nerv": "raised"}
+EPIC_REST = {"lcars": "line", "nerv": "raised", "cyberpunk": "raised"}
 
 def yours(group, asked):
     """A PR that asks for my review and waits on reviewers is mine to review."""

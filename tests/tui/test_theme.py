@@ -238,9 +238,10 @@ async def theme_picker(cache):
         await pilot.pause()
         choices = app.screen.query_one("#theme-list", OptionList)
         assert isinstance(app.screen, ThemeScreen), "t opens the theme picker"
-        assert [choices.get_option_at_index(i).id for i in range(choices.option_count)] == ["default", "okuda", "picard", "nerv", "eva01"], \
-            "the theme picker offers the default theme, the two LCARS ones and the two NERV ones"
+        assert [choices.get_option_at_index(i).id for i in range(choices.option_count)] == ["default", "okuda", "picard", "nerv", "eva01", "cyberpunk"], \
+            "the theme picker offers the default theme, the two LCARS ones, the two NERV ones and Cyberpunk"
         assert [choices.get_option_at_index(i).prompt for i in (3, 4)] == ["NERV Magi", "NERV - EVA 01"], "the theme picker names the NERV themes"
+        assert choices.get_option_at_index(5).prompt == "Cyberpunk · Night City", "the theme picker names the Cyberpunk theme"
         assert choices.highlighted == 0, "the theme picker starts on the current theme"
         await pilot.press("down", "escape")
         await pilot.pause()
