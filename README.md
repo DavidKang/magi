@@ -7,13 +7,14 @@ Tarkon shows your team's board on one screen: the PRs that need you, the team's 
 ## Quick start
 
 ```bash
-brew install pipx gh
+brew install davidkang/tarkon/tarkon
 brew tap atlassian/homebrew-acli && brew install acli
 gh auth login
 acli jira auth login --web
-pipx install --python python3.12 git+https://github.com/DavidKang/tarkon.git
 tarkon
 ```
+
+The formula brings in `gh` and Python; `acli` comes from Atlassian's own tap.
 
 The first run opens the settings panel. Fill in every field and save with `ctrl+s`.
 
@@ -81,7 +82,15 @@ or with an API token:
 
 ## Installation
 
-With pipx, from GitHub:
+With Homebrew, which also installs `gh`:
+
+```bash
+brew install davidkang/tarkon/tarkon
+```
+
+New releases arrive with `brew upgrade`, like any other formula.
+
+Or with pipx, from GitHub:
 
 ```bash
 pipx install --python python3.12 git+https://github.com/DavidKang/tarkon.git
