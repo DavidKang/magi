@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from ..domain.attention import ACTIVE_COLUMNS, attention_items
 from ..domain.changes import pr_subject, recent_changes, snapshot, vanished_prs
 from ..domain.entities import Epic, PullRequest, TicketDetail, ticket_from
+from ..domain.histories import kept_histories, pr_histories
 from ..domain.keys import ticket_keys_in
 
 # Minutes added to the time since the last refresh when asking Jira what changed, for clock skew and slow refreshes.
@@ -27,8 +28,8 @@ class Refresh:
             self.seen_tickets[key] = self.tickets.fetch_ticket(key)
         return self.seen_tickets[key]
 
-    def save_state(self, snapshot, changes):
-        self.store.write("state", {"snapshot": snapshot, "changes": changes})
+    def save_state(self, snapshot, changes, histories):
+        self.store.write("state", {"snapshot": snapshot, "changes": changes, "histories": histories})
 
     def pr_details(self, found):
         """Full PRs for the light ones a search found: fetched again only when a PR changed since the last refresh."""
@@ -114,12 +115,14 @@ class Refresh:
         stamp = self.clock.now()
         ended = pull_requests.fetch_pr_states(vanished_prs(state["snapshot"], now) if state else [])
         changes = recent_changes(state, now, {k: t.summary for k, t in by_key.items()}, stamp, ended, settings)
+        histories = pr_histories(prs + review_prs, kept_histories(state["histories"] if state else {}, changes or []))
 
-        self.save_state(now, changes or [])
+        self.save_state(now, changes or [], histories)
         pool.shutdown()
         return {"epics": epics, "tickets_by_epic": tickets_by_epic, "by_key": by_key, "prs": prs, "review_prs": review_prs,
                 "my_prs": [pr for pr in prs if pr.author["login"] == settings.github_user], "my_tickets": my_tickets,
                 "attention": attention_items(list(by_key.values()), prs, merged_by_ticket, settings), "changes": changes or [],
+                "histories": histories,
                 "merged_by_ticket": merged_by_ticket, "now": now}
 
 

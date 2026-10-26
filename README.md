@@ -165,6 +165,10 @@ Each row starts with the PR's title, which stretches with the box up to 60 colum
 
 The detail of a PR says in one status line what it is missing, as its row does, when it opened and when it was last pushed, and lists its activity newest first, with a day's commits in one line. `v` opens its Jira ticket in a popup.
 
+### Changes
+
+The changes box keeps one row per PR: its latest change, or the latest move of a ticket only that PR names. Its detail lists the PR's commits and reviews with the moves of its ticket and what GitHub's history does not tell, such as a draft marked ready or how the PR left the board, newest first, from what the refresh already fetched.
+
 ### What is new
 
 A change you have not seen yet puts a `●` on its rows in every box, a `N new` count in the box title and a `●` on its tab; the detail opens with the change and its time. Moving the cursor off the row marks it seen. The first start marks nothing.
@@ -251,7 +255,7 @@ The LCARS, NERV and Cyberpunk themes show how the board is doing in the header:
 | Path | Content |
 |------|---------|
 | `~/.config/magi/config.json` | Your settings |
-| `~/.local/state/magi/state.json` | Last snapshot, used to detect changes |
+| `~/.local/state/magi/state.json` | Last snapshot, used to detect changes, the changes of the last 24 hours and the activity of the PRs they show |
 | `~/.cache/magi/cache.json` | Last board, shown while the next refresh runs; a cache from another version is dropped |
 | `~/.cache/magi/prs.json` | Comments, reviews and threads of the PRs on the board, reused until a PR changes |
 | `~/.cache/magi/updated.json` | When each in-progress ticket last changed, refetched only for tickets Jira reports as changed |

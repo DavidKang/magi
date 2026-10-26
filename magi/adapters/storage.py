@@ -6,7 +6,7 @@ Bump VERSION whenever the shape of the saved board or state changes, so an older
 import dataclasses
 import json
 
-VERSION = 3
+VERSION = 4
 
 
 def write(path, data):

@@ -3,6 +3,7 @@
 from .ages import days_since
 from .changes import pr_subject, ticket_subject
 from .review import looks_ready_but_blocked, review_state
+from .status import status_label
 
 ACTIVE_COLUMNS = {"doing", "review", "deploy"}
 STALE_PR_DAYS = 3
@@ -20,7 +21,7 @@ def attention_items(all_tickets, prs, merged_by_ticket, settings):
                 flag(pr_subject(pr.url, f"{pr.repo}#{pr.number}", pr.title), "Open for review, but the ticket is still In progress. Move it to In review?")
         if t.column in {"doing", "review"} and not t.prs:
             for merged in merged_by_ticket.get(t.key, []):
-                flag(merged, f"Merged, but the ticket is still {t.status} with no other open PR. Move it?")
+                flag(merged, f"Merged, but the ticket is still {status_label(t.status)} with no other open PR. Move it?")
         if t.column == "review" and not t.prs and not merged_by_ticket.get(t.key):
             flag(ticket_subject(t.key, settings.jira_browse, t.summary), "In review with no open PR.")
         if t.column == "done":

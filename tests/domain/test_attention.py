@@ -48,11 +48,11 @@ def test_a_draft_does_not_ask_to_move_the_ticket():
 
 def test_a_merged_pr_asks_to_move_a_ticket_with_no_open_pr():
     merged = {"kind": "pr", "url": "https://github.com/acme/app/pull/9", "ref": "app#9", "title": "[ACME-1] Done"}
-    for column, status in [("doing", "En proceso"), ("review", "En revisión")]:
+    for column, status, shown in [("doing", "En proceso", "In Progress"), ("review", "En revisión", "In review")]:
         ticket = make_ticket(column=column, status=status)
         assert attention.attention_items([ticket], [], {"ACME-1": [merged]}, STATED) == [
-            {"subject": merged, "reason": f"Merged, but the ticket is still {status} with no other open PR. Move it?"}], \
-            f"a merged PR flags its {column} ticket when no other PR is open"
+            {"subject": merged, "reason": f"Merged, but the ticket is still {shown} with no other open PR. Move it?"}], \
+            f"a merged PR flags its {column} ticket when no other PR is open, naming its status in English"
     assert reasons([make_ticket(prs=[make_pr(is_draft=True)])], merged={"ACME-1": [merged]}) == [], \
         "a merged PR stays quiet while another PR of the ticket is open"
 

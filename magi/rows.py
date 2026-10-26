@@ -5,7 +5,7 @@ import re
 
 from .domain.ages import days_since
 from .domain.keys import ticket_keys_in, title_keys_in
-from .domain.review import review_state, turn
+from .domain.review import pr_events, review_state, turn
 from .domain.status import status_label
 
 TUI_REVIEW = {"approved": "ok", "changes": "bad", "waiting": "warn", "commented": "blue", "draft": "dim"}
@@ -40,10 +40,9 @@ def pr_row(pr, by_key, settings):
     return {"ref": f"{tui_repo(pr)}#{pr.number}", "repo": pr.repo, "number": pr.number, "url": pr.url, "title": pr.title,
             "code": code.group() if code else "", "author": pr.author["login"], "review": review_state(pr), "turn": turn(pr), "ci": pr.ci,
             "conflict": pr.mergeable == "CONFLICTING", "review_requested": bool(pr.review_requests), "age": days_since(pr.created_at), "keys": keys,
-            "tickets": [{"key": t.key, "url": settings.jira_browse + t.key, "status": t.status, "summary": t.summary}
+            "tickets": [{"key": t.key, "url": settings.jira_browse + t.key, "status": status_label(t.status), "summary": t.summary}
                         for t in (by_key[k] for k in keys if k in by_key)],
-            "events": [{"at": c["committedDate"], "state": None, "author": None} for c in pr.commits]
-            + [{"at": r["submittedAt"], "state": r["state"], "author": r["author"]["login"]} for r in pr.reviews]}
+            "events": pr_events(pr)}
 
 
 def ticket_row(ticket, prs, settings):

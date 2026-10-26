@@ -115,3 +115,36 @@ def test_activity_days():
         "activity groups commits by the local day, so a late UTC commit lands on the next day and last year's day stays apart"
     assert f"last push {(dt.date.today() - dt.date(2026, 10, 24)).days}d ago" in next(line for line in lines if line.startswith("pr ")), \
         "the last push counts days on the local calendar, as the activity does"
+
+
+def test_change_detail_shows_the_timeline_of_its_group():
+    ticket = {"at": "2026-10-25T09:00", "tone": "commented", "label": "In review", "item": "https://acme.atlassian.net/browse/ACME-1",
+              "group": PR_ONE.url, "subject": {"kind": "ticket", "url": "https://acme.atlassian.net/browse/ACME-1", "ref": "ACME-1",
+                                               "title": "Ticket one"}, "note": None, "aside": "was: In Progress", "told": False}
+    pushed = {**board([])["changes"][0], "at": "2026-10-25T08:00", "tone": "waiting", "label": "New commits", "told": True}
+    history = [{"at": "2026-10-25T06:30:00Z", "state": None, "author": None}, {"at": "2026-10-25T05:00:00Z", "state": "APPROVED", "author": "bob"}]
+    found = entries.entries({**board([]), "changes": [ticket, pushed], "histories": {PR_ONE.url: history}}, STATED)["changes"]
+    assert [entry.cells[1][0] for entry in found] == ["in review"], "the changes box shows one row per pr, with its latest change"
+    lines = Content.from_markup(found[0].detail).plain.splitlines()
+    assert lines[lines.index("── timeline ──") + 1:] == ["Oct 25 09:00  In review ACME-1 was: In Progress", "Oct 25        1 commit",
+                                                         "Oct 25 06:00  approved bob"], \
+        "the detail lists the pr's history and its ticket's moves newest first, without the commits and reviews told twice"
+
+
+def test_change_timeline_shows_the_history_the_board_carries():
+    history = [{"at": "2026-10-25T05:00:00Z", "state": "APPROVED", "author": "bob"}]
+    detail = entries.entries({**board([PR_ONE]), "histories": {PR_ONE.url: history}}, STATED)["changes"][0].detail
+    lines = Content.from_markup(detail).plain.splitlines()
+    assert lines[lines.index("── timeline ──") + 1:] == ["Oct 25 06:00  approved bob", "Oct 24 02:04  New PR app#1"], \
+        "the timeline shows the pr history the board carries"
+
+
+def test_change_timeline_shows_the_ten_newest():
+    subject = {"kind": "ticket", "url": "https://acme.atlassian.net/browse/ACME-1", "ref": "ACME-1", "title": "Ticket one"}
+    moves = [{"at": f"2026-10-25T{hour:02d}:00", "tone": "commented", "label": "In review", "item": subject["url"], "group": subject["url"],
+              "subject": subject, "note": "joins the epics", "aside": None, "told": False} for hour in range(12, 0, -1)]
+    detail = entries.entries({**board([]), "changes": moves, "histories": {}}, STATED)["changes"][0].detail
+    lines = Content.from_markup(detail).plain.splitlines()
+    timeline = lines[lines.index("── timeline ──") + 1:]
+    assert len(timeline) == 10, "the timeline keeps the ten newest lines"
+    assert timeline[0] == "Oct 25 12:00  In review ACME-1 joins the epics", "a change in the timeline reads its label, ref and note"

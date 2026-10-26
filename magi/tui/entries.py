@@ -89,15 +89,21 @@ def pr_entry(pr, by_key, settings, asked=False):
                  (f'{row["ref"]} · {pr.title}', items), ticket=next(iter(row["keys"]), None))
 
 
-def activity(events):
-    """Newest first, with the commits of a day in one line."""
+def activity(events, told=()):
+    """Newest first, with the commits of a day in one line; told are the changes Magi saw on the board."""
     days = {}
     for event in events:
         if not event["state"]:
-            days.setdefault(rows.local(event["at"]).date(), []).append(event["at"])
+            days.setdefault(rows.local(event["at"]).date(), []).append(rows.local(event["at"]))
     commits = [(max(ats), day.strftime("%b %d").ljust(12), colored("dim", f"{len(ats)} commit" + "s" * (len(ats) > 1))) for day, ats in days.items()]
-    reviews = [(e["at"], rows.local_time(e["at"]), f'{state_label(e)} {escape(e["author"])}') for e in events if e["state"]]
-    return [f'{colored("dim", when)}  {what}' for _, when, what in sorted(commits + reviews, reverse=True)[:10]]
+    reviews = [(rows.local(e["at"]), rows.local_time(e["at"]), f'{state_label(e)} {escape(e["author"])}') for e in events if e["state"]]
+    seen = [(rows.local(c["at"]), rows.local_time(c["at"]), told_change(c)) for c in told]
+    return [f'{colored("dim", when)}  {what}' for _, when, what in sorted(commits + reviews + seen, reverse=True)[:10]]
+
+
+def told_change(change):
+    what = " ".join(part for part in (change["subject"]["ref"], change["note"], change["aside"]) if part)
+    return f'{colored(rows.TUI_REVIEW.get(change["tone"], "dim"), change["label"])} {escape(what)}'
 
 
 def state_label(review):
@@ -243,10 +249,11 @@ def epic_entry(epic, tickets, settings):
                  "\n".join(lines), settings.jira_browse + epic.key, epic.key, f'{epic.key} {epic.summary}')
 
 
-def change_entry(change):
+def change_entry(change, told, history):
     url = change["item"]
     text = changes.change_text(change)
-    lines = [heading(change["label"]), "", link(url, text) if url else escape(text), "", field("at", change["at"].replace("T", " "))]
+    lines = [heading(change["label"]), "", link(url, text) if url else escape(text), "", field("at", change["at"].replace("T", " ")),
+             "", separator("timeline"), *activity(history, told)]
     return Entry([(f'{change["at"][5:10]} {change["at"][11:16]}', "dim"), (change["label"].lower(), rows.TUI_REVIEW.get(change["tone"], "dim")),
                   (text, "")],
                  "\n".join(lines), url, url, f'{text} {change["label"]}')
@@ -320,9 +327,11 @@ def turn_entry(entry, group, stale):
 
 def entries(board, settings):
     prs, by_key = board["prs"], board["by_key"]
+    histories = board["histories"]
     return {"attention": [attention_entry(item) for item in board["attention"]],
             "prs": team_pr_entries(prs, by_key, settings, {pr.url for pr in board["review_prs"]}),
-            "changes": [change_entry(c) for c in board["changes"]],
+            "changes": [change_entry(c, changes.group_changes(board["changes"], c["group"], histories), histories.get(c["group"], []))
+                        for c in changes.latest(board["changes"], "group")],
             "epics": [epic_entry(e, board["tickets_by_epic"][e.key], settings) for e in board["epics"]],
             "mine_prs": [pr_entry(pr, by_key, settings) for pr in sorted(board["my_prs"], key=lambda p: p.created_at)],
             "mine_tickets": [ticket_entry(t, prs, settings) for t in sorted(board["my_tickets"], key=ticket_order)]}

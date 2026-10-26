@@ -1,7 +1,7 @@
 import pytest
 
 from builders import make_pr
-from magi.domain.review import CONDITIONS, condition, looks_ready_but_blocked, review_state, turn
+from magi.domain.review import CONDITIONS, condition, looks_ready_but_blocked, pr_events, review_state, turn
 
 
 def test_review_state_reads_the_pr():
@@ -95,3 +95,9 @@ def test_turn_reads_whose_move_a_pr_waits_on():
     }
     for name, (fields, expected) in cases.items():
         assert turn(make_pr(**fields)) == expected, f"{name}: only red CI, a conflict or unanswered changes put a PR on its author"
+
+
+def test_pr_events_leave_out_a_review_not_submitted():
+    pr = make_pr(reviews=[{"submittedAt": None, "state": "PENDING", "author": {"login": "alice"}},
+                          {"submittedAt": "2026-10-22T10:00:00Z", "state": "APPROVED", "author": {"login": "bob"}}])
+    assert [event["author"] for event in pr_events(pr)] == [None, "bob"], "a review not submitted yet has no time, so it is no event"

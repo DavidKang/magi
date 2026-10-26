@@ -51,6 +51,24 @@ async def unseen(cache):
         assert not any(any(row) for row in marked(app).values()), "a seen change stays seen after a restart"
 
 
+async def changed_twice(cache):
+    storage.write(cache.with_name("seen.json"), {"seen": {PR_ONE.url: "2026-10-24T02:04 New PR"}})
+    found = two_prs()
+    found["changes"] = [{**found["changes"][0], "at": "2026-10-25T03:00", "tone": "approved", "label": "Approved"}, *found["changes"]]
+    app = magi_app(cache, load=lambda: found)
+    async with started(app) as pilot:
+        assert marked(app)["prs"] == [True, False], "an item's newest change decides whether it is new"
+        await pilot.press("4")
+        await pilot.pause()
+        assert str(app.query_one("#detail").render()).startswith("● New PR · 03:00"), \
+            "the detail opens with the item's newest change, a pr new in the window still a new pr"
+
+
+@pytest.mark.usefixtures("default_theme")
+def test_an_item_changed_twice_shows_its_newest_change(cache):
+    asyncio.run(changed_twice(cache))
+
+
 @pytest.mark.usefixtures("default_theme")
 def test_unseen_changes(cache):
     asyncio.run(unseen(cache))
@@ -86,7 +104,7 @@ def test_lcars_unseen_changes(cache):
 def with_change(item, at, label):
     found = two_prs()
     found["changes"] = [*found["changes"], {"at": at, "tone": "commented", "label": label, "subject": {**SUBJECT, "url": item},
-                                            "note": None, "aside": None, "item": item}]
+                                            "note": None, "aside": None, "told": False, "item": item, "group": item}]
     return found
 
 

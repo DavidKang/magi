@@ -20,6 +20,7 @@ HOME = Path(tempfile.mkdtemp())
 os.environ["HOME"] = str(HOME)
 
 from magi.domain.entities import Epic, PullRequest, Ticket  # noqa: E402
+from magi.domain.review import pr_events  # noqa: E402
 from magi.tui import theme  # noqa: E402
 from magi.tui.app import MagiApp  # noqa: E402
 
@@ -95,7 +96,7 @@ def subject(item):
 
 def change(item, hours, tone, label, aside=None):
     at = (NOW - dt.timedelta(hours=hours)).astimezone().strftime("%Y-%m-%dT%H:%M")
-    return {"at": at, "tone": tone, "label": label, "subject": subject(item), "note": None, "aside": aside, "item": item.url}
+    return {"at": at, "tone": tone, "label": label, "subject": subject(item), "note": None, "aside": aside, "told": False, "item": item.url, "group": item.url}
 
 
 def board():
@@ -108,7 +109,8 @@ def board():
             "changes": [change(PRS[0], 3, "approved", "Approved", aside="was: waiting"),
                         change(PRS[3], 6, "commented", "New PR"),
                         change(PRS[1], 9, "waiting", "New commits", aside="awaiting review"),
-                        change(MINE[1], 20, "commented", "New PR")]}
+                        change(MINE[1], 20, "commented", "New PR")],
+            "histories": {pr.url: pr_events(pr) for pr in PRS}}
 
 
 def run(name):

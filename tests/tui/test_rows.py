@@ -23,7 +23,7 @@ def test_rows_view_model():
     assert row["conflict"], "a pr row is plain data built from the settings passed in"
     assert row["review_requested"], "a pr row is plain data built from the settings passed in"
     assert row["age"] == ages.days_since(PR_ONE.created_at), "a pr row is plain data built from the settings passed in"
-    assert (row["tickets"] == [{"key": "ACME-1", "url": "https://acme.atlassian.net/browse/ACME-1", "status": "En proceso",
+    assert (row["tickets"] == [{"key": "ACME-1", "url": "https://acme.atlassian.net/browse/ACME-1", "status": "In Progress",
                                     "summary": "Ticket one"}]), "a pr row is plain data built from the settings passed in"
     linked = rows.ticket_row(ticket, [PR_ONE, PR_TWO], STATED)
     assert linked["key"] == "ACME-1", "a ticket row is plain data with its linked prs"

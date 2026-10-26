@@ -8,6 +8,7 @@ from textual.widgets import OptionList
 
 from magi import config
 from magi.domain.entities import Epic, PullRequest, Ticket, TicketDetail
+from magi.domain.review import pr_events
 from magi.tui.app import MagiApp
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -90,13 +91,15 @@ def board(prs):
             "my_prs": [PR_ONE], "my_tickets": [Ticket(key="OPS-7", summary="Ticket seven", status="Tareas por hacer"),
                                              Ticket(key="ACME-1", summary="Ticket one", status="En proceso", detail=TICKET_DETAIL)],
             "attention": [{"subject": SUBJECT, "reason": "Open for review, but the ticket is still In progress. Move it to In review?"}],
-            "changes": [{"at": "2026-10-24T02:04", "tone": "commented", "label": "New PR", "subject": SUBJECT, "note": None, "aside": None,
-                         "item": PR_ONE.url}]}
+            "changes": [{"at": "2026-10-24T02:04", "tone": "commented", "label": "New PR", "subject": SUBJECT, "note": None, "aside": None, "told": False,
+                         "item": PR_ONE.url, "group": PR_ONE.url}],
+            "histories": {pr.url: pr_events(pr) for pr in prs}}
 
 
 def bare_board(**sections):
     """A board with nothing on it but the sections given."""
-    return {"prs": [], "review_prs": [], "by_key": {}, "attention": [], "changes": [], "epics": [], "my_prs": [], "my_tickets": [], **sections}
+    return {"prs": [], "review_prs": [], "by_key": {}, "attention": [], "changes": [], "epics": [], "my_prs": [], "my_tickets": [], "histories": {},
+            **sections}
 
 
 def settings_file(cache, settings=SETTINGS):

@@ -6,7 +6,7 @@ from dataclasses import replace
 from builders import EPIC, PR_ONE, PR_THREE, PR_TWO, STATED, TICKETS, TICKET_DETAIL, board, light_node, make_settings
 from magi.adapters import github, paths, storage
 from magi.application.refresh import Refresh, saved_board
-from magi.domain import attention
+from magi.domain import attention, review
 from magi.domain.entities import Ticket, TicketDetail
 
 
@@ -54,8 +54,8 @@ def test_cached_board_reads_back(tmp_path):
 
 def test_state_write():
     refresh, store, _ = refresh_with()
-    refresh.save_state({"tickets": {}}, [])
-    assert store.read("state") == {"snapshot": {"tickets": {}}, "changes": []}, "the state is saved through storage"
+    refresh.save_state({"tickets": {}}, [], {})
+    assert store.read("state") == {"snapshot": {"tickets": {}}, "changes": [], "histories": {}}, "the state is saved through storage"
 
 
 def test_refetch_changed():
@@ -120,6 +120,25 @@ def test_collect_shows_my_prs_outside_the_team():
     assert [pr.number for pr in found["my_prs"]] == [2], "my prs show in mine even without a tracked ticket"
 
 
+def test_a_merged_pr_keeps_its_history():
+    mine = replace(PR_TWO, title="Bump a gem", head_ref_name="bump-gem", author={"login": "carol"})
+    shown = {"prs": [github.light_pr(light_node(mine))]}
+    tickets = types.SimpleNamespace(
+        fetch_my_tickets=lambda details: [], fetch_updated=lambda key: key, changed_since=lambda keys, minutes, linked_to=(): set(),
+        fetch_epics=lambda settings: [EPIC], fetch_children=lambda key: [replace(t, prs=[]) for t in TICKETS])
+    pull_requests = types.SimpleNamespace(search_prs=lambda query: shown["prs"] if "author:carol" in query else [],
+                                          fetch_prs=lambda items: [mine for _ in items],
+                                          fetch_pr_states=lambda urls: {url: "MERGED" for url in urls}, search_terms=github.search_terms)
+    refresh, store, _ = refresh_with(tickets, pull_requests)
+    settings = make_settings(github_user="carol")
+    assert refresh.collect(settings)["histories"] == {mine.url: review.pr_events(mine)}, "the board carries the history of every pr on it"
+    assert store.read("state")["histories"] == {mine.url: review.pr_events(mine)}, "every pr on the board has its history saved"
+    shown["prs"] = []
+    found = refresh.collect(settings)
+    assert [(c["label"], c["group"]) for c in found["changes"]] == [("Merged", mine.url)], "a pr that left the board is merged"
+    assert found["histories"] == {mine.url: review.pr_events(mine)}, "a merged pr keeps its history while its change shows"
+
+
 def test_collect():
     three =replace(PR_THREE, url="https://github.com/acme/renamed/pull/3")
     lights = {"team": [light_node(PR_TWO)], "review": [light_node(three), light_node(PR_ONE)], "open": [light_node(PR_ONE)]}
@@ -156,6 +175,9 @@ def test_collect():
     assert sorted(asked[0]) == [("acme/app", 1), ("acme/billing-reconciliation-service", 2), ("acme/renamed", 3)], \
         "every pr on the board is fetched once, in one go"
     assert [pr.number for pr in found["review_prs"]] == [3, 1], "review requests keep their order"
+    assert sorted(store.read("state")["histories"]) == sorted([PR_ONE.url, PR_TWO.url, three.url]), \
+        "every pr on the board, review requests alone included, has its history saved"
+    assert found["histories"] == store.read("state")["histories"], "the board carries every history the refresh saved"
     active = [t for t in found["by_key"].values() if t.column in attention.ACTIVE_COLUMNS]
     assert active, "active tickets take their update time from the update cache"
     assert all(t.updated == f"{t.key} updated" for t in active), "active tickets take their update time from the update cache"

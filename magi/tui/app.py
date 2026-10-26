@@ -386,10 +386,10 @@ class MagiApp(App):
         for key in SECTIONS:
             self.fill(key)
 
-    def find_news(self, changes):
+    def find_news(self, found):
         """The changes not seen yet, by item; the first run takes every change as seen."""
         saved = storage.read(self.seen_path) if self.seen is None else {"seen": self.seen}
-        current = {change["item"]: change for change in changes}
+        current = {change["item"]: change for change in changes.latest(found, "item")}
         self.seen = {item: mark for item, mark in saved["seen"].items() if item in current} if saved else \
             {item: seen_mark(change) for item, change in current.items()}
         if not saved:

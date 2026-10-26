@@ -40,6 +40,12 @@ def review_state(pr):
     return "waiting", "Awaiting review"
 
 
+def pr_events(pr):
+    """A PR's commits and submitted reviews, at GitHub's own times."""
+    return ([{"at": c["committedDate"], "state": None, "author": None} for c in pr.commits]
+            + [{"at": r["submittedAt"], "state": r["state"], "author": r["author"]["login"]} for r in pr.reviews if r["submittedAt"]])
+
+
 # The groups of team PRs, in the order the board lists them.
 TURNS = ["needs review", "on the author", "ready to merge", "drafts"]
 
