@@ -269,7 +269,7 @@ Magi used to be called Tarkon. On start, it moves any `tarkon` folder in those t
 
 - macOS only: opening links and copying use `open` and `pbcopy`.
 - Jira statuses are mapped to columns by name: `Backlog`, `Tareas por hacer`, `En proceso`, `Developing`, `Paused`, `En revisión`, `Ready To Deploy`, `Rollout` and `Finalizado`. `Rejected / Cancelled` tickets are left out, and any other status stops the refresh with `Unmapped Jira status: <name>`.
-- PR searches use GitHub's GraphQL API, about 13 per refresh at 1 point each, out of 5000 points an hour. A PR's comments, reviews and threads are fetched again only when the PR changed.
+- PR searches use GitHub's GraphQL API at 1 point each, out of 5000 points an hour: one per 6 team members, one for your review requests, and one per 6 ticket keys for open and for merged PRs, about 15 per refresh on a board of 9 epics and 200 tickets. A PR's comments, reviews and threads are fetched again only when the PR changed.
 
 ## Development
 
