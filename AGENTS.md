@@ -30,6 +30,18 @@ Two rules are enforced by tests:
 
 A new external call is a new method on a port, a real implementation in `adapters/` and a fake in the tests.
 
+### Design rules
+
+Every change keeps the hexagonal layering and the SOLID principles, and a review checks both:
+
+- Dependencies point inward: `domain/` imports only itself, `application/` only the domain and its ports; nothing inward imports an adapter or the UI. `tui/` and `cli.py` sit outside: the TUI keeps its own files (the board cache, seen marks) through `adapters.storage` and `adapters.paths`, while the refresh's data reaches it only through `Refresh`.
+- A board rule lives once, in the domain. The application and the UI call it; they never rebuild it, and the UI never needs to know how the application stores its data.
+- Single responsibility: a module or function answers one question. When a domain module starts answering two, split it.
+- Open/closed: a new case is new data (a table, a constant, a field on the entity), not one more branch in a growing list of special cases.
+- Liskov: a fake port takes the same arguments and returns the same shapes as the real one.
+- Interface segregation: a port has only the methods its callers use.
+- Dependency inversion: the application depends on the protocols in `ports.py`, never on an adapter; `cli.py` alone wires the real ones into `Refresh`.
+
 ## Themes
 
 `theme.py` holds the palettes (`THEMES`) and which frame each theme draws (`FRAMES`: `lcars` or `nerv`; `default` has none). Per-frame text lives in `tui/app.py`: box names in `LCARS_NAMES` and `NERV_NAMES`, alert labels in `THEME_CONDITIONS`, title and tab caps in `TITLE_CAPS` and `TAB_CAPS`. A theme-specific change keeps the default theme unchanged, and the README tables under "Themes" follow it.
