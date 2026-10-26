@@ -42,6 +42,10 @@ def snapshot(epics, tickets_by_epic, prs, settings):
                              "awaiting": bool(pr.review_requests), "tickets": sorted(ticket_keys_in(pr, settings.jira_project))} for pr in prs}}
 
 
+def snapshot_epics(taken):
+    return list(taken["epics"])
+
+
 def change(subject, tone, label, note=None, aside=None, group=None, told=False):
     """told: a commit or a new review caused it, so the PR's own history already tells it."""
     return {"item": subject["url"], "group": group or subject["url"], "tone": tone, "label": label, "subject": subject,

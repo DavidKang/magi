@@ -5,7 +5,7 @@ import math
 from concurrent.futures import ThreadPoolExecutor
 
 from ..domain.attention import ACTIVE_COLUMNS, attention_items
-from ..domain.changes import pr_subject, recent_changes, snapshot, vanished_prs
+from ..domain.changes import pr_subject, recent_changes, snapshot, snapshot_epics, vanished_prs
 from ..domain.entities import Epic, PullRequest, TicketDetail, ticket_from
 from ..domain.histories import kept_histories, pr_histories
 from ..domain.keys import ticket_keys_in
@@ -41,19 +41,31 @@ class Refresh:
         # CI and mergeability change without touching updatedAt, so they always come from the search.
         return {pr.url: dataclasses.replace(details[pr.url], ci=pr.ci, mergeable=pr.mergeable) for pr in found}
 
-    def refetch_changed(self, name, keys, fetch_one, started, linked=None, rebuild=None):
+    def known_children(self, epic_key):
+        """An epic's tickets, asked before Jira lists the epics; None when Jira refuses, as it does for an epic since deleted."""
+        try:
+            return self.tickets.fetch_children(epic_key)
+        except Exception:
+            return None
+
+    def cached_changes(self, name, keys=None, linked=None, rebuild=None):
+        """What the store keeps under name, and which of its keys (of keys, when given) Jira changed since the last refresh."""
+        cache = self.store.read(name)
+        found = {key: rebuild(value) if rebuild else value for key, value in cache["found"].items()} if cache else {}
+        known = [key for key in (found if keys is None else keys) if key in found]
+        if not known:
+            return found, set()
+        minutes = math.ceil((self.clock.time() - cache["at"]) / 60) + JIRA_MARGIN_MINUTES
+        return found, self.tickets.changed_since(known, minutes, known if linked else ())
+
+    def refetch_changed(self, name, keys, fetch_one, started, linked=None, rebuild=None, cached=None):
         """fetch_one(key) for the keys Jira changed since the last refresh, or never seen; the rest come from the store.
 
         linked(found) names the tickets a cached value shows, so a change to one of them fetches the value again;
-        rebuild(value) turns a value read back from the store into what fetch_one returns.
+        rebuild(value) turns a value read back from the store into what fetch_one returns;
+        cached is what cached_changes returned when asked before the keys were known.
         """
-        cache = self.store.read(name)
-        found = {key: rebuild(value) if rebuild else value for key, value in cache["found"].items()} if cache else {}
-        known = [key for key in keys if key in found]
-        changed = set()
-        if known:
-            minutes = math.ceil((self.clock.time() - cache["at"]) / 60) + JIRA_MARGIN_MINUTES
-            changed = self.tickets.changed_since(known, minutes, known if linked else ())
+        found, changed = cached or self.cached_changes(name, keys, linked, rebuild)
         stale = [key for key in keys if key not in found or key in changed or (linked and changed & set(linked(found[key])))]
         found = {**{key: found[key] for key in keys if key in found}, **dict(zip(stale, self.parallel(fetch_one, stale)))}
         self.store.write(name, {"at": started, "found": found})
@@ -74,13 +86,22 @@ class Refresh:
                                  lambda keys: self.refetch_changed("my_tickets", keys, tickets.fetch_ticket_detail, started,
                                                                    lambda detail: [link["key"] for link in detail.links],
                                                                    lambda value: TicketDetail(**value)))
+        # Asked before Jira lists the epics: the epics and tickets of the last refresh are rarely different.
+        state = self.store.read("state")
+        known_epics = snapshot_epics(state["snapshot"]) if state else []
+        known_children = pool.submit(parallel, self.known_children, known_epics)
+        updated_changes = pool.submit(self.cached_changes, "updated")
         epics = tickets.fetch_epics(settings)
         epic_keys = [epic.key for epic in epics]
-        tickets_by_epic = dict(zip(epic_keys, parallel(tickets.fetch_children, epic_keys)))
+        children = {key: found for key, found in zip(known_epics, known_children.result()) if found is not None}
+        new_epics = [key for key in epic_keys if key not in children]
+        children.update(zip(new_epics, parallel(tickets.fetch_children, new_epics)))
+        tickets_by_epic = {key: children[key] for key in epic_keys}
         by_key = {t.key: t for ts in tickets_by_epic.values() for t in ts}
 
         active = [t for t in by_key.values() if t.column in ACTIVE_COLUMNS]
-        updated = pool.submit(self.refetch_changed, "updated", [t.key for t in active], tickets.fetch_updated, started)
+        updated = pool.submit(lambda: self.refetch_changed("updated", [t.key for t in active], tickets.fetch_updated, started,
+                                                           cached=updated_changes.result()))
         search_keys = epic_keys + [k for k, t in by_key.items() if t.column != "done"]
         active_keys = [k for k, t in by_key.items() if t.column in {"doing", "review"}]
         merged_prs = pool.submit(parallel, pull_requests.search_prs,
@@ -110,7 +131,6 @@ class Refresh:
         for ticket in active:
             ticket.updated = found_updated[ticket.key]
 
-        state = self.store.read("state")
         now = snapshot(epics, tickets_by_epic, {pr.url: pr for pr in prs + review_prs}.values(), settings)
         stamp = self.clock.now()
         ended = pull_requests.fetch_pr_states(vanished_prs(state["snapshot"], now) if state else [])

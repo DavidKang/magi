@@ -1,9 +1,12 @@
 import datetime as dt
 import json
+import threading
 import types
 from dataclasses import replace
 
-from builders import EPIC, PR_ONE, PR_THREE, PR_TWO, STATED, TICKETS, TICKET_DETAIL, board, light_node, make_settings
+import pytest
+
+from builders import EPIC, PR_ONE, PR_THREE, PR_TWO, STATED, TICKETS, TICKET_DETAIL, board, light_node, make_epic, make_settings
 from magi.adapters import github, paths, storage
 from magi.application.refresh import Refresh, saved_board
 from magi.domain import attention, review
@@ -137,6 +140,79 @@ def test_a_merged_pr_keeps_its_history():
     found = refresh.collect(settings)
     assert [(c["label"], c["group"]) for c in found["changes"]] == [("Merged", mine.url)], "a pr that left the board is merged"
     assert found["histories"] == {mine.url: review.pr_events(mine)}, "a merged pr keeps its history while its change shows"
+
+
+def quiet_jira(**overrides):
+    return types.SimpleNamespace(**{
+        "fetch_my_tickets": lambda details: [], "fetch_updated": lambda key: key, "changed_since": lambda keys, minutes, linked_to=(): set(),
+        "fetch_epics": lambda settings: [EPIC], "fetch_children": lambda key: [replace(t, prs=[]) for t in TICKETS], **overrides})
+
+
+NO_PRS = types.SimpleNamespace(search_prs=lambda query: [], fetch_prs=lambda items: [], fetch_pr_states=lambda urls: {},
+                               search_terms=github.search_terms)
+
+
+def test_known_epics_load_their_tickets_while_jira_lists_the_epics():
+    new = make_epic(key="ACME-200", summary="Epic two")
+    epics, children, overlapped = [EPIC], [], []
+    asked = threading.Event()
+
+    def fetch_epics(settings):
+        overlapped.append(asked.wait(1))
+        return epics
+
+    def fetch_children(key):
+        children.append(key)
+        asked.set()
+        return [replace(t, prs=[]) for t in TICKETS]
+    refresh, _, _ = refresh_with(quiet_jira(fetch_epics=fetch_epics, fetch_children=fetch_children), NO_PRS)
+    refresh.collect(STATED)
+    asked.clear()
+    children.clear()
+    epics[:] = [new]
+    found = refresh.collect(STATED)
+    assert overlapped == [False, True], "a refresh asks for the tickets of the epics it knew while jira lists the epics"
+    assert children == [EPIC.key, new.key], "an epic new to the board has its tickets asked once jira lists it"
+    assert list(found["tickets_by_epic"]) == [new.key], "the board keeps only the epics jira lists now"
+
+
+def test_jira_is_asked_what_changed_while_the_tickets_load():
+    asked = threading.Event()
+    overlapped = []
+
+    def fetch_children(key):
+        overlapped.append(asked.wait(1))
+        return [replace(t, prs=[]) for t in TICKETS]
+    changed, updated = [], []
+
+    def changed_since(keys, minutes, linked_to=()):
+        changed.append(sorted(keys))
+        asked.set()
+        return {"ACME-1"}
+    jira = quiet_jira(fetch_children=fetch_children, changed_since=changed_since, fetch_updated=lambda key: updated.append(key) or key)
+    refresh, _, _ = refresh_with(jira, NO_PRS)
+    refresh.collect(STATED)
+    refresh.collect(STATED)
+    assert overlapped == [False, True], "a refresh asks jira which tickets changed while the epics' tickets load"
+    assert changed == [["ACME-1"]], "jira is asked once per refresh which tickets changed"
+    assert updated == ["ACME-1", "ACME-1"], "a ticket jira names as changed has its update time asked again"
+
+
+def test_an_epic_jira_no_longer_lists_cannot_break_the_refresh():
+    new = make_epic(key="ACME-200", summary="Epic two")
+    epics, failing = [EPIC], set()
+
+    def fetch_children(key):
+        if key in failing:
+            raise RuntimeError(f"{key} does not exist")
+        return [replace(t, prs=[]) for t in TICKETS]
+    refresh, _, _ = refresh_with(quiet_jira(fetch_epics=lambda settings: epics, fetch_children=fetch_children), NO_PRS)
+    refresh.collect(STATED)
+    epics[:], failing = [new], {EPIC.key}
+    assert list(refresh.collect(STATED)["tickets_by_epic"]) == [new.key], "an epic deleted since the last refresh is left out"
+    failing = {EPIC.key, new.key}
+    with pytest.raises(RuntimeError):
+        refresh.collect(STATED)
 
 
 def test_collect():

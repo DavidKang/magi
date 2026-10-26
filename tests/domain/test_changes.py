@@ -50,6 +50,11 @@ def test_pr_titles_read_like_their_links():
         assert changes.subject_text(changes.pr_subject("u", "app#1", title)) == shown, f"a pr titled {title!r} reads {shown!r}"
 
 
+def test_a_snapshot_names_its_epics():
+    taken = changes.snapshot([EPIC], {EPIC.key: []}, [], STATED)
+    assert changes.snapshot_epics(taken) == [EPIC.key], "a snapshot names the epics it was taken with"
+
+
 def test_vanished_prs_need_their_state():
     gone = replace(PR_ONE, head_ref_oid="x")
     with pytest.raises(KeyError):
