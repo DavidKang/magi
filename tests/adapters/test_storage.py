@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from magi.adapters import storage
@@ -37,3 +38,28 @@ def test_storage_crash(tmp_path, monkeypatch):
         pass
     monkeypatch.undo()
     assert storage.read(path) == {"kept": True}, "a write cut off midway keeps the previous file"
+
+
+def stamped(path, version, data):
+    path.write_text(json.dumps({"version": version, **data}))
+
+
+def test_storage_upgrades(tmp_path):
+    path = tmp_path / "state.json"
+    upgrades = {storage.VERSION - 2: lambda data: {**data, "steps": data["steps"] + ["a"]},
+                storage.VERSION - 1: lambda data: {**data, "steps": data["steps"] + ["b"]}}
+    stamped(path, storage.VERSION - 2, {"steps": []})
+    assert storage.read(path, upgrades) == {"steps": ["a", "b"]}, "an older file is brought up one version at a time"
+    stamped(path, storage.VERSION - 3, {"steps": []})
+    assert storage.read(path, upgrades) is None, "a file a missing upgrade cannot bring up reads as nothing"
+    stamped(path, storage.VERSION + 1, {"steps": []})
+    assert storage.read(path, upgrades) is None, "a file from a newer version reads as nothing"
+
+
+def test_json_files_upgrade_only_the_files_named(tmp_path):
+    files = storage.JsonFiles({"state": tmp_path / "state.json", "prs": tmp_path / "prs.json"},
+                              {"state": {storage.VERSION - 1: lambda data: {**data, "upgraded": True}}})
+    for name in ("state", "prs"):
+        stamped(tmp_path / f"{name}.json", storage.VERSION - 1, {})
+    assert files.read("state") == {"upgraded": True}, "a file named in the upgrades is brought up"
+    assert files.read("prs") is None, "a file with no upgrade of its own is dropped"

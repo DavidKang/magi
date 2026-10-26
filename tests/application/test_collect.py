@@ -9,7 +9,8 @@ import pytest
 from builders import EPIC, PR_ONE, PR_THREE, PR_TWO, STATED, TICKETS, TICKET_DETAIL, board, light_node, make_epic, make_settings
 from magi.adapters import github, paths, storage
 from magi.application.refresh import Refresh, saved_board
-from magi.domain import attention, review
+from magi.application.upgrades import UPGRADES
+from magi.domain import attention, changes, review
 from magi.domain.entities import Ticket, TicketDetail
 
 
@@ -150,6 +151,32 @@ def quiet_jira(**overrides):
 
 NO_PRS = types.SimpleNamespace(search_prs=lambda query: [], fetch_prs=lambda items: [], fetch_pr_states=lambda urls: {},
                                search_terms=github.search_terms)
+
+
+def test_changes_saved_by_format_3_survive_the_upgrade(tmp_path):
+    files = {name: tmp_path / path.name for name, path in paths.REFRESH_FILES.items()}
+    old = {"at": "2026-10-25T08:00", "item": PR_ONE.url, "tone": "commented", "label": "New PR", "note": None, "aside": None,
+           "subject": changes.pr_subject(PR_ONE.url, "app#1", PR_ONE.title)}
+    moved = {"at": "2026-10-25T07:00", "item": STATED.jira_browse + "ACME-1", "tone": "waiting", "label": "En proceso", "note": None,
+             "aside": "was: Tareas por hacer", "subject": changes.ticket_subject("ACME-1", STATED.jira_browse, "Ticket one")}
+    pushed = {**old, "at": "2026-10-25T08:30", "tone": "waiting", "label": "New commits"}
+    reviewed = {**old, "at": "2026-10-25T08:15", "label": "Commented", "aside": "new review"}
+    joined = {**moved, "at": "2026-10-25T06:00", "item": STATED.jira_browse + "ACME-2", "label": "Finalizado", "note": "joins the epics",
+              "aside": None, "subject": changes.ticket_subject("ACME-2", STATED.jira_browse, "Ticket two")}
+    taken = changes.snapshot([EPIC], {EPIC.key: [replace(t, prs=[]) for t in TICKETS]}, [], STATED)
+    files["state"].write_text(json.dumps({"version": 3, "snapshot": taken, "changes": [pushed, reviewed, old, moved, joined]}))
+    store = storage.JsonFiles(files, UPGRADES)
+    assert store.read("state") == {"snapshot": taken, "histories": {}, "changes": [
+        {**pushed, "group": old["item"], "told": True},
+        {**reviewed, "group": old["item"], "told": True},
+        {**old, "group": old["item"], "told": False},
+        {**moved, "label": "In Progress", "aside": "was: Todo", "group": moved["item"], "told": False},
+        {**joined, "label": "Done", "group": joined["item"], "told": False}]}, \
+        "a state saved by format 3 keeps its snapshot, starts with no pr histories, reads its ticket statuses in english, " \
+        "and leaves pushes and new reviews to the pr's history"
+    found = Refresh(quiet_jira(), NO_PRS, store, FakeClock(1600.0), in_order).collect(STATED)
+    assert [c["label"] for c in found["changes"]] == ["New commits", "Commented", "New PR", "In Progress", "Done"], \
+        "the changes of the last 24 hours outlive an upgrade that changes how they are saved"
 
 
 def test_known_epics_load_their_tickets_while_jira_lists_the_epics():

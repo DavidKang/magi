@@ -16,6 +16,7 @@ from magi.adapters import github, jira, paths, process
 from magi.adapters.clock import SystemClock
 from magi.adapters.storage import JsonFiles
 from magi.application.refresh import Refresh
+from magi.application.upgrades import UPGRADES
 
 calls = []
 lock = threading.Lock()
@@ -74,7 +75,7 @@ def main():
     scratch = Path(tempfile.mkdtemp())
     if paths.REFRESH_FILES["state"].exists():
         shutil.copy(paths.REFRESH_FILES["state"], scratch / "state.json")
-    refresh = Refresh(jira, github, JsonFiles({name: scratch / path.name for name, path in paths.REFRESH_FILES.items()}),
+    refresh = Refresh(jira, github, JsonFiles({name: scratch / path.name for name, path in paths.REFRESH_FILES.items()}, UPGRADES),
                       SystemClock(), process.parallel)
     process.run_json = timed_run_json
     profile("first refresh, no pr cache", refresh, settings)

@@ -6,6 +6,7 @@ from .adapters import github, jira, paths, process
 from .adapters.clock import SystemClock
 from .adapters.storage import JsonFiles
 from .application.refresh import Refresh
+from .application.upgrades import UPGRADES
 
 USAGE = """usage: magi [config]
 
@@ -15,7 +16,7 @@ USAGE = """usage: magi [config]
 
 def refresh():
     """The refresh wired to the real Jira, GitHub, files and clock."""
-    return Refresh(jira, github, JsonFiles(paths.REFRESH_FILES), SystemClock(), process.parallel)
+    return Refresh(jira, github, JsonFiles(paths.REFRESH_FILES, UPGRADES), SystemClock(), process.parallel)
 
 
 def main():

@@ -255,7 +255,7 @@ The LCARS, NERV and Cyberpunk themes show how the board is doing in the header:
 | Path | Content |
 |------|---------|
 | `~/.config/magi/config.json` | Your settings |
-| `~/.local/state/magi/state.json` | Last snapshot, used to detect changes, the changes of the last 24 hours and the activity of the PRs they show |
+| `~/.local/state/magi/state.json` | Last snapshot, used to detect changes, the changes of the last 24 hours and the activity of the PRs they show; kept across upgrades |
 | `~/.cache/magi/cache.json` | Last board, shown while the next refresh runs; a cache from another version is dropped |
 | `~/.cache/magi/prs.json` | Comments, reviews and threads of the PRs on the board, reused until a PR changes |
 | `~/.cache/magi/updated.json` | When each in-progress ticket last changed, refetched only for tickets Jira reports as changed |
