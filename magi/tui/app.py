@@ -29,6 +29,8 @@ from .theme import COLORS, use_theme
 REFRESH_SECONDS = 5 * 60
 REFRESH_COOLDOWN = 30
 CACHE = paths.CACHE_DIR / "cache.json"
+# Seen marks kept their shape through these storage versions, so an upgrade keeps them instead of taking every change as seen.
+SEEN_UPGRADES = {4: lambda saved: saved}
 # The title takes the room the other columns leave, up to MAX_TITLE; the rest goes to the repo, so it sits at the right edge.
 PR_WIDTHS = [None, 10, 27, 4, 18]
 # LCARS draws review, CI, conflict and days as padded pills, which need more room than their plain text.
@@ -388,7 +390,7 @@ class MagiApp(App):
 
     def find_news(self, found):
         """The changes not seen yet, by item; the first run takes every change as seen."""
-        saved = storage.read(self.seen_path) if self.seen is None else {"seen": self.seen}
+        saved = storage.read(self.seen_path, SEEN_UPGRADES) if self.seen is None else {"seen": self.seen}
         current = {change["item"]: change for change in changes.latest(found, "item")}
         self.seen = {item: mark for item, mark in saved["seen"].items() if item in current} if saved else \
             {item: seen_mark(change) for item, change in current.items()}

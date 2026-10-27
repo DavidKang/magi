@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import pytest
 from textual.widgets import OptionList, Tab
@@ -85,6 +86,18 @@ async def first_run(cache):
 @pytest.mark.usefixtures("default_theme")
 def test_first_run_marks_nothing(cache):
     asyncio.run(first_run(cache))
+
+
+async def upgraded(cache):
+    cache.with_name("seen.json").write_text(json.dumps({"version": 4, "seen": {PR_ONE.url: "2026-10-23T01:00 Old change"}}))
+    app = magi_app(cache, load=two_prs)
+    async with started(app):
+        assert marked(app)["prs"] == [True, False], "marks seen before an upgrade keep an unread change unread"
+
+
+@pytest.mark.usefixtures("default_theme")
+def test_seen_marks_saved_by_format_4_survive_the_upgrade(cache):
+    asyncio.run(upgraded(cache))
 
 
 async def lcars_unseen(cache):
