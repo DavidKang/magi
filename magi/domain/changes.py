@@ -67,6 +67,11 @@ def ticket_groups(before, now):
     return {key: urls.pop() for key, urls in named.items() if len(urls) == 1}
 
 
+def joined_notes(now):
+    """What a ticket new on the board says: the epic it joins."""
+    return {t: f"joins {key} {epic['summary']}" for key, epic in now["epics"].items() for t in epic["tickets"]}
+
+
 def quiet_tickets(before, now):
     # Tickets of an epic that joined or left the board: the epic change already covers them.
     before_epics = before.get("epics", now["epics"])
@@ -87,6 +92,7 @@ def changes_between(before, now, summaries, ended, settings):
     gone_epics = [key for key in before_epics if key not in now["epics"]]
     quiet = quiet_tickets(before, now)
     groups = ticket_groups(before, now)
+    joins = joined_notes(now)
     for key in new_epics:
         found.append(change(ticket_subject(key, settings.jira_browse, now["epics"][key]["summary"]), "commented", "New epic"))
     for key in gone_epics:
@@ -116,7 +122,7 @@ def changes_between(before, now, summaries, ended, settings):
         if key in quiet:
             continue
         if key not in before["tickets"]:
-            found.append(change(ticket, tone, status_label(status), note="joins the epics", group=groups.get(key)))
+            found.append(change(ticket, tone, status_label(status), note=joins[key], group=groups.get(key)))
         elif before["tickets"][key] != status:
             found.append(change(ticket, tone, status_label(status), aside=WAS + status_label(before["tickets"][key]),
                                 group=groups.get(key)))

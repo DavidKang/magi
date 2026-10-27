@@ -25,8 +25,8 @@ def test_epic_changes():
         "an epic leaving is one change, without per-ticket changes"
     grown = changes.snapshot([epic_one], {"ACME-100": [one, two]}, [], STATED)
     found = changes.changes_between(before, grown, summaries, {}, STATED)
-    assert [c["label"] for c in found] == ["In Progress"], "a new ticket in a known epic still joins the epics, its status in English"
-    assert found[0]["note"] == "joins the epics", "a new ticket in a known epic still joins the epics"
+    assert [c["label"] for c in found] == ["In Progress"], "a new ticket in a known epic is a change, its status in English"
+    assert found[0]["note"] == "joins ACME-100 Epic one", "a new ticket names the epic it joins"
     legacy = {key: value for key, value in before.items() if key != "epics"}
     found = changes.changes_between(legacy, grown, summaries, {}, STATED)
     assert [c["label"] for c in found] == ["In Progress"], "a saved state without epics still reports new tickets"
@@ -85,7 +85,7 @@ def test_a_ticket_change_joins_the_only_pr_that_names_it():
     empty = changes.snapshot([EPIC], {"ACME-100": []}, [pr], STATED)
     joined = changes.changes_between(empty, now, {"ACME-1": "Ticket one"}, {}, STATED)
     left = changes.changes_between(now, empty, {}, {}, STATED)
-    assert [(c["note"], c["group"]) for c in joined + left] == [("joins the epics", PR_ONE.url), ("(cancelled or moved)", PR_ONE.url)], \
+    assert [(c["note"], c["group"]) for c in joined + left] == [("joins ACME-100 Epic one", PR_ONE.url), ("(cancelled or moved)", PR_ONE.url)], \
         "a ticket joining or leaving the epics joins the group of its pr too"
 
 
