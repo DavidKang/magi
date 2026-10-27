@@ -20,5 +20,11 @@ def state_with_groups(state):
     return {**state, "changes": [change_with_group(c) for c in state["changes"]], "histories": {}}
 
 
+def state_with_ticket_summaries(state):
+    """A state saved before its snapshot kept each ticket's summary: its tickets keep their statuses, without a title."""
+    tickets = {key: {"status": status, "summary": None} for key, status in state["snapshot"]["tickets"].items()}
+    return {**state, "snapshot": {**state["snapshot"], "tickets": tickets}}
+
+
 # Per file, the step that brings it from the version it is keyed by to the next one.
-UPGRADES = {"state": {3: state_with_groups}}
+UPGRADES = {"state": {3: state_with_groups, 4: state_with_ticket_summaries}}

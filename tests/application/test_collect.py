@@ -164,9 +164,11 @@ def test_changes_saved_by_format_3_survive_the_upgrade(tmp_path):
     joined = {**moved, "at": "2026-10-25T06:00", "item": STATED.jira_browse + "ACME-2", "label": "Finalizado", "note": "joins the epics",
               "aside": None, "subject": changes.ticket_subject("ACME-2", STATED.jira_browse, "Ticket two")}
     taken = changes.snapshot([EPIC], {EPIC.key: [replace(t, prs=[]) for t in TICKETS]}, [], STATED)
-    files["state"].write_text(json.dumps({"version": 3, "snapshot": taken, "changes": [pushed, reviewed, old, moved, joined]}))
+    saved = {**taken, "tickets": {t.key: t.status for t in TICKETS}}
+    files["state"].write_text(json.dumps({"version": 3, "snapshot": saved, "changes": [pushed, reviewed, old, moved, joined]}))
     store = storage.JsonFiles(files, UPGRADES)
-    assert store.read("state") == {"snapshot": taken, "histories": {}, "changes": [
+    untitled = {**taken, "tickets": {t.key: {"status": t.status, "summary": None} for t in TICKETS}}
+    assert store.read("state") == {"snapshot": untitled, "histories": {}, "changes": [
         {**pushed, "group": old["item"], "told": True},
         {**reviewed, "group": old["item"], "told": True},
         {**old, "group": old["item"], "told": False},
@@ -177,6 +179,19 @@ def test_changes_saved_by_format_3_survive_the_upgrade(tmp_path):
     found = Refresh(quiet_jira(), NO_PRS, store, FakeClock(1600.0), in_order).collect(STATED)
     assert [c["label"] for c in found["changes"]] == ["New commits", "Commented", "New PR", "In Progress", "Done"], \
         "the changes of the last 24 hours outlive an upgrade that changes how they are saved"
+
+
+def test_a_snapshot_saved_by_format_4_survives_the_upgrade(tmp_path):
+    files = {name: tmp_path / path.name for name, path in paths.REFRESH_FILES.items()}
+    statuses = {**{t.key: t.status for t in TICKETS}, "ACME-9": "En proceso"}
+    taken = {"epics": {EPIC.key: {"summary": EPIC.summary, "tickets": list(statuses)}}, "tickets": statuses, "prs": {}}
+    files["state"].write_text(json.dumps({"version": 4, "snapshot": taken, "changes": [], "histories": {}}))
+    store = storage.JsonFiles(files, UPGRADES)
+    assert store.read("state")["snapshot"]["tickets"] == {key: {"status": status, "summary": None} for key, status in statuses.items()}, \
+        "a snapshot saved by format 4 keeps its ticket statuses, without the titles it never saved"
+    found = Refresh(quiet_jira(), NO_PRS, store, FakeClock(1600.0), in_order).collect(STATED)
+    assert [changes.change_text(c) for c in found["changes"]] == ["ACME-9 (cancelled or moved)"], \
+        "the first refresh after the upgrade still tells a ticket that left the epics, by its key alone"
 
 
 def test_known_epics_load_their_tickets_while_jira_lists_the_epics():

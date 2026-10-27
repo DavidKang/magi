@@ -40,7 +40,7 @@ def moved_from(change):
 
 def snapshot(epics, tickets_by_epic, prs, settings):
     return {"epics": {e.key: {"summary": e.summary, "tickets": [t.key for t in tickets_by_epic[e.key]]} for e in epics},
-            "tickets": {t.key: t.status for tickets in tickets_by_epic.values() for t in tickets},
+            "tickets": {t.key: {"status": t.status, "summary": t.summary} for tickets in tickets_by_epic.values() for t in tickets},
             "prs": {pr.url: {"label": f"{pr.repo}#{pr.number}", "title": pr.title,
                              "review": list(review_state(pr)), "ci": list(CI_LABELS[pr.ci]),
                              "head": pr.head_ref_oid, "pushed": max((c["committedDate"] for c in pr.commits), default=""),
@@ -116,19 +116,20 @@ def changes_between(before, now, summaries, ended, settings):
         pr = before["prs"][url]
         found.append(change(pr_subject(url, pr["label"], pr["title"]), *PR_END_LABELS[ended[url]]))
     # After the PRs: a refresh stamps its changes alike, so a PR's own change leads its ticket's move.
-    for key, status in now["tickets"].items():
+    for key, entry in now["tickets"].items():
+        status = entry["status"]
         tone = STATUS_TONES[column_for(status)]
         ticket = ticket_subject(key, settings.jira_browse, summaries[key])
         if key in quiet:
             continue
         if key not in before["tickets"]:
             found.append(change(ticket, tone, status_label(status), note=joins[key], group=groups.get(key)))
-        elif before["tickets"][key] != status:
-            found.append(change(ticket, tone, status_label(status), aside=WAS + status_label(before["tickets"][key]),
+        elif before["tickets"][key]["status"] != status:
+            found.append(change(ticket, tone, status_label(status), aside=WAS + status_label(before["tickets"][key]["status"]),
                                 group=groups.get(key)))
     for key in before["tickets"].keys() - now["tickets"].keys() - quiet:
-        found.append(change(ticket_subject(key, settings.jira_browse), "draft", "Off the epics", note="(cancelled or moved)",
-                            group=groups.get(key)))
+        gone = ticket_subject(key, settings.jira_browse, before["tickets"][key]["summary"])
+        found.append(change(gone, "draft", "Off the epics", note="(cancelled or moved)", group=groups.get(key)))
     return found
 
 

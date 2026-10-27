@@ -7,7 +7,7 @@ gets an upgrade from the previous version instead (magi.application.upgrades.UPG
 import dataclasses
 import json
 
-VERSION = 4
+VERSION = 5
 
 
 def write(path, data):
