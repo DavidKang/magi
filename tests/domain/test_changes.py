@@ -97,8 +97,19 @@ def test_a_ticket_change_joins_the_only_pr_that_names_it():
     left = changes.changes_between(now, empty, {}, {}, STATED)
     assert [(c["note"], c["group"]) for c in joined + left] == [("joins ACME-100 Epic one", PR_ONE.url), ("(cancelled or moved)", PR_ONE.url)], \
         "a ticket joining or leaving the epics joins the group of its pr too"
-    assert changes.change_text(left[0]) == "ACME-1 Ticket one (cancelled or moved)", \
+
+
+def test_a_ticket_leaving_the_epics_keeps_its_title():
+    one = Ticket(key="ACME-1", summary="Ticket one", status="En proceso")
+    before = changes.snapshot([EPIC], {EPIC.key: [one]}, [], STATED)
+    now = changes.snapshot([EPIC], {EPIC.key: []}, [], STATED)
+    found = changes.changes_between(before, now, {}, {}, STATED)
+    assert [changes.change_text(c) for c in found] == ["ACME-1 Ticket one (cancelled or moved)"], \
         "a ticket leaving the epics keeps the title it had on the board"
+    untitled = {**before, "tickets": {"ACME-1": {"status": "En proceso", "summary": None}}}
+    found = changes.changes_between(untitled, now, {}, {}, STATED)
+    assert [changes.change_text(c) for c in found] == ["ACME-1 (cancelled or moved)"], \
+        "a ticket leaving the epics before its title was ever saved shows its key alone"
 
 
 def test_a_pr_change_leads_its_ticket_move_from_the_same_refresh():
