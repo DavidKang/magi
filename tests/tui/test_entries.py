@@ -111,8 +111,8 @@ def test_activity_days():
     commits = [{"committedDate": at} for at in ("2026-10-23T21:30:00Z", "2026-10-23T22:30:00Z", "2025-10-23T08:00:00Z")]
     lines = Content.from_markup(entries.pr_entry(replace(PR_TWO, commits=commits), {}, STATED).detail).plain.splitlines()
     activity = [line for line in lines[lines.index("── activity ──") + 1:] if "commit" in line]
-    assert activity == ["Oct 24        1 commit", "Oct 23        1 commit", "Oct 23        1 commit"], \
-        "activity groups commits by the local day, so a late UTC commit lands on the next day and last year's day stays apart"
+    assert activity == ["Oct 24        1 commit", "Oct 23        1 commit", "Oct 23 2025   1 commit"], \
+        "activity groups commits by the local day, so a late UTC commit lands on the next day, and last year's day names its year"
     assert f"last push {(dt.date.today() - dt.date(2026, 10, 24)).days}d ago" in next(line for line in lines if line.startswith("pr ")), \
         "the last push counts days on the local calendar, as the activity does"
 

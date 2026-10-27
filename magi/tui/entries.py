@@ -90,12 +90,14 @@ def pr_entry(pr, by_key, settings, asked=False):
 
 
 def activity(events, told=()):
-    """Newest first, with the commits of a day in one line; told are the changes Magi saw on the board."""
+    """Newest first, with the commits of a day in one line, naming its year when it is not the newest day's; told are the changes Magi saw on the board."""
     days = {}
     for event in events:
         if not event["state"]:
             days.setdefault(rows.local(event["at"]).date(), []).append(rows.local(event["at"]))
-    commits = [(max(ats), day.strftime("%b %d").ljust(12), colored("dim", f"{len(ats)} commit" + "s" * (len(ats) > 1))) for day, ats in days.items()]
+    newest = max(days, default=None)
+    commits = [(max(ats), day.strftime("%b %d" if day.year == newest.year else "%b %d %Y").ljust(12),
+                colored("dim", f"{len(ats)} commit" + "s" * (len(ats) > 1))) for day, ats in days.items()]
     reviews = [(rows.local(e["at"]), rows.local_time(e["at"]), f'{state_label(e)} {escape(e["author"])}') for e in events if e["state"]]
     seen = [(rows.local(c["at"]), rows.local_time(c["at"]), told_change(c)) for c in told]
     return [f'{colored("dim", when)}  {what}' for _, when, what in sorted(commits + reviews + seen, reverse=True)[:10]]
