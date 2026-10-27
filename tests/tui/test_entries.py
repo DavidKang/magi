@@ -126,7 +126,7 @@ def test_change_detail_shows_the_timeline_of_its_group():
     found = entries.entries({**board([]), "changes": [ticket, pushed], "histories": {PR_ONE.url: history}}, STATED)["changes"]
     assert [entry.cells[1][0] for entry in found] == ["in review"], "the changes box shows one row per pr, with its latest change"
     lines = Content.from_markup(found[0].detail).plain.splitlines()
-    assert lines[lines.index("── timeline ──") + 1:] == ["Oct 25 09:00  In review ACME-1 was: In Progress", "Oct 25        1 commit",
+    assert lines[lines.index("── timeline ──") + 1:] == ["Oct 25 09:00  In Progress → In review ACME-1", "Oct 25        1 commit",
                                                          "Oct 25 06:00  approved bob"], \
         "the detail lists the pr's history and its ticket's moves newest first, without the commits and reviews told twice"
 
@@ -135,8 +135,39 @@ def test_change_timeline_shows_the_history_the_board_carries():
     history = [{"at": "2026-10-25T05:00:00Z", "state": "APPROVED", "author": "bob"}]
     detail = entries.entries({**board([PR_ONE]), "histories": {PR_ONE.url: history}}, STATED)["changes"][0].detail
     lines = Content.from_markup(detail).plain.splitlines()
-    assert lines[lines.index("── timeline ──") + 1:] == ["Oct 25 06:00  approved bob", "Oct 24 02:04  New PR app#1"], \
-        "the timeline shows the pr history the board carries"
+    assert lines[lines.index("── timeline ──") + 1:] == ["Oct 25 06:00  approved bob", "Oct 24 02:04  New PR"], \
+        "the timeline shows the pr history the board carries, without naming the pr it belongs to"
+
+
+def test_change_timeline_shows_a_status_move_from_the_old_state():
+    moved = {**board([])["changes"][0], "tone": "waiting", "label": "Awaiting review", "aside": "was: Draft"}
+    detail = entries.entries({**board([]), "changes": [moved], "histories": {PR_ONE.url: []}}, STATED)["changes"][0].detail
+    lines = Content.from_markup(detail).plain.splitlines()
+    assert lines[lines.index("── timeline ──") + 1:] == ["Oct 24 02:04  Draft → Awaiting review"], \
+        "a status change reads as its move from the old state to the new one"
+
+
+def test_change_timeline_keeps_an_aside_that_is_no_move():
+    reviewed = {**board([])["changes"][0], "label": "Commented", "aside": "new review"}
+    detail = entries.entries({**board([]), "changes": [reviewed], "histories": {PR_ONE.url: []}}, STATED)["changes"][0].detail
+    lines = Content.from_markup(detail).plain.splitlines()
+    assert lines[lines.index("── timeline ──") + 1:] == ["Oct 24 02:04  Commented new review"], \
+        "a change that is no status move keeps its aside after its label"
+
+
+def test_change_detail_names_the_pr_beside_its_state():
+    detail = entries.entries({**board([PR_ONE]), "histories": {PR_ONE.url: []}}, STATED)["changes"][0].detail
+    lines = Content.from_markup(detail).plain.splitlines()
+    head = lines[:lines.index("── timeline ──")]
+    assert head[0] == "New PR - app#1" and len(head) == 4, "a pr change names its pr beside its state, and nowhere else above the timeline"
+    assert not any(line.startswith("at ") for line in head), "the change detail leaves its time to the heading and the timeline"
+
+
+def test_change_detail_of_a_ticket_names_it_once():
+    subject = {"kind": "ticket", "url": "https://acme.atlassian.net/browse/ACME-1", "ref": "ACME-1", "title": "Ticket one"}
+    moved = {**board([])["changes"][0], "label": "In review", "subject": subject, "item": subject["url"], "group": subject["url"]}
+    lines = Content.from_markup(entries.entries({**board([]), "changes": [moved], "histories": {}}, STATED)["changes"][0].detail).plain.splitlines()
+    assert lines[:4] == ["In review", "", "ACME-1 Ticket one", ""], "a ticket change already names its key in the title, so no line repeats it"
 
 
 def test_change_timeline_shows_the_ten_newest():

@@ -102,8 +102,12 @@ def activity(events, told=()):
 
 
 def told_change(change):
-    what = " ".join(part for part in (change["subject"]["ref"], change["note"], change["aside"]) if part)
-    return f'{colored(rows.TUI_REVIEW.get(change["tone"], "dim"), change["label"])} {escape(what)}'
+    """A change in its PR's timeline: a status move reads Draft → Awaiting review, and only a ticket names itself."""
+    left = changes.moved_from(change)
+    ref = change["subject"]["ref"] if change["subject"]["kind"] == "ticket" else None
+    what = " ".join(part for part in (ref, change["note"], None if left else change["aside"]) if part)
+    label = colored(rows.TUI_REVIEW.get(change["tone"], "dim"), change["label"])
+    return " ".join(part for part in (f"{escape(left)} → {label}" if left else label, escape(what)) if part)
 
 
 def state_label(review):
@@ -252,8 +256,9 @@ def epic_entry(epic, tickets, settings):
 def change_entry(change, told, history):
     url = change["item"]
     text = changes.change_text(change)
-    lines = [heading(change["label"]), "", link(url, text) if url else escape(text), "", field("at", change["at"].replace("T", " ")),
-             "", separator("timeline"), *activity(history, told)]
+    # A ticket's key leads its title already; a PR's ref goes beside its state.
+    state = f'{change["label"]} - {change["subject"]["ref"]}' if change["subject"]["kind"] == "pr" else change["label"]
+    lines = [heading(state), "", link(url, text) if url else escape(text), "", separator("timeline"), *activity(history, told)]
     return Entry([(f'{change["at"][5:10]} {change["at"][11:16]}', "dim"), (change["label"].lower(), rows.TUI_REVIEW.get(change["tone"], "dim")),
                   (text, "")],
                  "\n".join(lines), url, url, f'{text} {change["label"]}')

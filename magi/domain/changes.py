@@ -11,6 +11,7 @@ PR_END_LABELS = {"MERGED": ("approved", "Merged"), "CLOSED": ("draft", "Closed")
 NEW_PR = "New PR"
 PUSHED = "New commits"
 FINAL_PR_LABELS = {"Merged", "Closed"}
+WAS = "was: "
 STATUS_TONES = {"todo": "draft", "doing": "waiting", "review": "commented", "deploy": "approved", "done": "approved"}
 
 
@@ -30,6 +31,11 @@ def subject_text(subject):
 
 def change_text(change):
     return " ".join(part for part in (subject_text(change["subject"]), change["note"], change["aside"]) if part)
+
+
+def moved_from(change):
+    """The state a status change left, or None for any other change."""
+    return change["aside"].removeprefix(WAS) if change["aside"] and change["aside"].startswith(WAS) else None
 
 
 def snapshot(epics, tickets_by_epic, prs, settings):
@@ -94,7 +100,7 @@ def changes_between(before, now, summaries, ended, settings):
             continue
         reviewed = pr["reviews"] > old.get("reviews", pr["reviews"])
         if old["review"] != pr["review"]:
-            found.append(change(subject, *pr["review"], aside=f'was: {old["review"][1]}', told=reviewed))
+            found.append(change(subject, *pr["review"], aside=WAS + old["review"][1], told=reviewed))
         elif reviewed:
             found.append(change(subject, *pr["review"], aside="new review", told=True))
         if old.get("head", pr["head"]) != pr["head"]:
@@ -112,7 +118,7 @@ def changes_between(before, now, summaries, ended, settings):
         if key not in before["tickets"]:
             found.append(change(ticket, tone, status_label(status), note="joins the epics", group=groups.get(key)))
         elif before["tickets"][key] != status:
-            found.append(change(ticket, tone, status_label(status), aside=f'was: {status_label(before["tickets"][key])}',
+            found.append(change(ticket, tone, status_label(status), aside=WAS + status_label(before["tickets"][key]),
                                 group=groups.get(key)))
     for key in before["tickets"].keys() - now["tickets"].keys() - quiet:
         found.append(change(ticket_subject(key, settings.jira_browse), "draft", "Off the epics", note="(cancelled or moved)",
