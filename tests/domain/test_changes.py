@@ -50,6 +50,16 @@ def test_pr_titles_read_like_their_links():
         assert changes.subject_text(changes.pr_subject("u", "app#1", title)) == shown, f"a pr titled {title!r} reads {shown!r}"
 
 
+def test_a_new_ticket_names_its_own_epic():
+    epic_two = replace(EPIC, key="ACME-200", summary="Epic two")
+    one, two = (Ticket(key=key, summary=f"Ticket {key}", status="En proceso") for key in ("ACME-1", "ACME-2"))
+    before = changes.snapshot([EPIC, epic_two], {EPIC.key: [], epic_two.key: []}, [], STATED)
+    now = changes.snapshot([EPIC, epic_two], {EPIC.key: [one], epic_two.key: [two]}, [], STATED)
+    found = changes.changes_between(before, now, {"ACME-1": "Ticket one", "ACME-2": "Ticket two"}, {}, STATED)
+    assert [(c["subject"]["ref"], c["note"]) for c in found] == [("ACME-1", "joins ACME-100 Epic one"), ("ACME-2", "joins ACME-200 Epic two")], \
+        "each new ticket names the epic it joins, not another epic on the board"
+
+
 def test_a_snapshot_names_its_epics():
     taken = changes.snapshot([EPIC], {EPIC.key: []}, [], STATED)
     assert changes.snapshot_epics(taken) == [EPIC.key], "a snapshot names the epics it was taken with"
