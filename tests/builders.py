@@ -48,7 +48,7 @@ def make_pr(**overrides):
         "author": {"login": "alice"}, "is_draft": False, "review_decision": "", "reviews": [], "review_requests": [{}],
         "created_at": "2026-10-20T10:00:00Z", "ci": "failing", "mergeable": "CONFLICTING", "head_ref_name": "ACME-1-x",
         "commits": [{"committedDate": "2026-10-21T10:00:00Z"}], "threads": [], "conversation": [],
-        "updated_at": "2026-10-21T10:00:00Z", "head_ref_oid": "a1", **overrides})
+        "updated_at": "2026-10-21T10:00:00Z", "head_ref_oid": "a1", "failed_checks": [], **overrides})
 
 
 def make_ticket(**overrides):
@@ -153,11 +153,16 @@ REPLY = {**NOTE, "author": {"__typename": "User", "login": "bob"}, "body": "Than
 CHANGES = {"submittedAt": "2026-10-22T09:00:00Z", "state": "CHANGES_REQUESTED", "body": "Please split this", "author": {"login": "carol"}}
 
 
-def light_node(pr, updated="2026-10-24T10:00:00Z", ci="SUCCESS"):
+def light_node(pr, updated="2026-10-24T10:00:00Z", ci="SUCCESS", checks=(), after=None):
     owner_repo = pr.url.split("/")[3] + "/" + pr.url.split("/")[4]
     return {"url": pr.url, "number": pr.number, "updatedAt": updated, "title": pr.title, "headRefName": pr.head_ref_name,
             "mergeable": pr.mergeable, "author": pr.author, "repository": {"nameWithOwner": owner_repo},
-            "head": {"nodes": [{"commit": {"statusCheckRollup": {"state": ci} if ci else None}}]}}
+            "head": {"nodes": [{"commit": {"statusCheckRollup": {"state": ci, "contexts": checks_page(checks, after)} if ci else None}}]}}
+
+
+def checks_page(checks, after=None):
+    """A page of a head commit's checks; after is the cursor of the next page, if any."""
+    return {"pageInfo": {"hasNextPage": after is not None, "endCursor": after}, "nodes": list(checks)}
 
 
 def pr_node(number, rollup):
@@ -169,7 +174,7 @@ def pr_node(number, rollup):
         "reviewDecision": None, "mergeable": "MERGEABLE",
         "reviewRequests": {"nodes": [{"requestedReviewer": {"__typename": "User"}}]}, "reviews": {"nodes": [CHANGES]},
         "commits": {"nodes": [{"commit": {"committedDate": "2026-10-21T10:00:00Z"}}, {"commit": {"committedDate": "2026-10-22T10:00:00Z"}}]},
-        "head": {"nodes": [{"commit": {"statusCheckRollup": rollup}}]},
+        "head": {"nodes": [{"commit": {"statusCheckRollup": rollup and {"contexts": {"nodes": []}, **rollup}}}]},
         "reviewThreads": {"nodes": [{**t, "comments": {"nodes": t["comments"]}} for t in (THREAD, resolved)]},
         "comments": {"nodes": [*bots, NOTE]}}}
 

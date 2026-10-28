@@ -115,6 +115,7 @@ def test_collect_shows_my_prs_outside_the_team():
         changed_since=lambda keys, minutes, linked_to=(): set(),
         fetch_epics=lambda settings: [EPIC], fetch_children=lambda key: [replace(t, prs=[]) for t in TICKETS])
     pull_requests = types.SimpleNamespace(search_prs=search, fetch_prs=lambda items: [mine for _ in items],
+                                          fetch_failed_checks=lambda items: [[] for _ in items],
                                           fetch_pr_states=lambda urls: {}, search_terms=github.search_terms)
     refresh, _, _ = refresh_with(tickets, pull_requests)
     found = refresh.collect(make_settings(github_user="carol"))
@@ -131,7 +132,7 @@ def test_a_merged_pr_keeps_its_history():
         fetch_my_tickets=lambda details: [], fetch_updated=lambda key: key, changed_since=lambda keys, minutes, linked_to=(): set(),
         fetch_epics=lambda settings: [EPIC], fetch_children=lambda key: [replace(t, prs=[]) for t in TICKETS])
     pull_requests = types.SimpleNamespace(search_prs=lambda query: shown["prs"] if "author:carol" in query else [],
-                                          fetch_prs=lambda items: [mine for _ in items],
+                                          fetch_prs=lambda items: [mine for _ in items], fetch_failed_checks=lambda items: [[] for _ in items],
                                           fetch_pr_states=lambda urls: {url: "MERGED" for url in urls}, search_terms=github.search_terms)
     refresh, store, _ = refresh_with(tickets, pull_requests)
     settings = make_settings(github_user="carol")
@@ -150,6 +151,7 @@ def quiet_jira(**overrides):
 
 
 NO_PRS = types.SimpleNamespace(search_prs=lambda query: [], fetch_prs=lambda items: [], fetch_pr_states=lambda urls: {},
+                               fetch_failed_checks=lambda items: [[] for _ in items],
                                search_terms=github.search_terms)
 
 
@@ -192,6 +194,18 @@ def test_a_snapshot_saved_by_format_4_survives_the_upgrade(tmp_path):
     found = Refresh(quiet_jira(), NO_PRS, store, FakeClock(1600.0), in_order).collect(STATED)
     assert [changes.change_text(c) for c in found["changes"]] == ["ACME-9 (cancelled or moved)"], \
         "the first refresh after the upgrade still tells a ticket that left the epics, by its key alone"
+
+
+def test_a_state_saved_by_format_5_survives_the_upgrade(tmp_path):
+    files = {name: tmp_path / path.name for name, path in paths.REFRESH_FILES.items()}
+    taken = changes.snapshot([EPIC], {EPIC.key: [replace(t, prs=[]) for t in TICKETS]}, [], STATED)
+    moved = {"at": "2026-10-25T07:00", "item": STATED.jira_browse + "ACME-1", "group": STATED.jira_browse + "ACME-1", "tone": "waiting",
+             "label": "In Progress", "note": None, "aside": "was: Todo", "told": False,
+             "subject": changes.ticket_subject("ACME-1", STATED.jira_browse, "Ticket one")}
+    files["state"].write_text(json.dumps({"version": 5, "snapshot": taken, "changes": [moved], "histories": {}}))
+    store = storage.JsonFiles(files, UPGRADES)
+    assert store.read("state") == {"snapshot": taken, "changes": [moved], "histories": {}}, \
+        "a state saved by format 5 reads as it was: only the saved prs changed shape"
 
 
 def test_known_epics_load_their_tickets_while_jira_lists_the_epics():
@@ -281,8 +295,14 @@ def test_collect():
         fetch_updated=lambda key: f"{key} updated",
         changed_since=lambda keys, minutes, linked_to=(): asked_jira.append((sorted(keys), sorted(linked_to))) or set(),
         fetch_epics=lambda settings: [EPIC], fetch_children=lambda key: [replace(t, prs=[]) for t in TICKETS])
+    checked = []
+
+    def failed_checks_of(items):
+        items = list(items)
+        checked.append(items)
+        return [[{"name": "rspec", "url": "https://ci/rspec"}] for _ in items]
     pull_requests = types.SimpleNamespace(search_prs=search, fetch_prs=details_of, fetch_pr_states=lambda urls: {},
-                                          search_terms=github.search_terms)
+                                          fetch_failed_checks=failed_checks_of, search_terms=github.search_terms)
     refresh, store, _ = refresh_with(tickets, pull_requests)
     found = refresh.collect(STATED)
     assert "is:pr is:open archived:false org:acme author:alice author:bob" in queries, "the team's prs come from one search naming every author"
@@ -315,11 +335,15 @@ def test_collect():
     assert asked in ([], [[]]), "an unchanged pr is not fetched again"
     lights["open"] = [light_node(PR_ONE, updated="2026-10-25T08:00:00Z")]
     lights["review"] = [light_node(three), light_node(PR_ONE, updated="2026-10-25T08:00:00Z")]
+    assert checked[0] == [], "a board with no pr whose ci failed asks for no failed checks"
     lights["team"] = [light_node(PR_TWO, ci="FAILURE")]
     asked.clear()
     found = refresh.collect(STATED)
     assert asked == [[("acme/app", 1)]], "only the pr updated since the last refresh is fetched again"
     assert {pr.number: pr.ci for pr in found["prs"]} == {1: "passing", 2: "failing"}, "ci comes from the search even when the detail is reused"
+    assert {pr.number: pr.failed_checks for pr in found["prs"]} == {1: [], 2: [{"name": "rspec", "url": "https://ci/rspec"}]}, \
+        "the failed checks are asked on every refresh, even when the detail is reused"
+    assert checked[-1] == [("acme/billing-reconciliation-service", 2)], "only the prs whose ci failed are asked for their failed checks"
 
 
 def test_ticket():

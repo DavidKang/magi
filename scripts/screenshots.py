@@ -52,7 +52,7 @@ def pr(repo, number, title, author, days, review="", ci="passing", mergeable="ME
                        is_draft=draft, review_decision=review, reviews=list(reviews), review_requests=[{}] * requests,
                        created_at=ago(days), ci=ci, mergeable=mergeable, head_ref_name=f"{repo}-{number}",
                        commits=[{"committedDate": ago(hours=5)}], threads=[], conversation=[], updated_at=ago(hours=2),
-                       head_ref_oid=f"{number:x}")
+                       head_ref_oid=f"{number:x}", failed_checks=[])
 
 
 def approval(login, hours):

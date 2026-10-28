@@ -45,6 +45,7 @@ class PullRequest:
     conversation: list
     repo: str
     ci: str
+    failed_checks: list
 
 
 @dataclass

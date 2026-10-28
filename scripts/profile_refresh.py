@@ -32,7 +32,7 @@ def label(cmd):
         kind = "author" if "author:" in query else "review" if "user-review-requested" in query else "merged" if "is:merged" in query else "keys"
         return f"gh graphql search {kind}"
     if "graphql" in cmd:
-        return "gh graphql pr details" if "reviewThreads" in query else "gh graphql pr states"
+        return "gh graphql pr details" if "reviewThreads" in query else "gh graphql failed checks" if "contexts(" in query else "gh graphql pr states"
     return " ".join(cmd[:3])
 
 

@@ -79,6 +79,7 @@ def pr_entry(pr, by_key, settings, asked=False):
              field("pr", f'{link(row["url"], row["ref"])} {colored("dim", "by")} {escape(row["author"])} '
                          f'{colored("dim", "open")} {row["age"]}d' + (f' {colored("dim", "· last push")} {days_since(pushed)}d ago' if pushed else "")),
              field("status", colored(tone, missing))]
+    lines += [field("failing", " · ".join(link(c["url"], c["name"]) for c in pr.failed_checks))] if pr.failed_checks else []
     lines += [field("ticket", f'{link(t["url"], t["key"])} {colored("dim", f"({t["status"]})")} {escape(t["summary"])}')
               for t in row["tickets"]] or [field("ticket", "—")]
     items = review_items(pr)

@@ -26,12 +26,12 @@ from .screens import LOGO_BLACK, LOGO_WHITE, ConfigScreen, ReviewScreen, ThemeSc
 from .system import leave, open_in_browser, pbcopy
 from .theme import COLORS, use_theme
 
-# A refresh costs about 5 s and at most 9 of GitHub's 5000 GraphQL points an hour.
+# A refresh costs about 4-6 s and 10-16 of GitHub's 5000 GraphQL points an hour, after scripts/profile_refresh.py.
 REFRESH_SECONDS = 5 * 60
 REFRESH_COOLDOWN = 30
 CACHE = paths.CACHE_DIR / "cache.json"
 # Seen marks and snoozes kept their shape through these storage versions, so an upgrade keeps them instead of dropping them.
-KEPT_UPGRADES = {4: lambda saved: saved}
+KEPT_UPGRADES = {4: lambda saved: saved, 5: lambda saved: saved}
 # The title takes the room the other columns leave, up to MAX_TITLE; the rest goes to the repo, so it sits at the right edge.
 PR_WIDTHS = [None, 10, 27, 4, 18]
 # LCARS draws review, CI, conflict and days as padded pills, which need more room than their plain text.

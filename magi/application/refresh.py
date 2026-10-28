@@ -35,11 +35,16 @@ class Refresh:
         """Full PRs for the light ones a search found: fetched again only when a PR changed since the last refresh."""
         cached = {url: PullRequest(**pr) for url, pr in (self.store.read("prs") or {}).get("prs", {}).items()}
         stale = [pr for pr in found if pr.url not in cached or cached[pr.url].updated_at != pr.updated_at]
-        fresh = dict(zip((pr.url for pr in stale), self.pull_requests.fetch_prs((pr.name_with_owner, pr.number) for pr in stale)))
+        failing = [pr for pr in found if pr.ci == "failing"]
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            checks = pool.submit(self.pull_requests.fetch_failed_checks, [(pr.name_with_owner, pr.number) for pr in failing])
+            fresh = dict(zip((pr.url for pr in stale), self.pull_requests.fetch_prs((pr.name_with_owner, pr.number) for pr in stale)))
+        failed = dict(zip((pr.url for pr in failing), checks.result()))
         details = {pr.url: fresh.get(pr.url) or cached[pr.url] for pr in found}
         self.store.write("prs", {"prs": details})
-        # CI and mergeability change without touching updatedAt, so they always come from the search.
-        return {pr.url: dataclasses.replace(details[pr.url], ci=pr.ci, mergeable=pr.mergeable) for pr in found}
+        # CI, its failed checks and mergeability change without touching updatedAt, so they are asked on every refresh.
+        return {pr.url: dataclasses.replace(details[pr.url], ci=pr.ci, failed_checks=failed.get(pr.url, []), mergeable=pr.mergeable)
+                for pr in found}
 
     def known_children(self, epic_key):
         """An epic's tickets, asked before Jira lists the epics; None when Jira refuses, as it does for an epic since deleted."""

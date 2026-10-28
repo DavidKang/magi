@@ -107,6 +107,14 @@ def test_pr_detail_status_and_activity():
         "a pr without commits shows no last push"
 
 
+def test_pr_detail_links_the_failed_checks():
+    checks = [{"name": "rspec", "url": "https://ci/rspec"}, {"name": "ci/jenkins", "url": "https://jenkins/1"}]
+    detail = entries.pr_entry(replace(PR_TWO, ci="failing", failed_checks=checks), {}, STATED).detail
+    assert "failing  rspec · ci/jenkins" in Content.from_markup(detail).plain.splitlines(), "the detail names each failed check"
+    assert "app.open_link('https://ci/rspec')" in detail, "a failed check opens its log"
+    assert "failing " not in Content.from_markup(entries.pr_entry(PR_TWO, {}, STATED).detail).plain, "a pr with no failed check names none"
+
+
 def test_activity_days():
     commits = [{"committedDate": at} for at in ("2026-10-23T21:30:00Z", "2026-10-23T22:30:00Z", "2025-10-23T08:00:00Z")]
     lines = Content.from_markup(entries.pr_entry(replace(PR_TWO, commits=commits), {}, STATED).detail).plain.splitlines()
