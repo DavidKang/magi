@@ -175,6 +175,10 @@ The changes box keeps one row per PR: its latest change, or the latest move of a
 
 A change you have not seen yet puts a `●` on its rows in every box, a `N new` count in the box title and a `●` on its tab; the detail opens with the change and its time. Moving the cursor off the row marks it seen. The first start marks nothing.
 
+### Herdr
+
+Run inside a [herdr](https://herdr.dev) pane, Magi tells herdr when a refresh brings a change you have not seen: herdr marks the workspace as done and plays its done sound, as it does for an agent that finished while you looked elsewhere. Herdr's `[ui.sound]` settings apply. Quitting Magi gives the pane back. A herdr that is missing or takes over a second to answer is skipped until the next news, so it never holds the board.
+
 ### Snoozed
 
 `s` takes the selected attention item or team PR off its box until Magi sees a change on it newer than the one it had: a push, a review, a ticket move. CI turning red or a conflict alone does not wake it. It then comes back, marked new. A snooze holds in its own box only, survives a restart, and is dropped once the item leaves the box. The box title counts the rows it hides, as `N snoozed`, and `S` brings it all back.
@@ -296,7 +300,7 @@ python3.12 -m venv .venv
 | `magi/application/` | One refresh: fetches through the interfaces in `ports.py` and builds the board as data |
 | `magi/adapters/` | Talks to the outside: `gh`, `acli`, JSON files, data paths, the clock |
 | `magi/cli.py` | Entry point: wires the adapters into the refresh and starts the app |
-| `magi/tui/` | The terminal app: rows and detail text (`entries.py`), popups and settings (`screens.py`), themes (`theme.py`) |
+| `magi/tui/` | The terminal app: rows and detail text (`entries.py`), popups and settings (`screens.py`), themes (`theme.py`), who to tell about news (`notifiers.py`) |
 | `magi/rows.py` | PR and ticket rows as plain data, formatted by `tui/entries.py` |
 
 ## License

@@ -21,8 +21,8 @@ def test_data_paths():
     assert app_module.CACHE == home / ".cache/magi/cache.json", "the TUI cache lives in ~/.cache/magi"
     assert paths.REFRESH_FILES["prs"].parent == home / ".cache/magi", "the TUI cache lives in ~/.cache/magi"
     assert config.PATH == home / ".config/magi/config.json", "settings live in ~/.config/magi"
-    assert not hasattr(process, "fetch_worktrees"), "nothing scans ~/projects or calls herdr"
-    assert not hasattr(process, "herdr_workspaces"), "nothing scans ~/projects or calls herdr"
+    assert not hasattr(process, "fetch_worktrees"), "nothing scans ~/projects for worktrees or lists herdr workspaces"
+    assert not hasattr(process, "herdr_workspaces"), "nothing scans ~/projects for worktrees or lists herdr workspaces"
 
 
 def test_the_data_kept_under_tarkon_moves_to_magi(tmp_path):

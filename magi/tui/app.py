@@ -1,6 +1,7 @@
 import asyncio
 import datetime as dt
 import math
+import os
 import subprocess
 import threading
 import time
@@ -20,7 +21,7 @@ from ..application.refresh import saved_board
 from ..domain import changes
 from ..domain.review import CONDITIONS, condition
 from ..domain.snoozes import asleep, awake, change_marks
-from . import screens, theme
+from . import notifiers, screens, theme
 from .entries import cell_row, entries, escape, ticket_entry
 from .screens import LOGO_BLACK, LOGO_WHITE, ConfigScreen, ReviewScreen, ThemeScreen, TicketScreen, logo
 from .system import leave, open_in_browser, pbcopy
@@ -187,8 +188,9 @@ class MagiApp(App):
                 Binding("q", "quit", "quit")]
 
     def __init__(self, collect=None, load=None, fetch_ticket=None, opener=open_in_browser, copier=pbcopy, clock=time.time, cache=CACHE,
-                 config_path=config.PATH, edit_config=False):
+                 config_path=config.PATH, edit_config=False, notifier=notifiers.Silent()):
         super().__init__()
+        self.notifier, self.watching = notifier, False
         self.config_path, self.edit_config = config_path, edit_config
         self.load = load or (lambda: collect(self.settings))
         self.fetch_ticket, self.loading_ticket = fetch_ticket, None
@@ -334,7 +336,18 @@ class MagiApp(App):
             self.failed(error)
             return
         storage.write(self.cache, {"at": started, "board": board})
+        # The refresh that starts a session tells nothing: what is news is what arrives while Magi runs.
+        known = self.news_marks() if self.watching else None
+        self.watching = True
         self.show_board(board, started)
+        if known is not None and self.news_marks() - known:
+            await asyncio.to_thread(self.notifier.news)
+
+    def news_marks(self):
+        return {(item, changes.change_mark(change)) for item, change in self.news.items()}
+
+    def on_unmount(self):
+        self.notifier.leave()
 
     def failed(self, error):
         self.refreshing = False
@@ -659,6 +672,6 @@ def error_message(error):
 
 
 def main(collect, fetch_ticket, edit_config=False):
-    app = MagiApp(collect, fetch_ticket=fetch_ticket, edit_config=edit_config)
+    app = MagiApp(collect, fetch_ticket=fetch_ticket, edit_config=edit_config, notifier=notifiers.notifier(os.environ))
     app.run()
     leave(app)
