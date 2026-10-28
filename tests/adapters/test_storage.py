@@ -63,3 +63,10 @@ def test_json_files_upgrade_only_the_files_named(tmp_path):
         stamped(tmp_path / f"{name}.json", storage.VERSION - 1, {})
     assert files.read("state") == {"upgraded": True}, "a file named in the upgrades is brought up"
     assert files.read("prs") is None, "a file with no upgrade of its own is dropped"
+
+
+def test_write_text(tmp_path):
+    path = tmp_path / "nested" / "board.html"
+    storage.write_text(path, "<p>ñ</p>")
+    assert path.read_text() == "<p>ñ</p>", "plain text is written as given, in a folder created on demand"
+    assert sorted(p.name for p in path.parent.iterdir()) == ["board.html"], "a full write leaves no temp file"

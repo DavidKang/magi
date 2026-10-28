@@ -333,3 +333,14 @@ def test_pr_rows_follow_their_box_when_it_resizes(cache, default_theme):
     assert before[0] == before[1] and after[0] == after[1] and after[0] > before[0], \
         f"a PR row fills its box, before and after the terminal resizes: {before} then {after}"
     assert plain.rstrip().endswith(" app"), "the repo stays at the right edge after a resize"
+
+
+@pytest.mark.usefixtures("default_theme")
+def test_using_a_theme_puts_the_one_in_use_back():
+    theme.use_theme("nerv")
+    with theme.using("default"):
+        assert (theme.current, theme.COLORS) == ("default", theme.THEMES["default"]), "inside, the theme asked for is in use"
+    assert (theme.current, theme.COLORS) == ("nerv", theme.THEMES["nerv"]), "after, the theme in use before is back"
+    with pytest.raises(ValueError), theme.using("default"):
+        raise ValueError
+    assert theme.current == "nerv", "an error inside still puts the theme back"

@@ -16,6 +16,9 @@ from . import theme
 from .theme import COLORS
 
 DESCRIPTION_LINES = 12
+# The keys a details text points at, each in a span of its own: the web page has no keys, so it drops these spans.
+OPEN_HINT, MORE_HINT = " · c to open", " c to read it all"
+KEY_HINTS = (OPEN_HINT, MORE_HINT)
 DIFF_BACKGROUNDS = {"+": "#12261e", "-": "#2d1418"}
 DIFF_SIGNS = {"+": "ok", "-": "bad", " ": "dim"}
 HUNK_HEADER = re.compile(r"@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
@@ -31,6 +34,7 @@ class Entry:
     popup: tuple = None
     group: str = None
     ticket: str = None
+    progress: tuple = None
 
 
 ZERO_WIDTH_SPACE = "\u200b"
@@ -176,7 +180,8 @@ def review_items(pr):
 
 
 def comments_field(count):
-    return [field("comments", f"[{COLORS['accent']} underline @click=app.open_review(0)]{count} · c to open[/]")]
+    style = f"{COLORS['accent']} underline @click=app.open_review(0)"
+    return [field("comments", f"[{style}]{count}[/][{style}]{OPEN_HINT}[/]")]
 
 
 def ticket_items(ticket, settings):
@@ -253,7 +258,7 @@ def epic_entry(epic, tickets, settings):
         bar.append("█" * filled, COLORS["ok"])
         bar.append("░" * (20 - filled), COLORS["dim"])
     return Entry([(epic.key, ""), (bar, ""), (f"{done}/{len(tickets)}", "dim-right"), (epic.summary, "")],
-                 "\n".join(lines), settings.jira_browse + epic.key, epic.key, f'{epic.key} {epic.summary}')
+                 "\n".join(lines), settings.jira_browse + epic.key, epic.key, f'{epic.key} {epic.summary}', progress=(done, len(tickets)))
 
 
 def change_entry(change, told, history):
@@ -291,7 +296,7 @@ def ticket_entry(ticket, prs, settings):
     if detail and detail.description:
         shown = detail.description.splitlines()
         lines += ["", separator("description"), *(escape(line) for line in shown[:DESCRIPTION_LINES])]
-        lines += [colored("dim", "… c to read it all")] if len(shown) > DESCRIPTION_LINES else []
+        lines += [colored("dim", "…") + colored("dim", MORE_HINT)] if len(shown) > DESCRIPTION_LINES else []
     return Entry([(ticket.key, ""), (ticket.summary, "")], "\n".join(lines), url, ticket.key,
                  f'{ticket.key} {ticket.summary} {status}', (f'{ticket.key} · {ticket.summary}', items), group=status)
 

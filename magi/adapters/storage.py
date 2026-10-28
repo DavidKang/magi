@@ -11,10 +11,14 @@ VERSION = 6
 
 
 def write(path, data):
+    write_text(path, json.dumps({"version": VERSION, **data}, default=encode, ensure_ascii=False))
+
+
+def write_text(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
     # Written aside and renamed, so quitting mid-write never leaves a truncated file.
     staged = path.with_name(path.name + ".tmp")
-    staged.write_text(json.dumps({"version": VERSION, **data}, default=encode, ensure_ascii=False))
+    staged.write_text(text)
     staged.replace(path)
 
 

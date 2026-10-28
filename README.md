@@ -183,6 +183,10 @@ Run inside a [herdr](https://herdr.dev) pane, Magi tells herdr when a refresh br
 
 `s` takes the selected attention item or team PR off its box until Magi sees a change on it newer than the one it had: a push, a review, a ticket move. CI turning red or a conflict alone does not wake it. It then comes back, marked new. A snooze holds in its own box only, survives a restart, and is dropped once the item leaves the box. The box title counts the rows it hides, as `N snoozed`, and `S` brings it all back.
 
+### Web page
+
+After each refresh, and after each snooze, Magi writes the board to `~/.cache/magi/board.html`. Open it in a browser: it reloads itself every 5 minutes and shows what the TUI last saved, so it never calls GitHub or Jira on its own and stays current only while Magi runs. It has the same boxes as the TUI, without the snoozed rows. Clicking a row shows its details in a panel beside the boxes, as the TUI's details pane does, and keeps them through the page's reloads; cmd-click opens the PR or ticket instead. Its theme is picked in the page and remembered by the browser, apart from the TUI's. Each theme names the boxes and the alert level, and dates the refresh, as the TUI does; the LCARS themes draw each box as an LCARS panel, after [thelcars.com](https://www.thelcars.com). The styles come from Tailwind's CDN, so the page needs a network connection to look right.
+
 ## Themes
 
 Press `t` to pick a theme. Magi remembers your choice in its settings.
@@ -272,6 +276,7 @@ The LCARS, NERV and Cyberpunk themes show how the board is doing in the header:
 | `~/.cache/magi/my-tickets.json` | Details of your own tickets, refetched only for tickets Jira reports as changed |
 | `~/.cache/magi/seen.json` | The last change you saw on each PR or ticket, so new ones stay marked until you pass them |
 | `~/.cache/magi/snoozed.json` | What you snoozed in each box, with the change each item had then |
+| `~/.cache/magi/board.html` | The board as a web page, rewritten after each refresh and snooze (see [Web page](#web-page)) |
 | `~/.cache/magi/last-refresh` | When the last refresh started, so reopening the app or pressing `r` waits 30 seconds |
 
 Magi used to be called Tarkon. On start, it moves any `tarkon` folder in those three places to `magi`, unless a `magi` folder is already there.
@@ -300,7 +305,7 @@ python3.12 -m venv .venv
 | `magi/application/` | One refresh: fetches through the interfaces in `ports.py` and builds the board as data |
 | `magi/adapters/` | Talks to the outside: `gh`, `acli`, JSON files, data paths, the clock |
 | `magi/cli.py` | Entry point: wires the adapters into the refresh and starts the app |
-| `magi/tui/` | The terminal app: rows and detail text (`entries.py`), popups and settings (`screens.py`), themes (`theme.py`), who to tell about news (`notifiers.py`) |
+| `magi/tui/` | The terminal app: rows and detail text (`entries.py`), popups and settings (`screens.py`), themes (`theme.py`), who to tell about news (`notifiers.py`), the web page (`web.py`) |
 | `magi/rows.py` | PR and ticket rows as plain data, formatted by `tui/entries.py` |
 
 ## License

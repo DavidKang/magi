@@ -15,14 +15,15 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import ContentSwitcher, Footer, Input, OptionList, Static, Tab, Tabs
 from textual.widgets.option_list import Option
 
-from .. import config, rows
+from .. import config
 from ..adapters import paths, storage
 from ..application.refresh import saved_board
 from ..domain import changes
-from ..domain.review import CONDITIONS, condition
+from ..domain.review import condition
 from ..domain.snoozes import asleep, awake, change_marks
-from . import notifiers, screens, theme
+from . import frames, notifiers, screens, theme, web
 from .entries import cell_row, entries, escape, ticket_entry
+from .frames import LCARS_NAMES
 from .screens import LOGO_BLACK, LOGO_WHITE, ConfigScreen, ReviewScreen, ThemeScreen, TicketScreen, logo
 from .system import leave, open_in_browser, pbcopy
 from .theme import COLORS, use_theme
@@ -48,20 +49,6 @@ SECTIONS = {"attention": ("attention", "nothing to flag", [2, None]),
             "epics": ("epics", "no epics", [9, 20, 6, None]),
             "mine_prs": ("my prs", "no open prs", PR_WIDTHS),
             "mine_tickets": ("my tickets", "no open tickets", [10, None])}
-LCARS_NAMES = {"attention": "bridge alerts", "prs": "crew reports", "changes": "captain's log", "epics": "missions", "mine_prs": "my reports",
-               "mine_tickets": "away missions", "details": "sensor readings"}
-NERV_NAMES = {"attention": "emergency", "prs": "sorties", "changes": "operations log", "epics": "projects", "mine_prs": "my sorties",
-              "mine_tickets": "my orders", "details": "magi analysis"}
-CYBERPUNK_NAMES = {"attention": "ncpd scanner", "prs": "fixer gigs", "changes": "datashards", "epics": "main jobs", "mine_prs": "my gigs",
-                   "mine_tickets": "side jobs", "details": "kiroshi scan"}
-FRAME_NAMES = {"lcars": LCARS_NAMES, "nerv": NERV_NAMES, "cyberpunk": CYBERPUNK_NAMES}
-# Evangelion's blood types: orange for an unknown pattern, blue for an Angel.
-NERV_CONDITIONS = {"green": "NORMAL", "yellow": "PATTERN ORANGE", "red": "PATTERN BLUE"}
-# EVA 01 reads the level as Unit-01's sync with its pilot, and berserk when it breaks.
-EVA_CONDITIONS = {"green": "SYNC STABLE", "yellow": "SYNC UNSTABLE", "red": "BERSERK"}
-# Night City's wanted level: five stars send MaxTac.
-CYBERPUNK_CONDITIONS = {"green": "NO HEAT", "yellow": "HEAT ★★", "red": "HEAT ★★★★★"}
-THEME_CONDITIONS = {"nerv": NERV_CONDITIONS, "eva01": EVA_CONDITIONS, "cyberpunk": CYBERPUNK_CONDITIONS}
 REFRESHING = {"lcars": "ENGAGING WARP DRIVE…", "cyberpunk": "JACKING IN…"}
 CONDITION_TONES = {"green": "ok", "yellow": "warn", "red": "bad"}
 TABS = {"overview": ["attention", "prs", "changes", "epics"], "mine": ["mine_prs", "mine_tickets"]}
@@ -95,7 +82,7 @@ def widths(key, room=None):
 
 def section_name(key):
     default = SECTIONS[key][0] if key in SECTIONS else key
-    return FRAME_NAMES.get(theme.frame(), {}).get(key, default)
+    return frames.box_name(theme.current, key, default)
 
 
 def glyphs(table):
@@ -361,14 +348,12 @@ class MagiApp(App):
         self.updated_at = at
         self.refresh_failed = False
         self.show_updated()
+        self.write_page()
         self.current_board().focus()
 
     def show_updated(self):
         when = dt.datetime.fromtimestamp(self.updated_at)
-        status = {"lcars": rows.stardate(when), "nerv": f"MAGI · MELCHIOR BALTHASAR CASPER · SYNC {when:%H:%M}",
-                  "cyberpunk": f"NIGHT CITY · NET UPLINK {when:%H:%M}"}
-        pilot = f"EVA-01 · PILOT {self.settings.github_user.upper()} · SYNC {when:%H:%M}"
-        self.query_one("#status", Static).update(pilot if theme.current == "eva01" else status.get(theme.frame(), f"updated {when:%H:%M}"))
+        self.query_one("#status", Static).update(frames.status(theme.current, when, self.settings.github_user))
 
     def title_panels(self):
         for n, (tab, keys) in enumerate(TABS.items(), 1):
@@ -397,7 +382,7 @@ class MagiApp(App):
         self.find_news(board["changes"])
         self.level = condition(board["prs"], self.settings.github_user)
         tone = COLORS[CONDITION_TONES[self.level]]
-        label = THEME_CONDITIONS.get(theme.current, CONDITIONS)[self.level]
+        label = frames.condition_label(theme.current, self.level)
         left, right = glyphs(TITLE_CAPS)
         pill = Text.assemble((left, tone), (f" {label} ", f"bold {COLORS['title']} on {tone}"), (right, tone))
         # NERV flags the level as a marked line, after nerv-ui's condition banner.
@@ -446,6 +431,11 @@ class MagiApp(App):
     def snoozes_changed(self):
         storage.write(self.snoozed_path, {"snoozed": self.snoozed})
         self.fill_sections(self.board)
+        self.write_page()
+
+    def write_page(self):
+        storage.write_text(self.cache.with_name("board.html"),
+                           web.page(self.board, self.settings, self.snoozed, self.updated_at, SECTIONS, NUMBERS, REFRESH_SECONDS))
 
     def pass_by(self, url):
         if self.passing in self.news and self.passing != url:

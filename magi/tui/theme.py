@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+
 THEMES = {"default": {"ok": "#56d364", "bad": "#ff7b72", "warn": "#e3b341", "blue": "#79c0ff", "dim": "#6e7a87", "accent": "#21cfac",
                        "focus": "#21cfac", "bg": "#0d1117", "fg": "#d1d9e0", "line": "#30363d", "raised": "#161b22", "title": "#21cfac",
                        "pick": "#1f6feb40", "pick-focus": "#1f6feb66", "veil": "#01040980"},
@@ -48,3 +50,14 @@ def use_theme(name):
     global current
     COLORS.update(THEMES[name])
     current = name
+
+
+@contextmanager
+def using(name):
+    """name's theme for a while, then back to the one in use."""
+    was = current
+    use_theme(name)
+    try:
+        yield
+    finally:
+        use_theme(was)
