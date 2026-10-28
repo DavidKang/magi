@@ -19,6 +19,7 @@ from ..adapters import paths, storage
 from ..application.refresh import saved_board
 from ..domain import changes
 from ..domain.review import CONDITIONS, condition
+from ..domain.snoozes import asleep, awake, change_marks
 from . import screens, theme
 from .entries import cell_row, entries, escape, ticket_entry
 from .screens import LOGO_BLACK, LOGO_WHITE, ConfigScreen, ReviewScreen, ThemeScreen, TicketScreen, logo
@@ -29,8 +30,8 @@ from .theme import COLORS, use_theme
 REFRESH_SECONDS = 5 * 60
 REFRESH_COOLDOWN = 30
 CACHE = paths.CACHE_DIR / "cache.json"
-# Seen marks kept their shape through these storage versions, so an upgrade keeps them instead of taking every change as seen.
-SEEN_UPGRADES = {4: lambda saved: saved}
+# Seen marks and snoozes kept their shape through these storage versions, so an upgrade keeps them instead of dropping them.
+KEPT_UPGRADES = {4: lambda saved: saved}
 # The title takes the room the other columns leave, up to MAX_TITLE; the rest goes to the repo, so it sits at the right edge.
 PR_WIDTHS = [None, 10, 27, 4, 18]
 # LCARS draws review, CI, conflict and days as padded pills, which need more room than their plain text.
@@ -63,6 +64,7 @@ THEME_CONDITIONS = {"nerv": NERV_CONDITIONS, "eva01": EVA_CONDITIONS, "cyberpunk
 REFRESHING = {"lcars": "ENGAGING WARP DRIVE…", "cyberpunk": "JACKING IN…"}
 CONDITION_TONES = {"green": "ok", "yellow": "warn", "red": "bad"}
 TABS = {"overview": ["attention", "prs", "changes", "epics"], "mine": ["mine_prs", "mine_tickets"]}
+SNOOZABLE = ("attention", "prs")
 NUMBERS = {key: n for n, key in enumerate(SECTIONS, len(TABS) + 1)}
 TAB_OF = {key: tab for tab, keys in TABS.items() for key in keys}
 LEFT_CAP, RIGHT_CAP = "\ue0b6", "\ue0b4"
@@ -97,10 +99,6 @@ def section_name(key):
 
 def glyphs(table):
     return table[theme.frame() or "lcars"]
-
-
-def seen_mark(change):
-    return f'{change["at"]} {change["label"]}'
 
 
 def panel_title(key, count):
@@ -167,7 +165,8 @@ class Board(OptionList):
     def on_resize(self):
         self.app.redraw(self.section)
 
-BOARD_ACTIONS = {"focus_tab", "focus_box", "focus_filter", "clear_filter", "copy_current", "refresh", "open_review", "view_ticket", "pick_theme"}
+BOARD_ACTIONS = {"focus_tab", "focus_box", "focus_filter", "clear_filter", "copy_current", "refresh", "open_review", "view_ticket", "pick_theme",
+                 "snooze", "wake_snoozed"}
 
 
 class MagiApp(App):
@@ -181,6 +180,8 @@ class MagiApp(App):
                 Binding("c", "open_review", "comments"),
                 Binding("v", "view_ticket", "ticket"),
                 Binding("y", "copy_current", "copy"),
+                Binding("s", "snooze", "snooze"),
+                Binding("S", "wake_snoozed", "wake", show=False),
                 Binding("r", "refresh", "refresh"),
                 Binding("t", "pick_theme", "theme"),
                 Binding("q", "quit", "quit")]
@@ -195,6 +196,9 @@ class MagiApp(App):
         self.stamp = cache.with_name("last-refresh")
         self.seen_path = cache.with_name("seen.json")
         self.seen = None
+        self.snoozed_path = cache.with_name("snoozed.json")
+        self.snoozed = None
+        self.hidden = {}
         self.news = {}
         self.passing = None
         self.refreshing = False
@@ -363,7 +367,9 @@ class MagiApp(App):
             seg.update(f" {n:02d} {tab.upper()}{dot} ")
         for key in SECTIONS:
             new = sum(1 for entry in self.sections[key] if entry.url in self.news)
-            count = (f"{len(self.sections[key])} · {new} new" if new else len(self.sections[key])) if self.board else None
+            snoozed = self.hidden.get(key, 0)
+            count = " · ".join([str(len(self.sections[key]))] + [f"{new} new"] * bool(new) + [f"{snoozed} snoozed"] * bool(snoozed)) \
+                if self.board else None
             self.query_one(f"#panel-{key}").border_title = panel_title(key, count)
             self.query_one(f"#panel-{key} PanelTitle", PanelTitle).show(f"{NUMBERS[key]:02d}", section_name(key).upper(),
                                                                        "" if count is None else str(count))
@@ -374,6 +380,7 @@ class MagiApp(App):
     def fill_sections(self, board):
         self.board = board
         self.sections = entries(board, self.settings)
+        self.hide_snoozed(board["changes"])
         self.find_news(board["changes"])
         self.level = condition(board["prs"], self.settings.github_user)
         tone = COLORS[CONDITION_TONES[self.level]]
@@ -390,13 +397,42 @@ class MagiApp(App):
 
     def find_news(self, found):
         """The changes not seen yet, by item; the first run takes every change as seen."""
-        saved = storage.read(self.seen_path, SEEN_UPGRADES) if self.seen is None else {"seen": self.seen}
+        saved = storage.read(self.seen_path, KEPT_UPGRADES) if self.seen is None else {"seen": self.seen}
         current = {change["item"]: change for change in changes.latest(found, "item")}
         self.seen = {item: mark for item, mark in saved["seen"].items() if item in current} if saved else \
-            {item: seen_mark(change) for item, change in current.items()}
+            {item: changes.change_mark(change) for item, change in current.items()}
         if not saved:
             storage.write(self.seen_path, {"seen": self.seen})
-        self.news = {item: change for item, change in current.items() if self.seen.get(item) != seen_mark(change)}
+        self.news = {item: change for item, change in current.items() if self.seen.get(item) != changes.change_mark(change)}
+
+    def hide_snoozed(self, found):
+        """Snoozed items leave their box until they change; a snooze that woke up is dropped."""
+        saved = self.snoozed or (storage.read(self.snoozed_path, KEPT_UPGRADES) or {"snoozed": {key: {} for key in SNOOZABLE}})["snoozed"]
+        self.snoozed = {key: asleep(saved[key], found, {entry.url for entry in self.sections[key]}) for key in SNOOZABLE}
+        if self.snoozed != saved:
+            storage.write(self.snoozed_path, {"snoozed": self.snoozed})
+        for key in SNOOZABLE:
+            shown = awake(self.sections[key], self.snoozed[key], found)
+            self.hidden[key] = len(self.sections[key]) - len(shown)
+            self.sections[key] = shown
+
+    def action_snooze(self):
+        entry = self.current()
+        if self.current_section not in SNOOZABLE:
+            self.notify("only attention items and team prs snooze", timeout=2)
+        elif entry:
+            self.snoozed[self.current_section][entry.url] = change_marks(self.board["changes"]).get(entry.url)
+            self.snoozes_changed()
+            self.notify("snoozed until it changes", timeout=2)
+
+    def action_wake_snoozed(self):
+        if self.board and self.current_section in SNOOZABLE and self.snoozed[self.current_section]:
+            self.snoozed[self.current_section] = {}
+            self.snoozes_changed()
+
+    def snoozes_changed(self):
+        storage.write(self.snoozed_path, {"snoozed": self.snoozed})
+        self.fill_sections(self.board)
 
     def pass_by(self, url):
         if self.passing in self.news and self.passing != url:
@@ -404,7 +440,7 @@ class MagiApp(App):
         self.passing = url
 
     def mark_seen(self, url):
-        self.seen[url] = seen_mark(self.news.pop(url))
+        self.seen[url] = changes.change_mark(self.news.pop(url))
         storage.write(self.seen_path, {"seen": self.seen})
         for key in SECTIONS:
             board = self.query_one(f"#list-{key}", Board)

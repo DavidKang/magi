@@ -189,3 +189,8 @@ def test_a_ticket_joins_the_group_of_its_newest_change():
     assert [(c["label"], c["group"]) for c in found] == [("In review", PR_ONE.url), ("In progress", PR_ONE.url)], \
         "a ticket's earlier changes join the pr its newest change joined"
     assert [c["label"] for c in changes.latest(found, "group")] == ["In review"], "a ticket shows once, at its newest status"
+
+
+def test_change_mark():
+    change = {"at": "2026-10-24T02:04", "label": "New PR", "item": PR_ONE.url}
+    assert changes.change_mark(change) == "2026-10-24T02:04 New PR", "a change is remembered by when it happened and what it was"

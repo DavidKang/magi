@@ -146,6 +146,8 @@ Epics are not configured: the board shows every epic of the project in Developin
 | `v` | Open the Jira ticket of the selected PR in a popup, fetched from Jira the first time after each refresh (`c` opens its description and comments, `enter` opens it in the browser, `esc` closes) |
 | `/` | Filter the current box (`escape` clears it) |
 | `y` | Copy the selected link (the key, for an epic) |
+| `s` | Snooze the selected attention item or team PR until it changes (see [Snoozed](#snoozed)) |
+| `S` | Bring back every snoozed item of the current box |
 | `r` | Refresh (once every 30 seconds at most; it also refreshes every 5 minutes) |
 | `t` | Pick a theme (see [Themes](#themes)) |
 | `q` | Quit |
@@ -172,6 +174,10 @@ The changes box keeps one row per PR: its latest change, or the latest move of a
 ### What is new
 
 A change you have not seen yet puts a `●` on its rows in every box, a `N new` count in the box title and a `●` on its tab; the detail opens with the change and its time. Moving the cursor off the row marks it seen. The first start marks nothing.
+
+### Snoozed
+
+`s` takes the selected attention item or team PR off its box until Magi sees a change on it newer than the one it had: a push, a review, a ticket move. CI turning red or a conflict alone does not wake it. It then comes back, marked new. A snooze holds in its own box only, survives a restart, and is dropped once the item leaves the box. The box title counts the rows it hides, as `N snoozed`, and `S` brings it all back.
 
 ## Themes
 
@@ -261,6 +267,7 @@ The LCARS, NERV and Cyberpunk themes show how the board is doing in the header:
 | `~/.cache/magi/updated.json` | When each in-progress ticket last changed, refetched only for tickets Jira reports as changed |
 | `~/.cache/magi/my-tickets.json` | Details of your own tickets, refetched only for tickets Jira reports as changed |
 | `~/.cache/magi/seen.json` | The last change you saw on each PR or ticket, so new ones stay marked until you pass them |
+| `~/.cache/magi/snoozed.json` | What you snoozed in each box, with the change each item had then |
 | `~/.cache/magi/last-refresh` | When the last refresh started, so reopening the app or pressing `r` waits 30 seconds |
 
 Magi used to be called Tarkon. On start, it moves any `tarkon` folder in those three places to `magi`, unless a `magi` folder is already there.
@@ -285,7 +292,7 @@ python3.12 -m venv .venv
 
 | Path | What it does |
 |------|--------------|
-| `magi/domain/` | The board's rules: entities, status columns, review state, what needs attention, what changed |
+| `magi/domain/` | The board's rules: entities, status columns, review state, what needs attention, what changed, what stays snoozed |
 | `magi/application/` | One refresh: fetches through the interfaces in `ports.py` and builds the board as data |
 | `magi/adapters/` | Talks to the outside: `gh`, `acli`, JSON files, data paths, the clock |
 | `magi/cli.py` | Entry point: wires the adapters into the refresh and starts the app |

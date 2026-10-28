@@ -33,6 +33,11 @@ def change_text(change):
     return " ".join(part for part in (subject_text(change["subject"]), change["note"], change["aside"]) if part)
 
 
+def change_mark(change):
+    """What a change is remembered by, both as seen and as snoozed."""
+    return f'{change["at"]} {change["label"]}'
+
+
 def moved_from(change):
     """The state a status change left, or None for any other change."""
     return change["aside"].removeprefix(WAS) if change["aside"] and change["aside"].startswith(WAS) else None

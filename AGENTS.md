@@ -16,7 +16,7 @@ Hexagonal, in four layers under `magi/`:
 
 | Layer | Path | Holds |
 |-------|------|-------|
-| Domain | `domain/` | The board's rules: entities, status columns, review state, attention, changes, ages. Pure functions and dataclasses. |
+| Domain | `domain/` | The board's rules: entities, status columns, review state, attention, changes, snoozes, ages. Pure functions and dataclasses. |
 | Application | `application/` | One refresh (`refresh.py`), which fetches through the protocols in `ports.py` (`Tickets`, `PullRequests`, `Store`, `Clock`) and returns the board as plain data, and the upgrades that keep its saved files across storage versions (`upgrades.py`). |
 | Adapters | `adapters/` | The real ports: `github.py`, `jira.py`, `storage.py` (JSON files), `paths.py`, `clock.py`, `process.py` (subprocesses, parallel calls, tool checks). |
 | UI | `tui/` | The Textual app (`app.py`, `app.tcss`), rows and detail text (`entries.py`), popups and the settings panel (`screens.py`), themes (`theme.py`). |
