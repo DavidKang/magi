@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from builders import ROOT
-from magi import config
+from magi import cli, config
 from magi.adapters import paths, process
 from magi.tui import app as app_module
 
@@ -44,7 +44,7 @@ def test_an_unsupported_argument_shows_the_usage(tmp_path, args):
     result = subprocess.run([sys.executable, "-m", "magi", *args], capture_output=True, text=True, cwd=ROOT,
                             env={**os.environ, "HOME": str(tmp_path), "PATH": "/usr/bin:/bin"}, timeout=15)
     assert result.returncode == 2, "an unsupported argument exits with the usage instead of opening the TUI"
-    assert result.stderr.startswith("usage: magi [config]"), "an unsupported argument exits with the usage instead of opening the TUI"
+    assert result.stderr.startswith("usage: magi [config|web]"), "an unsupported argument exits with the usage instead of opening the TUI"
     assert "gh not found" not in result.stderr, "the usage comes before checking for gh and acli"
 
 
@@ -53,5 +53,31 @@ def test_help_shows_the_usage(tmp_path, flag):
     result = subprocess.run([sys.executable, "-m", "magi", flag], capture_output=True, text=True, cwd=ROOT,
                             env={**os.environ, "HOME": str(tmp_path), "PATH": "/usr/bin:/bin"}, timeout=15)
     assert (result.returncode, result.stderr) == (0, ""), "--help prints the usage and exits cleanly"
-    assert result.stdout.startswith("usage: magi [config]"), "--help prints the usage and exits cleanly"
-    assert "magi config" in result.stdout, "--help prints the usage and exits cleanly"
+    assert result.stdout.startswith("usage: magi [config|web]"), "--help prints the usage and exits cleanly"
+    assert "magi config" in result.stdout and "magi web" in result.stdout, "--help prints the usage and exits cleanly"
+
+
+def test_web_needs_gh_and_acli_as_the_board_does(tmp_path):
+    result = subprocess.run([sys.executable, "-m", "magi", "web"], capture_output=True, text=True, cwd=ROOT,
+                            env={**os.environ, "HOME": str(tmp_path), "PATH": "/usr/bin:/bin"}, timeout=15)
+    assert result.returncode == 1 and "gh not found" in result.stderr, "magi web refreshes the board itself, so it needs gh and acli"
+
+
+@pytest.mark.parametrize("args, watched", [(["web"], True), ([], False), (["config"], False)])
+def test_magi_web_runs_the_watch_instead_of_the_board(monkeypatch, args, watched):
+    calls = []
+    collect = object()
+    monkeypatch.setattr(sys, "argv", ["magi", *args])
+    monkeypatch.setattr(paths, "move_old_dirs", lambda: None)
+    monkeypatch.setattr(process, "missing_tools", lambda: [])
+    monkeypatch.setattr("magi.cli.refresh", lambda: type("Wired", (), {"collect": collect, "ticket": None})())
+    monkeypatch.setattr("magi.tui.web_watch.watch", lambda found: calls.append(("watch", found)) or "no settings yet")
+    monkeypatch.setattr(app_module, "main", lambda *found, **options: calls.append(("board", options)))
+    if watched:
+        with pytest.raises(SystemExit) as stopped:
+            cli.main()
+        assert stopped.value.code == "no settings yet", "what stops magi web is what it exits with"
+        assert calls == [("watch", collect)], "magi web keeps the board fresh with the wired refresh, without the tui"
+    else:
+        cli.main()
+        assert calls == [("board", {"edit_config": args == ["config"]})], "magi and magi config open the tui, never the watch"

@@ -1,4 +1,4 @@
-"""Entry point: magi opens the TUI, `config` its settings panel."""
+"""Entry point: magi opens the TUI, `config` its settings panel, `web` the board's web page."""
 
 import sys
 
@@ -8,10 +8,11 @@ from .adapters.storage import JsonFiles
 from .application.refresh import Refresh
 from .application.upgrades import UPGRADES
 
-USAGE = """usage: magi [config]
+USAGE = """usage: magi [config|web]
 
   magi         open the board
-  magi config  open the settings panel"""
+  magi config  open the settings panel
+  magi web     refresh the board every 5 minutes without the TUI and open its web page"""
 
 
 def refresh():
@@ -24,14 +25,18 @@ def main():
     if args in (["-h"], ["--help"]):
         print(USAGE)
         return
-    if args not in ([], ["config"]):
+    if args not in ([], ["config"], ["web"]):
         print(USAGE, file=sys.stderr)
         sys.exit(2)
     paths.move_old_dirs()
     missing = process.missing_tools()
     if missing:
         sys.exit("\n".join(missing))
+    wired = refresh()
+    if args == ["web"]:
+        from .tui.web_watch import watch
+
+        sys.exit(watch(wired.collect))
     from .tui.app import main as run
 
-    wired = refresh()
     run(wired.collect, wired.ticket, edit_config=args == ["config"])

@@ -16,24 +16,20 @@ from textual.widgets import ContentSwitcher, Footer, Input, OptionList, Static, 
 from textual.widgets.option_list import Option
 
 from .. import config
-from ..adapters import paths, storage
+from ..adapters import storage
 from ..application.refresh import saved_board
 from ..domain import changes
 from ..domain.review import condition
 from ..domain.snoozes import asleep, awake, change_marks
 from . import frames, notifiers, screens, theme, web
+from .board_files import (CACHE, KEPT_UPGRADES, REFRESH_COOLDOWN, REFRESH_SECONDS, SNOOZABLE, last_started, mark_start, page,
+                          read_snoozed, refresh_mark, save_board, snoozes)
 from .entries import cell_row, entries, escape, ticket_entry
 from .frames import LCARS_NAMES
 from .screens import LOGO_BLACK, LOGO_WHITE, ConfigScreen, ReviewScreen, ThemeScreen, TicketScreen, logo
 from .system import leave, open_in_browser, pbcopy
 from .theme import COLORS, use_theme
 
-# A refresh costs about 4-6 s and 10-16 of GitHub's 5000 GraphQL points an hour, after scripts/profile_refresh.py.
-REFRESH_SECONDS = 5 * 60
-REFRESH_COOLDOWN = 30
-CACHE = paths.CACHE_DIR / "cache.json"
-# Seen marks and snoozes kept their shape through these storage versions, so an upgrade keeps them instead of dropping them.
-KEPT_UPGRADES = {4: lambda saved: saved, 5: lambda saved: saved}
 # The title takes the room the other columns leave, up to MAX_TITLE; the rest goes to the repo, so it sits at the right edge.
 PR_WIDTHS = [None, 10, 27, 4, 18]
 # LCARS draws review, CI, conflict and days as padded pills, which need more room than their plain text.
@@ -52,7 +48,6 @@ SECTIONS = {"attention": ("attention", "nothing to flag", [2, None]),
 REFRESHING = {"lcars": "ENGAGING WARP DRIVE…", "cyberpunk": "JACKING IN…"}
 CONDITION_TONES = {"green": "ok", "yellow": "warn", "red": "bad"}
 TABS = {"overview": ["attention", "prs", "changes", "epics"], "mine": ["mine_prs", "mine_tickets"]}
-SNOOZABLE = ("attention", "prs")
 NUMBERS = {key: n for n, key in enumerate(SECTIONS, len(TABS) + 1)}
 TAB_OF = {key: tab for tab, keys in TABS.items() for key in keys}
 LEFT_CAP, RIGHT_CAP = "\ue0b6", "\ue0b4"
@@ -182,10 +177,10 @@ class MagiApp(App):
         self.load = load or (lambda: collect(self.settings))
         self.fetch_ticket, self.loading_ticket = fetch_ticket, None
         self.opener, self.copier, self.clock, self.cache = opener, copier, clock, cache
-        self.stamp = cache.with_name("last-refresh")
+        self.stamp = refresh_mark(cache)
         self.seen_path = cache.with_name("seen.json")
         self.seen = None
-        self.snoozed_path = cache.with_name("snoozed.json")
+        self.snoozed_path = snoozes(cache)
         self.snoozed = None
         self.hidden = {}
         self.news = {}
@@ -269,10 +264,7 @@ class MagiApp(App):
         saved = storage.read(self.cache)
         if saved:
             self.show_board(saved_board(saved["board"]), saved["at"])
-        attempts = [saved["at"]] if saved else []
-        if self.stamp.exists():
-            attempts.append(float(self.stamp.read_text()))
-        self.last_refresh = max(attempts, default=None)
+        self.last_refresh = last_started(saved, self.stamp)
         wait = 0 if self.last_refresh is None else self.last_refresh + REFRESH_COOLDOWN - self.clock()
         if force or wait <= 0:
             self.start_refresh()
@@ -296,8 +288,7 @@ class MagiApp(App):
             return
         self.refreshing = True
         self.last_refresh = self.clock()
-        self.stamp.parent.mkdir(parents=True, exist_ok=True)
-        self.stamp.write_text(str(self.last_refresh))
+        mark_start(self.stamp, self.last_refresh)
         self.query_one("#status", Static).update(REFRESHING.get(theme.frame(), "refreshing…"))
         self.fetch(self.last_refresh)
 
@@ -322,7 +313,7 @@ class MagiApp(App):
         if error:
             self.failed(error)
             return
-        storage.write(self.cache, {"at": started, "board": board})
+        save_board(self.cache, started, board)
         # The refresh that starts a session tells nothing: what is news is what arrives while Magi runs.
         known = self.news_marks() if self.watching else None
         self.watching = True
@@ -405,7 +396,7 @@ class MagiApp(App):
 
     def hide_snoozed(self, found):
         """Snoozed items leave their box until they change; a snooze that woke up is dropped."""
-        saved = self.snoozed or (storage.read(self.snoozed_path, KEPT_UPGRADES) or {"snoozed": {key: {} for key in SNOOZABLE}})["snoozed"]
+        saved = self.snoozed or read_snoozed(self.snoozed_path)
         self.snoozed = {key: asleep(saved[key], found, {entry.url for entry in self.sections[key]}) for key in SNOOZABLE}
         if self.snoozed != saved:
             storage.write(self.snoozed_path, {"snoozed": self.snoozed})
@@ -436,8 +427,7 @@ class MagiApp(App):
     def write_page(self):
         # The page is an extra view of the board: failing to write it is told, never a reason to lose the board.
         try:
-            storage.write_text(self.cache.with_name("board.html"),
-                               web.page(self.board, self.settings, self.snoozed, self.updated_at, SECTIONS, NUMBERS, REFRESH_SECONDS))
+            write_page(page(self.cache), self.board, self.settings, self.snoozed, self.updated_at)
         except OSError as error:
             self.notify(f"web page not written: {error}", severity="warning", timeout=5, markup=False)
 
@@ -663,6 +653,11 @@ class MagiApp(App):
 
 def error_message(error):
     return error.stderr.strip() if isinstance(error, subprocess.CalledProcessError) and error.stderr else str(error)
+
+
+def write_page(path, board, settings, snoozed, at):
+    """The board as a web page at path, as the TUI shows it: its boxes and numbers, without the snoozed rows."""
+    storage.write_text(path, web.page(board, settings, snoozed, at, SECTIONS, NUMBERS, REFRESH_SECONDS))
 
 
 def main(collect, fetch_ticket, edit_config=False):

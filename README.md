@@ -130,6 +130,7 @@ Epics are not configured: the board shows every epic of the project in Developin
 |---------|--------------|
 | `magi` | Opens the board in the terminal |
 | `magi config` | Opens the settings panel |
+| `magi web` | Refreshes the board every 5 minutes without the TUI and opens its web page (see [Web page](#web-page)); `ctrl-c` stops it |
 
 `python -m magi` works the same as `magi`. `magi --help` prints the usage, and so does any other argument, which exits with code 2.
 
@@ -185,7 +186,12 @@ Run inside a [herdr](https://herdr.dev) pane, Magi tells herdr when a refresh br
 
 ### Web page
 
-After each refresh, and after each snooze, Magi writes the board to `~/.cache/magi/board.html`. Open it in a browser: it reloads itself once the TUI's next refresh is due and shows what the TUI last saved, so it never calls GitHub or Jira on its own and stays current only while Magi runs. It has the same boxes as the TUI, without the snoozed rows. Clicking a row shows its details in a panel beside the boxes, as the TUI's details pane does, and keeps them through the page's reloads; on a wide screen the boxes and the panel share the window's height, each scrolling its own rows with the wheel or trackpad, without a scrollbar; cmd-click opens the PR or ticket instead. Every PR and ticket link, in the boxes and in the details, opens in a new tab, and each box keeps its scroll through the reloads. Its theme is picked in the page and remembered by the browser, apart from the TUI's. Each theme names the boxes and the alert level, and dates the refresh, as the TUI does; the default theme keeps GitHub's dark look, set in GitHub's own Hubot Sans and Monaspace Neon at WCAG AA contrast, over a dot grid, with a lit beam under its header that empties until the page reloads; the LCARS themes frame the page after [thelcars.com](https://www.thelcars.com): an elbow carrying the name MAGI above its panel code, a data cascade of the board's PR and ticket numbers, a sidebar with a numbered button for each box, and each box as a bracket; red alert turns the frame red. Look for 47. The NERV themes put the board to the MAGI's vote (MELCHIOR-1, BALTHASAR-2, CASPER-3), hold each box in corner brackets with its name in English and Japanese, set titles in white beside their orange ticket keys, and open on a title card when picked; pattern blue turns the hazard stripe red. EVA 01 trades the vote for Unit-01's internal battery, counting down to the page's next reload beside its sync ratio, and opens on Shinji's 逃げちゃダメだ. Cyberpunk reads the board as Night City's wanted level, five stars that light with the alert and flash the NCPD's red and blue at five; it names each box on a slanted block, sweeps the details with a Kiroshi scan when a row is read, and opens by waking the samurai. The styles come from Tailwind's CDN, so the page needs a network connection to look right; the LCARS typeface, Antonio, EVA 01's seven-segment digits, DSEG7, Cyberpunk's Rajdhani, and the default theme's Hubot Sans and Monaspace Neon (all SIL Open Font License) ship inside Magi and travel in the page.
+Magi writes the board to `~/.cache/magi/board.html` after each refresh and snooze. `magi web` opens it and keeps it fresh without the TUI, refreshing every 5 minutes (a running TUI's refreshes count too); `ctrl-c` stops it.
+
+- The page reloads itself after each refresh and never calls GitHub or Jira on its own.
+- It has the TUI's boxes, without the snoozed rows. Clicking a row shows its details beside the boxes; links open in a new tab.
+- Its theme is picked in the page, apart from the TUI's. Each theme has its own look: GitHub's dark for the default, [thelcars.com](https://www.thelcars.com)'s frame for LCARS (look for 47), the MAGI's vote for NERV, Unit-01's battery for EVA 01 and Night City's wanted level for Cyberpunk.
+- The styles come from Tailwind's CDN, so it needs a network connection; its fonts (SIL Open Font License) ship inside Magi.
 
 ## Themes
 
