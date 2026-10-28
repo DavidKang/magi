@@ -1,0 +1,334 @@
+/* Each theme's own look, over the default one the markup's Tailwind classes draw.
+   Unlayered, so it wins over Tailwind's utilities without fighting their specificity. */
+.elbow, .cascade, .bars, .sidebar, .box-side, .box-cap, .box-number, .box-jp, .magi, .battery, .heat, .rail, .card { display: none; }
+/* On a narrow screen a box scrolls its own rows sideways instead of widening the page. */
+.box { min-width: 0; }
+.box-body { overflow-x: auto; }
+/* On a wide screen the page is the window's height and the boxes share it, each scrolling its own rows without a scrollbar:
+   attention, the shortest, takes half a share, the changes end level with the epics, and my prs level with my tickets. */
+@media (min-width: 80rem) {
+  body { height: 100vh; }
+  .layout, main, main > div, aside { min-height: 0; }
+  main { grid-template-rows: minmax(0, 1fr); }
+  main > div { grid-template-rows: repeat(6, minmax(0, 1fr)); }
+  .box { display: flex; flex-direction: column; min-height: 0; }
+  .box-body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; }
+  .box-body::-webkit-scrollbar { display: none; }
+  #attention { grid-area: 1 / 1 / 2; }
+  #changes { grid-area: 2 / 1 / 5; }
+  #mine_prs { grid-area: 5 / 1 / 7; }
+  #prs { grid-area: 1 / 2 / 3; }
+  #epics { grid-area: 3 / 2 / 5; }
+  #mine_tickets { grid-area: 5 / 2 / 7; }
+}
+
+/* The title card a theme opens on, over the whole page. */
+.card.shown {
+  display: grid; place-content: center; gap: 0; position: fixed; inset: 0; z-index: 50; padding: 2rem;
+  background: #000; color: #fff; text-align: center; cursor: pointer; animation: card 2.6s ease-in forwards;
+}
+
+/* Default, GitHub's dark seen from its future-facing side, GitHub Next's. Primer's newer greys lift the dim text to WCAG AA on the boxes
+   (the TUI keeps its own); GitHub's open typefaces set it, Hubot Sans for names and Monaspace Neon for the rows. */
+:root[data-theme=default] {
+  --fg: #e6edf3;
+  --dim: #9198a1;
+  --line: #3d444d;
+  --raised: #151b23;
+  --beam: linear-gradient(90deg, var(--accent), var(--blue));
+  body {
+    font-family: "Monaspace Neon", ui-monospace, Menlo, monospace; font-size: .8125rem; line-height: 1.6;
+    /* GitHub Universe's dot grid, fading out below the header. */
+    background-image: linear-gradient(transparent, var(--bg) 70vh), radial-gradient(color-mix(in srgb, var(--fg) 12%, transparent) 1px, transparent 1.5px);
+    background-size: auto, 1.5rem 1.5rem; background-attachment: fixed;
+  }
+  .top { background: color-mix(in srgb, var(--raised) 75%, transparent); border-color: var(--line); }
+  .title {
+    font-family: "Hubot Sans", sans-serif; font-size: 1.5rem; line-height: 1; letter-spacing: -.01em;
+    background: var(--beam); -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .status { color: var(--dim); }
+  .box { position: relative; border-color: var(--line); border-radius: 6px; background: color-mix(in srgb, var(--raised) 94%, transparent); }
+  /* Each box's top edge is lit, brightest at its name. */
+  .box::before {
+    content: ""; position: absolute; inset: -1px 0 auto; height: 1px; border-radius: 6px 6px 0 0;
+    background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--blue) 40%, transparent) 40%, transparent 85%);
+  }
+  .box-head { display: flex; align-items: baseline; gap: .5rem; }
+  .box-name { font-family: "Hubot Sans", sans-serif; font-size: .9375rem; color: var(--fg); }
+  .box-count { color: var(--accent); font-variant-numeric: tabular-nums; }
+  .box-body > a { border-radius: 4px; }
+  .box-body > a:hover { background: color-mix(in srgb, var(--fg) 6%, transparent); }
+  .box-body > a[aria-current=true] { background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 2px 0 var(--accent); }
+  .box-body > a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .pill { font-weight: 700; letter-spacing: .02em; }
+  /* The rail is a beam that shortens until the page reloads, its head lit. */
+  .rail {
+    display: block; position: relative; height: 2px; background: var(--beam); animation: drain var(--every) linear forwards;
+    box-shadow: 0 0 .75rem color-mix(in srgb, var(--blue) 50%, transparent);
+  }
+  .rail::after {
+    content: ""; position: absolute; right: 0; top: -2px; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--fg); box-shadow: 0 0 .5rem .125rem var(--blue);
+  }
+}
+
+/* LCARS, after thelcars.com's Classic frame. Each LCARS theme differs only in these variables, so a new one is a new set of them. */
+:root[data-frame=lcars] {
+  --bar: 1.5rem;
+  --elbow: var(--line);
+  --side: 11rem;
+  --curve: 4rem;
+  --fillet: 2rem;
+  --weight: 500;
+  --heavy: 700;
+  --rail: .75rem;
+  --head: 1.25rem;
+  --label: 1.15rem;
+  --name: calc(var(--side) * .4);
+}
+:root[data-theme=picard] {
+  --bar: .625rem;
+  --elbow: var(--dim);
+  --side: 10rem;
+  --curve: 2.5rem;
+  --fillet: 1rem;
+  --weight: 300;
+  --heavy: 300;
+  --rail: .375rem;
+  --head: .75rem;
+  --label: 1rem;
+}
+/* The frame's colour is the alert: whoever glances at the page sees a red board without reading it. */
+:root[data-frame=lcars][data-level=red] { --elbow: var(--bad); }
+
+:root[data-frame=lcars] {
+  body { font-family: "Antonio", "Avenir Next Condensed", "Arial Narrow", sans-serif; font-weight: var(--weight); font-size: 1rem; letter-spacing: .02em; }
+  .top {
+    display: grid; grid-template-columns: var(--side) minmax(0, 1fr); grid-template-rows: auto var(--bar);
+    background: none; border: 0; padding: .5rem .5rem 0; gap: 0; align-items: stretch; position: relative;
+  }
+  .elbow {
+    display: flex; grid-row: 1 / 3; align-items: flex-end; justify-content: flex-end;
+    background: var(--elbow); border-bottom-left-radius: var(--curve); border-top-left-radius: calc(var(--curve) / 2);
+    padding: calc(var(--name) + 1.25rem) .75rem .25rem; color: var(--bg); font-weight: 700; letter-spacing: .08em; transition: background .6s;
+  }
+  .heading { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; padding: .25rem 0 .75rem 1rem; }
+  /* The name sits on the elbow, as thelcars.com's frame carries its title, above the panel code. */
+  .title {
+    position: absolute; top: 1.25rem; left: 1.25rem; font-size: var(--name); line-height: .9; font-weight: var(--heavy);
+    text-transform: uppercase; color: var(--bg); letter-spacing: .04em;
+  }
+  .alert, .status, #theme { border-radius: 9999px; font-weight: 700; text-transform: uppercase; padding: .35rem 1rem; }
+  .status { background: var(--warn); color: var(--bg); }
+  #theme { background: var(--blue); color: var(--bg); border: 0; }
+  .bars { display: flex; gap: .25rem; position: relative; }
+  .bars span { flex: var(--w); background: var(--c); transition: background .6s; }
+  /* CSS has no concave corner: the fillet is the elbow's colour around a transparent quarter circle. */
+  .bars::before {
+    content: ""; position: absolute; left: 0; bottom: 100%; width: var(--fillet); height: var(--fillet);
+    background: radial-gradient(circle at 100% 0, transparent var(--fillet), var(--elbow) calc(var(--fillet) + .5px));
+  }
+  .cascade {
+    display: grid; grid-template-columns: repeat(var(--columns), auto); gap: 0 .9rem; font-size: .8rem; line-height: 1.15;
+    color: var(--fg); font-variant-numeric: tabular-nums; text-align: right;
+  }
+  .cascade span { animation: cascade 3.2s steps(1) infinite; animation-delay: calc(var(--n) * -.2s); }
+
+  .layout { display: grid; grid-template-columns: var(--side) minmax(0, 1fr); grid-template-rows: var(--bar) minmax(0, 1fr); padding: .5rem; }
+  .sidebar { display: flex; flex-direction: column; gap: .25rem; grid-row: 1 / 3; }
+  .lower { grid-column: 2; grid-row: 1; }
+  .lower::before { top: 100%; bottom: auto; background: radial-gradient(circle at 100% 100%, transparent var(--fillet), var(--elbow) calc(var(--fillet) + .5px)); }
+  .sidebar > :first-child { border-top-left-radius: var(--curve); min-height: 5rem; background: var(--elbow); transition: background .6s; }
+  .button {
+    display: flex; justify-content: space-between; align-items: flex-end; min-height: 3.5rem; padding: .25rem .75rem;
+    background: var(--c); color: var(--bg); font-weight: 700; text-transform: uppercase; text-decoration: none; white-space: nowrap;
+    transition: filter .15s;
+  }
+  .button:hover, .button:focus-visible { filter: brightness(1.25); outline: none; }
+  .button .count { font-size: .8rem; opacity: .7; }
+  .egg {
+    background: var(--dim); color: var(--bg); font-size: 4rem; font-weight: var(--heavy); line-height: 1; text-align: right; padding: .5rem .75rem;
+    border-bottom-left-radius: calc(var(--curve) / 2);
+  }
+  .sidebar .fill { flex: 1; background: var(--elbow); transition: background .6s; }
+  main { grid-column: 2; padding: 1rem 0 0 1.25rem; }
+
+  .box {
+    display: grid; grid-template-columns: var(--rail) 1fr; grid-template-rows: auto minmax(0, 1fr) calc(var(--rail) / 2); column-gap: .75rem;
+    background: none; border: 0; border-radius: 0; padding: 0;
+  }
+  .box-head { grid-column: 1 / -1; display: flex; align-items: center; margin: 0; padding: 0; height: var(--head); }
+  .box-head::before { content: ""; flex: 1; align-self: stretch; background: var(--c); border-top-left-radius: .75rem; margin-right: .5rem; }
+  .box-number { display: inline; color: var(--c); font-size: var(--label); font-weight: var(--heavy); }
+  .box-number::after { content: "-"; }
+  .box-number:empty { display: none; }
+  .box-name { color: var(--c); font-size: var(--label); font-weight: var(--heavy); text-transform: uppercase; letter-spacing: .06em; }
+  .box-count { color: var(--fg); font-size: var(--label); margin-left: .4rem; }
+  .box-cap { display: block; margin-left: .5rem; width: var(--rail); align-self: stretch; background: var(--c); border-radius: 0 9999px 9999px 0; }
+  .box-side { display: flex; flex-direction: column; gap: .25rem; padding-top: .25rem; }
+  .box-side span { flex: 1; min-height: 1rem; }
+  .box-side span:nth-child(1) { background: var(--c); }
+  .box-side span:nth-child(2) { background: var(--dim); }
+  .box-side span:nth-child(3) { background: var(--blue); flex: .4; }
+  .box-body { padding: .5rem 0; font-size: 1.05rem; }
+  .box::after { content: ""; grid-column: 1 / -1; background: var(--c); border-bottom-left-radius: .75rem; }
+  .pill { background: var(--t); color: var(--bg); border: 0; border-radius: 9999px; padding: 0 .6rem; font-weight: 700; }
+  .box-body > a:hover, .box-body > a[aria-current=true] { border-radius: 9999px; }
+}
+
+/* NERV, after Evangelion's command screens: a hazard stripe, a hex grid, boxes held by corner brackets with their titles cut into the line. */
+:root[data-frame=nerv] {
+  --corner: linear-gradient(var(--line), var(--line));
+  --bracket: 1.25rem;
+  --serif: "Hiragino Mincho ProN", "Yu Mincho", "Times New Roman", serif;
+  --stripe: var(--warn);
+  --text: #fff;
+  /* One stripe and its gap along the -45° gradient, measured across: the shift that brings the stripe back onto itself. */
+  --period: calc(1.25rem * 1.41421);
+}
+/* Pattern blue is an Angel: the stripe turns red and the alert blinks. */
+:root[data-frame=nerv][data-level=red] { --stripe: var(--bad); }
+:root[data-frame=nerv] {
+  body {
+    font-family: Menlo, "SF Mono", monospace;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100'%3E%3Cpath d='M28 66L0 50L0 16L28 0L56 16L56 50L28 66L28 100' fill='none' stroke='%23ffffff' stroke-opacity='.06'/%3E%3C/svg%3E");
+  }
+  .top { position: relative; background: var(--bg); border-bottom: 3px double var(--accent); padding-top: 1.5rem; }
+  .top::before {
+    content: ""; position: absolute; inset: 0 0 auto; height: .625rem;
+    background: repeating-linear-gradient(-45deg, var(--stripe) 0 .625rem, var(--bg) .625rem 1.25rem);
+    animation: stripe 4s linear infinite;
+  }
+  .title {
+    font-family: var(--serif); font-weight: 900; font-size: 2.75rem; line-height: 1; color: var(--fg); text-transform: uppercase;
+    transform: scaleX(.78); transform-origin: left; margin-right: -1.5rem; letter-spacing: -.02em;
+  }
+  .magi { display: flex; align-items: stretch; gap: .375rem; }
+  .vote {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 7.5rem; padding: .25rem 1.25rem;
+    background: var(--ok); color: var(--bg); clip-path: polygon(0 0, 100% 0, 88% 100%, 12% 100%);
+  }
+  .vote[data-vote=否決] { background: var(--bad); }
+  .vote b { font-size: .625rem; letter-spacing: .12em; }
+  .vote i { font-style: normal; font-family: var(--serif); font-weight: 900; font-size: 1.375rem; line-height: 1.1; }
+  .decision { align-self: center; padding: 0 .5rem; color: var(--fg); font-family: var(--serif); font-size: .875rem; }
+  .decision b { font-size: 1.375rem; color: var(--accent); }
+  .alert { background: none; color: var(--t); border-radius: 0; padding: 0; letter-spacing: .08em; }
+  .alert::before { content: "■ "; }
+  .status { color: var(--blue); font-size: .75rem; letter-spacing: .06em; }
+  #theme { border-radius: 0; border-color: var(--accent); }
+
+  main { gap: 1.75rem 1rem; padding-top: 1.75rem; }
+  .box {
+    position: relative; border: 1px solid color-mix(in srgb, var(--line) 35%, transparent); border-radius: 0; padding: 1.25rem .5rem .5rem;
+    background:
+      var(--corner) top left / var(--bracket) 2px, var(--corner) top left / 2px var(--bracket),
+      var(--corner) top right / var(--bracket) 2px, var(--corner) top right / 2px var(--bracket),
+      var(--corner) bottom left / var(--bracket) 2px, var(--corner) bottom left / 2px var(--bracket),
+      var(--corner) bottom right / var(--bracket) 2px, var(--corner) bottom right / 2px var(--bracket),
+      color-mix(in srgb, var(--bg) 85%, transparent);
+    background-repeat: no-repeat;
+  }
+  .box-head {
+    position: absolute; top: -.8rem; left: 1.5rem; display: flex; align-items: baseline; gap: .5rem; margin: 0;
+    padding: 0 .5rem; background: var(--bg); color: var(--accent); text-transform: uppercase; letter-spacing: .08em;
+  }
+  .box-number { display: inline; margin-right: -.5rem; }
+  .box-number::after { content: "-"; }
+  .box-number:empty { display: none; }
+  .box-jp { display: inline; font-family: var(--serif); font-weight: 600; color: var(--fg); letter-spacing: .02em; }
+  .pill { border-radius: 0; border-color: currentColor; }
+  .words { color: var(--text); }
+  .box-body > a[aria-current=true] { box-shadow: inset 3px 0 var(--accent); }
+
+  .card p { font-family: var(--serif); font-weight: 900; font-size: clamp(2.5rem, 8vw, 7rem); line-height: 1.05; white-space: nowrap; transform: scaleX(.82); }
+  .card p.sub { margin-top: 1rem; font-weight: 400; font-size: clamp(.875rem, 1.6vw, 1.25rem); letter-spacing: .2em; white-space: normal; transform: none; }
+}
+/* EVA 01, Unit-01 cut from its umbilical cable: the battery's countdown takes the MAGI's place, and the stripe turns Unit-01's green. */
+:root[data-theme=eva01] {
+  --stripe: var(--accent);
+  .magi { display: none; }
+  .battery { display: flex; align-items: center; gap: .75rem; padding: .25rem .75rem; border: 1px solid var(--warn); color: var(--warn); }
+  .limit { font-family: var(--serif); font-weight: 900; font-size: .875rem; }
+  .digits { position: relative; font-family: "DSEG7", Menlo, monospace; font-size: 2.25rem; line-height: 1; }
+  .digits i { position: absolute; inset: 0; font-style: normal; opacity: .12; }
+  #clock.low { color: var(--bad); }
+  .sync { font-size: .625rem; line-height: 1.3; letter-spacing: .12em; }
+  .card p { font-size: clamp(2rem, 6vw, 5rem); }
+}
+:root[data-frame=nerv][data-level=red] .alert { animation: alert .8s steps(1) infinite; }
+
+/* Cyberpunk, after Cyberpunk 2077's HUD: Rajdhani, square cyan lines, and each box named on a slanted block, as the TUI slants its titles. */
+:root[data-frame=cyberpunk] {
+  --slant: .6rem;
+  /* The NCPD's lights, for the blue the palette's cyan is not. */
+  --siren: #2b59ff;
+  body { font-family: "Rajdhani", "DIN Condensed", sans-serif; font-weight: 500; font-size: 1rem; }
+  .top { position: relative; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .top::after { /* the TUI's hatched line under the header */
+    content: ""; position: absolute; inset: auto 0 -.625rem; height: .375rem; opacity: .6;
+    background: repeating-linear-gradient(-60deg, var(--line) 0 1px, transparent 1px .375rem);
+  }
+  .title { font-weight: 700; font-size: 2rem; line-height: 1; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+  .alert { display: none; }
+  .heat { display: flex; gap: .25rem; margin-left: auto; font-size: 1.75rem; line-height: 1; }
+  .star { color: color-mix(in srgb, var(--dim) 45%, transparent); }
+  .star.on { color: var(--bad); text-shadow: 0 0 .5rem var(--bad); }
+  .status { color: var(--line); letter-spacing: .1em; text-transform: uppercase; }
+  #theme { margin-left: 0; border-radius: 0; border-color: var(--line); }
+  main { padding-top: 1.75rem; }
+  .box { position: relative; border-radius: 0; border-color: var(--line); background: color-mix(in srgb, var(--raised) 60%, transparent); }
+  .box-head { display: flex; align-items: center; gap: .5rem; }
+  .box-name {
+    padding: 0 1.25rem; background: var(--accent); color: var(--bg); font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+    clip-path: polygon(var(--slant) 0, 100% 0, calc(100% - var(--slant)) 100%, 0 100%);
+  }
+  .box-count { color: var(--accent); font-weight: 700; }
+  .pill { border-radius: 0; }
+  .box-body > a[aria-current=true] { background: color-mix(in srgb, var(--accent) 18%, transparent); box-shadow: inset 3px 0 var(--accent); }
+  #details { overflow: hidden; }
+  #details.scan::after {
+    /* It rests past the panel's foot, unseen, so a scan that reduced motion stops leaves nothing over the details. */
+    content: ""; position: absolute; left: 0; right: 0; top: 100%; opacity: 0; height: 3rem; pointer-events: none; border-bottom: 1px solid var(--line);
+    background: linear-gradient(transparent, color-mix(in srgb, var(--line) 35%, transparent)); animation: scan .7s ease-out forwards;
+  }
+  .card p { font-weight: 700; font-size: clamp(2.5rem, 8vw, 6rem); line-height: 1; color: var(--accent); letter-spacing: .06em;
+            text-shadow: -.05em 0 var(--bad), .05em 0 var(--line); animation: glitch 2.6s steps(1) infinite; }
+  .card p.sub { margin-top: 1rem; font-size: clamp(1rem, 2vw, 1.5rem); color: var(--fg); letter-spacing: .3em; text-shadow: none; animation: none; }
+}
+/* Five stars send MaxTac: the header flashes the NCPD's red and blue. */
+:root[data-frame=cyberpunk][data-level=red] .top { animation: ncpd 1s steps(1) infinite; }
+
+@keyframes cascade {
+  0% { color: var(--fg); } 25% { color: var(--dim); } 50% { color: var(--accent); } 75% { color: var(--blue); }
+}
+@keyframes alert { 50% { filter: brightness(.45); } }
+@keyframes stripe { to { background-position: var(--period) 0; } }
+@keyframes drain { from { width: 100%; } to { width: 0; } }
+@keyframes card { 0%, 85% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes ncpd { 0% { box-shadow: 0 .25rem 1.5rem -.25rem var(--bad); } 50% { box-shadow: 0 .25rem 1.5rem -.25rem var(--siren); } }
+@keyframes scan { from { top: -3rem; opacity: 1; } 90% { opacity: 1; } to { top: 100%; opacity: 0; } }
+@keyframes glitch { 0% { transform: none; } 88% { transform: translateX(.03em) skewX(-6deg); } 92% { transform: translateX(-.03em); } 96% { transform: none; } }
+:root[data-frame=lcars][data-level=red] .alert { animation: alert 1s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  /* A rail that cannot drain would always read as fresh. */
+  :root[data-theme=default] .rail { display: none; }
+}
+@media (width < 64rem) {
+  :root[data-frame=lcars] {
+    --side: 5rem;
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    .status { white-space: normal; }
+    .sidebar { display: none; }
+    .lower, main { grid-column: 1; }
+    main { padding: 1rem 0 0; }
+    .cascade { display: none; }
+  }
+  :root[data-frame=nerv] {
+    .magi { flex-wrap: wrap; }
+    .vote { min-width: 6rem; padding: .25rem .75rem; }
+  }
+}

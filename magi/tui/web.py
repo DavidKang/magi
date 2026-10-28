@@ -1,9 +1,9 @@
 """The board as a web page the TUI writes after each refresh: built from the cache only, in a theme the page picks for itself."""
 
 import datetime as dt
-import html
 import json
 import re
+from pathlib import Path
 from string import Template
 
 from rich.text import Text
@@ -13,87 +13,27 @@ from ..domain.review import condition
 from ..domain.snoozes import awake
 from . import frames, theme
 from .entries import KEY_HINTS, entries
-from .theme import LCARS, THEMES
+from .theme import FRAMES, THEMES
+from .web_themes import JAPANESE, esc, faces, named, pieces, worded
 
 # Tailwind's browser build: Magi has no node toolchain to compile the css ahead. The hash pins the file, so a changed one never runs.
 TAILWIND = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.1.4/dist/index.global.js"
 TAILWIND_HASH = "sha384-ire6tt7Y6e2HMB3Q+cZpObkqM8M2DVZO9LimwpwuDZstD6FxU2vhSkUzEBlAX3dh"
 TONES = ("ok", "bad", "warn", "blue", "dim", "accent")
 # A cell's kind after its tone, as the TUI names it: dim-right, warn-pill, bad-alarm.
-KINDS = {"pill": "rounded-full border px-2 text-xs uppercase", "alarm": "font-bold uppercase"}
+KINDS = {"pill": "pill rounded-full border px-2 text-xs uppercase", "alarm": "font-bold uppercase"}
 LEVELS = {"green": "ok", "yellow": "warn", "red": "bad"}
 # The details are built in the default theme, so each colour in them reads back as the tone it came from.
 TONE_OF = {THEMES["default"][tone].lower(): tone for tone in TONES}
+# A title's leading ticket key, bracketed or not, and its words: a theme can set the words apart while the key keeps the title's colour.
+KEY = re.compile(r"(\[?[A-Z][A-Z0-9]*-\d+\]?(?= )|)(.*)", re.S)
 LINK = re.compile(r"@click=app\.open_link\((['\"])(.*?)\1\)")
-# An LCARS theme frames each box as a panel after thelcars.com: an elbow in one of these colours, in turn, with the box's number.
-ELBOWS = ("accent", "line", "blue", "warn", "bad", "ok")
-PAGE = Template("""<!doctype html>
-<html lang="en" data-theme="default">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="refresh" content="$every">
-<title>Magi</title>
-<script src="$tailwind" integrity="$tailwind_hash" crossorigin="anonymous"></script>
-<style>
-$palettes
-[data-show] { display: none; }
-$shows
-</style>
-<style type="text/tailwindcss">
-@theme {
-$colors
-  --font-lcars: "Antonio", "Avenir Next Condensed", "Arial Narrow", sans-serif;
-}
-@custom-variant lcars (&:where($lcars));
-</style>
-</head>
-<body class="min-h-screen bg-bg font-mono text-sm text-fg">
-<header class="flex flex-wrap items-center gap-4 border-b border-line bg-raised px-4 py-3">
-<h1 class="text-lg font-bold text-accent">magi</h1>
-<span class="rounded-full bg-$level px-3 font-bold text-bg">$condition</span>
-<span class="text-dim">$status</span>
-<select id="theme" class="ml-auto rounded border border-line bg-bg px-2 py-1 text-fg">
-$options
-</select>
-</header>
-<main class="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_32rem]">
-<div class="grid content-start gap-4 lg:grid-cols-2">
-$sections
-</div>
-<aside class="self-start xl:sticky xl:top-4">
-$details
-</aside>
-</main>
-<script>
-const THEMES = $names;
-const pick = document.getElementById("theme");
-const use = (name) => { document.documentElement.dataset.theme = name; pick.value = name; };
-try { const saved = localStorage.getItem("magi-theme"); if (THEMES.includes(saved)) use(saved); } catch (e) {}
-pick.addEventListener("change", () => { use(pick.value); try { localStorage.setItem("magi-theme", pick.value); } catch (e) {} });
-const rows = [...document.querySelectorAll("a[data-detail]")];
-const show = (row) => {
-  rows.forEach((other) => other.removeAttribute("aria-current"));
-  row.setAttribute("aria-current", "true");
-  document.getElementById("detail").innerHTML = row.nextElementSibling.innerHTML;
-  try { sessionStorage.setItem("magi-detail", row.dataset.detail); } catch (e) {}
-};
-// A plain click reads the row's details; cmd or ctrl click still opens it on github or jira.
-rows.forEach((row) => row.addEventListener("click", (event) => {
-  if (event.metaKey || event.ctrlKey || event.shiftKey) return;
-  event.preventDefault();
-  show(row);
-}));
-// The page reloads itself after each refresh: the row read before stays open.
-try { const kept = rows.find((row) => row.dataset.detail === sessionStorage.getItem("magi-detail")); if (kept) show(kept); } catch (e) {}
-</script>
-</body>
-</html>
-""")
-
-
-def esc(value):
-    return html.escape(str(value))
+# Each box's colour, in turn: its LCARS bracket and its sidebar button share it.
+COLORS = ("accent", "line", "blue", "warn", "bad", "ok")
+# Every pr and ticket opens in a tab of its own, so the board stays put.
+NEW_TAB = 'target="_blank" rel="noopener"'
+PAGE = Template(Path(__file__).with_name("web.html").read_text(encoding="utf-8"))
+CSS = Path(__file__).with_name("web.css").read_text(encoding="utf-8")
 
 
 def page(board, settings, snoozed, at, boxes, numbers, every):
@@ -108,28 +48,32 @@ def page(board, settings, snoozed, at, boxes, numbers, every):
     when = dt.datetime.fromtimestamp(at)
     # The page dates its refresh: a page left open shows its age.
     status = {name: frames.status(name, when, settings.github_user, "%b %d %H:%M") for name in THEMES}
-    return PAGE.substitute(every=every, tailwind=TAILWIND, tailwind_hash=TAILWIND_HASH, palettes="\n".join(palette(name, colors) for name, colors in THEMES.items()),
+    return PAGE.substitute(every=every, at=f"{at * 1000:.0f}", tailwind=TAILWIND, tailwind_hash=TAILWIND_HASH, css=CSS, faces=faces(),
+                           palettes="\n".join(palette(name, colors) for name, colors in THEMES.items()),
                            colors="\n".join(f"  --color-{name}: var(--{name});" for name in THEMES["default"]),
-                           level=LEVELS[level], condition=worded({name: frames.condition_label(name, level) for name in THEMES}), status=worded(status),
-                           shows="\n".join(f"[data-theme={name}] [data-show~={name}] {{ display: revert; }}" for name in THEMES),
+                           level=level, tone=LEVELS[level], condition=worded({name: frames.condition_label(name, level) for name in THEMES}),
+                           status=worded(status), shows="\n".join(f"[data-theme={name}] [data-show~={name}] {{ display: revert; }}" for name in THEMES),
                            options="\n".join(f'<option value="{name}">{name}</option>' for name in THEMES),
-                           names=json.dumps(list(THEMES)), lcars=", ".join(f"[data-theme={name}] *" for name in LCARS),
-                           sections="\n".join(section(key, name, empty, widths, numbers[key], ELBOWS[n % len(ELBOWS)], found[key])
+                           frames=json.dumps({name: FRAMES.get(name, "") for name in THEMES}),
+                           buttons="\n".join(button(key, name, numbers[key], COLORS[n % len(COLORS)], len(found[key]))
+                                              for n, (key, (name, _, _)) in enumerate(boxes.items())),
+                           sections="\n".join(section(key, name, empty, widths, numbers[key], COLORS[n % len(COLORS)], found[key])
                                                for n, (key, (name, empty, widths)) in enumerate(boxes.items())),
-                           details=frame("details", named("details", "details"), "", "", ELBOWS[0], "minmax(0,1fr)",
-                                         '<div id="detail" class="whitespace-pre-wrap px-2"><span class="text-dim">click a row to read its details</span></div>'))
+                           details=frame("details", named("details", "details"), "", "", COLORS[0], "minmax(0,1fr)",
+                                         '<div id="detail" class="whitespace-pre-wrap px-2"><span class="text-dim">click a row to read its details</span></div>'),
+                           **pieces(board, level, every))
 
 
-def worded(words):
-    """Each theme's words, by theme, as spans the page shows only while their theme is picked."""
-    themes = {}
-    for name, text in words.items():
-        themes.setdefault(text, []).append(name)
-    return "".join(f'<span data-show="{" ".join(names)}">{esc(text)}</span>' for text, names in themes.items())
 
 
-def named(key, default):
-    return worded({name: frames.box_name(name, key, default) for name in THEMES})
+
+
+
+def button(key, name, number, color, count):
+    return (f'<a href="#{key}" class="button" style="--c: var(--{color})"><span class="count">{count}</span>'
+            f'<span>{number:02d} {named(key, name)}</span></a>')
+
+
 
 
 def palette(name, colors):
@@ -153,25 +97,19 @@ def section(key, name, empty, widths, number, color, items):
 
 
 def frame(key, name, count, number, color, columns, body):
-    return (f'<section id="{key}" class="rounded border border-line bg-raised p-2 lcars:grid lcars:grid-cols-[5rem_1fr] lcars:grid-rows-[auto_1fr] lcars:rounded-none '
-            f'lcars:border-0 lcars:bg-transparent lcars:p-0">\n'
-            f'<div class="hidden lcars:block row-span-2 rounded-l-[2rem] bg-{color} px-2 pt-8 text-right font-lcars text-xl font-bold text-bg">'
-            f'{number}</div>\n'
-            f'<h2 class="mb-1 px-2 font-bold text-accent lcars:mb-0 lcars:flex lcars:h-6 lcars:items-center lcars:gap-2 lcars:px-0">'
-            f'<span class="hidden lcars:block h-6 flex-1 bg-{color}"></span>'
-            f'<span class="lcars:font-lcars lcars:text-xl lcars:uppercase lcars:text-{color}">{name}</span> '
-            f'<span class="text-dim lcars:font-lcars lcars:text-xl">{count}</span>'
-            f'<span class="hidden lcars:block h-6 w-6 rounded-r-full bg-{color}"></span></h2>\n'
-            f'<div class="relative grid grid-cols-[{columns}] content-start gap-x-3 lcars:pb-2 lcars:pl-6 lcars:pt-4">\n'
-            # The inner curve where the elbow's bar meets its side.
-            f'<span class="absolute left-0 top-0 hidden h-6 w-6 bg-{color} lcars:block"><span class="block h-6 w-6 rounded-tl-[1.5rem] bg-bg"></span></span>\n'
-            f'{body}\n</div>\n</section>')
+    return (f'<section id="{key}" class="box rounded border border-line bg-raised p-2" style="--c: var(--{color})">\n'
+            f'<h2 class="box-head mb-1 px-2 font-bold text-accent"><span class="box-number">{number}</span><span class="box-name">{name}</span>'
+            f'<span class="box-jp">{JAPANESE[key]}</span> '
+            f'<span class="box-count text-dim">{count}</span><span class="box-cap"></span></h2>\n'
+            f'<div class="box-side" aria-hidden="true"><span></span><span></span><span></span></div>\n'
+            f'<div class="box-body grid grid-cols-[{columns}] content-start gap-x-3">\n{body}\n</div>\n</section>')
 
 
 def row(detail, entry, widths):
     cells = "".join(cell(value, tone, width, entry.progress) for (value, tone), width in zip(entry.cells, widths))
     detail = esc(detail)
-    return (f'<a href="{esc(entry.url)}" data-detail="{detail}" class="col-span-full grid grid-cols-subgrid items-center rounded px-2 py-0.5 '
+    link = f'href="{esc(entry.url)}" {NEW_TAB} ' if entry.url else ""
+    return (f'<a {link}data-detail="{detail}" class="col-span-full grid grid-cols-subgrid items-center rounded px-2 py-0.5 '
             f'hover:bg-pick aria-[current=true]:bg-pick-focus">{cells}</a>'
             f'<template data-detail="{detail}">{detail_html(entry.detail)}</template>')
 
@@ -191,7 +129,7 @@ def piece(content, start, end):
     text = esc(content.plain[start:end])
     text = f'<span class="{" ".join(classes)}">{text}</span>' if classes else text
     link = LINK.search(style)
-    return f'<a href="{esc(link.group(2))}" class="underline">{text}</a>' if link and link.group(2).startswith(("https://", "http://")) else text
+    return f'<a href="{esc(link.group(2))}" {NEW_TAB} class="underline">{text}</a>' if link and link.group(2).startswith(("https://", "http://")) else text
 
 
 def cell(value, tone, width, progress):
@@ -203,4 +141,10 @@ def cell(value, tone, width, progress):
     room = "min-w-0 truncate" if width is None else "whitespace-nowrap" + (" text-right" if kind == "right" else "")
     text = value.plain if isinstance(value, Text) else value
     look = " ".join(filter(None, [f"text-{color}" if color in TONES else "", KINDS.get(kind, "")]))
-    return f'<span class="{room}"><span class="{look}">{esc(text)}</span></span>'
+    tone = f' style="--t: var(--{color})"' if kind == "pill" and color in TONES else ""
+    return f'<span class="{room}"><span class="{look}"{tone}>{title(text) if width is None else esc(text)}</span></span>'
+
+
+def title(text):
+    key, words = KEY.fullmatch(text).groups()
+    return f'{esc(key)}<span class="words">{esc(words)}</span>'

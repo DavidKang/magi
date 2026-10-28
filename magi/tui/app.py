@@ -99,7 +99,7 @@ def elbow(color):
     """The LCARS corner joining the bar to the sidebar: a rounded outer corner, a fillet at the inner one and a panel code."""
     curve, fill = f"{color} on {COLORS['bg']}", f"bold {COLORS['title']} on {color}"
     return Text.assemble(("▗▄", curve), (" " * 11 + "\n" + " " * 12, fill), ("▘\n", curve), (" " * 12, fill), " \n", (" " * 12, fill), " \n",
-                         (f"{'04-1701':^12}", fill), " ")
+                         (f"{frames.PANEL_CODE:^12}", fill), " ")
 
 
 class SideButton(Static):
@@ -434,8 +434,12 @@ class MagiApp(App):
         self.write_page()
 
     def write_page(self):
-        storage.write_text(self.cache.with_name("board.html"),
-                           web.page(self.board, self.settings, self.snoozed, self.updated_at, SECTIONS, NUMBERS, REFRESH_SECONDS))
+        # The page is an extra view of the board: failing to write it is told, never a reason to lose the board.
+        try:
+            storage.write_text(self.cache.with_name("board.html"),
+                               web.page(self.board, self.settings, self.snoozed, self.updated_at, SECTIONS, NUMBERS, REFRESH_SECONDS))
+        except OSError as error:
+            self.notify(f"web page not written: {error}", severity="warning", timeout=5, markup=False)
 
     def pass_by(self, url):
         if self.passing in self.news and self.passing != url:

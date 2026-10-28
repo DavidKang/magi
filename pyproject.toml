@@ -20,7 +20,10 @@ packages = ["magi", "magi.adapters", "magi.application", "magi.domain", "magi.tu
 
 [tool.setuptools.package-data]
 magi = ["logo.png", "logo-black.png", "logo-white.png"]
-"magi.tui" = ["app.tcss"]
+"magi.tui" = ["app.tcss", "web.html", "web.css", "fonts/antonio.woff2", "fonts/OFL.txt", "fonts/dseg7.woff2", "fonts/DSEG-LICENSE.txt",
+               "fonts/rajdhani-500.woff2", "fonts/rajdhani-700.woff2", "fonts/RAJDHANI-LICENSE.txt",
+               "fonts/hubot-sans-700.woff2", "fonts/HUBOT-SANS-LICENSE.txt", "fonts/monaspace-neon-400.woff2", "fonts/monaspace-neon-700.woff2",
+               "fonts/MONASPACE-LICENSE.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

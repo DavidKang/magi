@@ -18,7 +18,7 @@ def write_text(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
     # Written aside and renamed, so quitting mid-write never leaves a truncated file.
     staged = path.with_name(path.name + ".tmp")
-    staged.write_text(text)
+    staged.write_text(text, encoding="utf-8")
     staged.replace(path)
 
 

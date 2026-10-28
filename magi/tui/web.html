@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en" data-theme="default" data-level="$level" data-at="$at">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Magi</title>
+<script src="$tailwind" integrity="$tailwind_hash" crossorigin="anonymous"></script>
+<style>
+$palettes
+[data-show] { display: none; }
+$shows
+</style>
+<style type="text/tailwindcss">
+@theme {
+$colors
+}
+</style>
+<style>
+$faces
+$css
+</style>
+</head>
+<body class="flex min-h-screen flex-col bg-bg font-mono text-sm text-fg">
+<header class="top flex flex-wrap items-center gap-4 border-b border-line bg-raised px-4 py-3">
+<div class="elbow" aria-hidden="true">$code</div>
+<div class="heading flex flex-1 flex-wrap items-center gap-4">
+<h1 class="title text-lg font-bold text-accent">magi</h1>
+<div class="cascade" aria-hidden="true" style="--columns: $columns">$cascade</div>
+<div class="magi" aria-label="the magi's vote">$magi</div>
+<div class="battery" aria-label="time until the page reloads"><span class="limit">活動限界まで</span><span class="digits"><i aria-hidden="true">8:88:88</i><b id="clock" data-every="$every">$clock</b></span><span class="sync">INTERNAL<br>SYNC $sync</span></div>
+<span class="alert rounded-full bg-$tone px-3 font-bold text-bg" style="--t: var(--$tone)">$condition</span>
+<span class="status text-dim">$status</span>
+$heat
+<select id="theme" class="ml-auto rounded border border-line bg-bg px-2 py-1 text-fg" aria-label="theme">
+$options
+</select>
+</div>
+<div class="bars" aria-hidden="true">$bars</div>
+</header>
+<div class="rail" aria-hidden="true" style="--every: ${every}s"></div>
+<div class="layout grid flex-1">
+<nav class="sidebar" aria-label="boxes">
+<div></div>
+$buttons
+<div class="fill"></div>
+<div class="egg">$egg</div>
+</nav>
+<div class="bars lower" aria-hidden="true">$lower</div>
+<main class="grid grid-cols-[minmax(0,1fr)] grid-rows-[1fr] gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_32rem]">
+<div class="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-2">
+$sections
+</div>
+<aside class="grid">
+$details
+</aside>
+</main>
+</div>
+<div class="card" aria-hidden="true">$card</div>
+<script>
+const FRAMES = $frames;
+const pick = document.getElementById("theme");
+const clock = document.getElementById("clock");
+// The page shows the tui's refresh at data-at: it reloads once the next one has had time to land, retrying each minute while none has.
+const at = Number(document.documentElement.dataset.at);
+const due = at + clock.dataset.every * 1000;
+setTimeout(() => location.reload(), Math.max(due + 15000 - Date.now(), 60000 * (Date.now() > due + 15000)));
+const rail = document.querySelector(".rail");
+const use = (name) => {
+  Object.assign(document.documentElement.dataset, {theme: name, frame: FRAMES[name]});
+  pick.value = name;
+  // The rail restarts when its theme shows it: it picks up the drain where the board's age stands, not from full.
+  rail.style.animationDelay = (at - Date.now()) / 1000 + "s";
+};
+try { const saved = localStorage.getItem("magi-theme"); if (Object.hasOwn(FRAMES, saved)) use(saved); } catch (e) {}
+const card = document.querySelector(".card");
+// A theme with a title card opens on it, as each of NERV's episodes does; a click or its own end puts it away.
+const open = () => {
+  if (!card.querySelector('[data-show="' + pick.value + '"]') || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  card.classList.remove("shown");
+  void card.offsetWidth;
+  card.classList.add("shown");
+};
+["click", "animationend"].forEach((event) => card.addEventListener(event, () => card.classList.remove("shown")));
+pick.addEventListener("change", () => { use(pick.value); open(); try { localStorage.setItem("magi-theme", pick.value); } catch (e) {} });
+// EVA 01 runs on its internal battery: the clock counts down to the page's reload, as Unit-01's does to its activity limit.
+const tick = () => {
+  if (!clock.offsetParent) return; // hidden in every theme but eva01
+  const left = Math.max(0, due - Date.now());
+  const two = (n) => String(n).padStart(2, "0");
+  clock.textContent = Math.floor(left / 60000) + ":" + two(Math.floor(left / 1000) % 60) + ":" + two(Math.floor(left / 10) % 100);
+  clock.classList.toggle("low", left < 60000);
+};
+setInterval(tick, matchMedia("(prefers-reduced-motion: reduce)").matches ? 1000 : 50);
+const rows = [...document.querySelectorAll("a[data-detail]")];
+const detail = document.getElementById("details");
+const show = (row) => {
+  rows.forEach((other) => other.removeAttribute("aria-current"));
+  row.setAttribute("aria-current", "true");
+  document.getElementById("detail").innerHTML = row.nextElementSibling.innerHTML;
+  try { sessionStorage.setItem("magi-detail", row.dataset.detail); } catch (e) {}
+};
+// A plain click reads the row's details; cmd or ctrl click still opens it on github or jira.
+rows.forEach((row) => row.addEventListener("click", (event) => {
+  if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+  event.preventDefault();
+  show(row);
+  // Cyberpunk sweeps the details with a Kiroshi scan on each read; the restore after a reload doesn't.
+  detail.classList.remove("scan");
+  void detail.offsetWidth;
+  detail.classList.add("scan");
+}));
+// The page reloads itself after each refresh: the row read before stays open.
+try { const kept = rows.find((row) => row.dataset.detail === sessionStorage.getItem("magi-detail")); if (kept) show(kept); } catch (e) {}
+// And each box stays scrolled where it was.
+const bodies = [...document.querySelectorAll("section[id] > .box-body")];
+try { const kept = JSON.parse(sessionStorage.getItem("magi-scroll")) || {}; bodies.forEach((body) => { body.scrollTop = kept[body.parentElement.id] || 0; }); } catch (e) {}
+addEventListener("pagehide", () => {
+  try { sessionStorage.setItem("magi-scroll", JSON.stringify(Object.fromEntries(bodies.map((body) => [body.parentElement.id, body.scrollTop])))); } catch (e) {}
+});
+</script>
+</body>
+</html>

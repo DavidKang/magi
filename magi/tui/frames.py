@@ -18,6 +18,8 @@ EVA_CONDITIONS = {"green": "SYNC STABLE", "yellow": "SYNC UNSTABLE", "red": "BER
 # Night City's wanted level: five stars send MaxTac.
 CYBERPUNK_CONDITIONS = {"green": "NO HEAT", "yellow": "HEAT ★★", "red": "HEAT ★★★★★"}
 THEME_CONDITIONS = {"nerv": NERV_CONDITIONS, "eva01": EVA_CONDITIONS, "cyberpunk": CYBERPUNK_CONDITIONS}
+# The code on the LCARS elbow.
+PANEL_CODE = "04-1701"
 
 
 def box_name(name, key, default):

@@ -19,7 +19,7 @@ Hexagonal, in four layers under `magi/`:
 | Domain | `domain/` | The board's rules: entities, status columns, review state, attention, changes, snoozes, ages. Pure functions and dataclasses. |
 | Application | `application/` | One refresh (`refresh.py`), which fetches through the protocols in `ports.py` (`Tickets`, `PullRequests`, `Store`, `Clock`) and returns the board as plain data, and the upgrades that keep its saved files across storage versions (`upgrades.py`). |
 | Adapters | `adapters/` | The real ports: `github.py`, `jira.py`, `storage.py` (JSON files), `paths.py`, `clock.py`, `process.py` (subprocesses, parallel calls, tool checks). |
-| UI | `tui/` | The Textual app (`app.py`, `app.tcss`), rows and detail text (`entries.py`), popups and the settings panel (`screens.py`), themes (`theme.py`) and their words (`frames.py`), who to tell about news (`notifiers.py`), the web page built from the cache (`web.py`). |
+| UI | `tui/` | The Textual app (`app.py`, `app.tcss`), rows and detail text (`entries.py`), popups and the settings panel (`screens.py`), themes (`theme.py`) and their words (`frames.py`), who to tell about news (`notifiers.py`), the web page built from the cache (`web.py`, its template `web.html`, each theme's look in `web.css` and its own pieces, typefaces and eggs in `web_themes.py`). |
 
 `cli.py` is the composition root: it wires the adapters into `Refresh` and hands `refresh().collect` to the TUI. `rows.py` builds PR and ticket rows as plain data; `config.py` reads and writes the settings.
 
@@ -44,7 +44,7 @@ Every change keeps the hexagonal layering and the SOLID principles, and a review
 
 ## Themes
 
-`theme.py` holds the palettes (`THEMES`) and which frame each theme draws (`FRAMES`: `lcars` or `nerv`; `default` has none). Per-frame words live in `tui/frames.py`, shared by the TUI and the web page: box names in `FRAME_NAMES`, alert labels in `THEME_CONDITIONS`, status lines in `status`. The TUI-only words stay in `tui/app.py`: title and tab caps (`TITLE_CAPS`, `TAB_CAPS`) and the refreshing line (`REFRESHING`). A theme-specific change keeps the default theme unchanged, and the README tables under "Themes" follow it.
+`theme.py` holds the palettes (`THEMES`) and which frame each theme draws (`FRAMES`: `lcars` or `nerv`; `default` has none). Per-frame words live in `tui/frames.py`, shared by the TUI and the web page: box names in `FRAME_NAMES`, alert labels in `THEME_CONDITIONS`, status lines in `status`, the LCARS elbow's code in `PANEL_CODE`. The web page's own per-theme pieces (title cards, NERV's vote and Japanese names, EVA 01's sync, Cyberpunk's heat, the LCARS cascade and bars, the typefaces) are tables in `tui/web_themes.py`. The TUI-only words stay in `tui/app.py`: title and tab caps (`TITLE_CAPS`, `TAB_CAPS`) and the refreshing line (`REFRESHING`). A theme-specific change keeps the default theme unchanged, and the README tables under "Themes" follow it.
 
 ## Commands
 
