@@ -10,15 +10,12 @@ Screen { background: $tk-bg; color: $tk-fg; }
 #panes { width: 1fr; height: 1fr; }
 #panes > Vertical { height: 1fr; }
 #aside { width: 1fr; height: 1fr; }
-#panel-details { height: 2fr; }
-#panel-epics { height: auto; max-height: 12; }
-#list-epics { height: auto; }
+/* The factory and epics under the details share one height: a part each to the details' three. */
+#panel-details { height: 3fr; }
 /* Changes is a bit shorter than kanban and team prs: three parts to their four. */
 #panel-kanban, #panel-prs { height: 4fr; }
 #panel-changes { height: 3fr; }
 .pbody { height: 1fr; }
-#panel-epics .pbody { height: auto; max-height: 10; }
-.framed #panel-epics .pbody { max-height: 11; }
 .panel { border: round $tk-line; border-title-color: $tk-accent; padding: 0 1; height: 1fr; width: 1fr; background: $tk-bg; }
 .panel:focus-within { border: round $tk-focus; }
 .filter { border: none; height: 1; padding: 0; background: $tk-bg; color: $tk-fg; margin-bottom: 1; }

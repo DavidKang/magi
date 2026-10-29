@@ -48,7 +48,6 @@ async def main(cache):
         assert titles == ["[3] kanban 1", "[4] team prs 2", "[5] changes 1", "[7] my prs 1", "[8] my tickets 2", "details", "[9] factory 0", "[6] epics 1"], \
             "overview numbers its boxes next to details, and epics sits under the factory"
         assert "Ticket one" in detail(), "overview starts on the kanban box"
-        assert app.query_one("#panel-epics").outer_size.height == 5, "epics box fits its items"
         prompts = [app.query_one("#list-prs", OptionList).get_option_at_index(i).prompt for i in range(5)]
         assert [p.plain for p in prompts[2:4]] == ["", "── ready to merge (1) ──"], "a blank line separates the groups"
         assert str(prompts[0].style) == f"bold {theme.THEMES['default']['fg']}", "group headers stand out in bold, in the text colour"
