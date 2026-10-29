@@ -8,10 +8,12 @@ Screen { background: $tk-bg; color: $tk-fg; }
 #status { width: 1fr; text-align: right; color: $tk-accent; }
 .pane { height: 1fr; }
 #panes { width: 1fr; height: 1fr; }
-#aside { width: 1fr; height: 1fr; }
-/* The factory and epics under the details share one fixed height: a split by parts rounds one of them a row short. */
-#panel-details { height: 1fr; }
-#panel-factory, #panel-epics { height: 8; }
+#aside { width: 1fr; height: 1fr; overflow-y: auto; }
+/* The factory and epics under the details show ten rows each, whatever the theme draws around them; the details take the rest,
+   never under five rows, and a terminal too short for all three scrolls the aside rather than cut a box off. */
+#panel-details { height: 1fr; min-height: 5; }
+#panel-factory, #panel-epics, #panel-factory .pbody, #panel-epics .pbody { height: auto; }
+#list-factory, #list-epics { height: 10; }
 /* Changes is a bit shorter than kanban and team prs: three parts to their four. */
 #panel-kanban, #panel-prs { height: 4fr; }
 #panel-changes { height: 3fr; }

@@ -338,3 +338,41 @@ def test_using_a_theme_puts_the_one_in_use_back():
     with pytest.raises(ValueError), theme.using("default"):
         raise ValueError
     assert theme.current == "nerv", "an error inside still puts the theme back"
+
+
+async def ten_rows(cache):
+    async with started(magi_app(cache)) as pilot:
+        for name in theme.THEMES:
+            await pick_theme(pilot, name)
+            for box in ("factory", "epics"):
+                rows = pilot.app.query_one(f"#list-{box}").scrollable_content_region
+                assert rows.height >= 10 and rows.bottom <= pilot.app.size.height, \
+                    f"the {box} box shows at least ten rows on screen in the {name} theme: {rows}"
+
+
+@pytest.mark.usefixtures("default_theme")
+def test_factory_and_epics_show_ten_rows(cache):
+    asyncio.run(ten_rows(cache))
+
+
+async def short_terminal(cache):
+    async with started(magi_app(cache), size=(160, 24)) as pilot:
+        for name in theme.THEMES:
+            await pick_theme(pilot, name)
+            details = pilot.app.query_one("#panel-details").region.height
+            assert details >= 5, f"the details keep their border and a couple of rows in a short terminal in the {name} theme"
+            await pilot.press("4")
+            await pilot.pause()
+            rows, aside = pilot.app.query_one("#list-epics").scrollable_content_region, pilot.app.query_one("#aside").region
+            assert rows.height >= 10 and aside.contains_region(rows), \
+                f"in a short terminal the aside scrolls the epics box's ten rows into view in the {name} theme: {rows} in {aside}"
+            await pilot.press("1")
+            await pilot.pause()
+            details = pilot.app.query_one("#panel-details").region
+            assert aside.contains_region(details), \
+                f"back on a main box, the aside scrolls the details back into view in the {name} theme: {details} in {aside}"
+
+
+@pytest.mark.usefixtures("default_theme")
+def test_a_short_terminal_scrolls_the_aside(cache):
+    asyncio.run(short_terminal(cache))

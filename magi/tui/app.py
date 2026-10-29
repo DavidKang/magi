@@ -428,6 +428,9 @@ class MagiApp(App):
 
     def board_focused(self, board):
         self.current_section = board.section
+        if board.section in MAIN:
+            # A short terminal scrolls the aside to reach factory or epics; a main box's details sit at its top.
+            self.query_one("#aside").scroll_home(animate=False)
         for button in self.query(SideButton):
             button.set_class(button.key == board.section, "-on")
         self.show_detail(board)
