@@ -224,6 +224,20 @@ def test_full_boxes_scroll(cache):
     asyncio.run(long_boxes(cache))
 
 
+async def top_lines(cache):
+    async with started(magi_app(cache)) as pilot:
+        for name in ("default", "okuda", "nerv"):
+            await pick_theme(pilot, name)
+            for box in ("kanban", "details"):
+                body = pilot.app.query_one(f"#panel-{box} .pbody")
+                assert body.content_region.y == body.region.y + 1, f"the {box} box leaves a line above its content in the {name} theme"
+
+
+@pytest.mark.usefixtures("default_theme")
+def test_boxes_leave_a_top_line(cache):
+    asyncio.run(top_lines(cache))
+
+
 def test_lcars_palettes():
     assert {name: theme.THEMES[name]["accent"] for name in theme.LCARS} == {"okuda": "#eb943a", "picard": "#37a6d1"}, \
         "LCARS comes in Okuda's classic and Picard colours"

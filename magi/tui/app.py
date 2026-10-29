@@ -104,6 +104,7 @@ class MagiApp(App):
                     yield logo(LOGO_WHITE, id="nerv-logo")
                     yield Static("MAGI", classes="brand")
                     yield Static(id="condition")
+                    yield Input(placeholder="/ filter", id="filter")
                     yield Static("loading…", id="status")
                 with Horizontal(id="pills"):
                     for tab, n in TAB_NUMBERS.items():
@@ -137,7 +138,6 @@ class MagiApp(App):
             panel.border_title = panel_title(key, None)
             yield PanelTitle()
             with Vertical(classes="pbody"):
-                yield Input(placeholder="/ filter", id=f"filter-{key}", classes="filter")
                 yield Board(key, id=f"list-{key}")
 
     def check_action(self, action, parameters):
@@ -433,7 +433,7 @@ class MagiApp(App):
 
     def fill(self, key, kept=None):
         board = self.query_one(f"#list-{key}", Board)
-        query = self.query_one(f"#filter-{key}", Input).value.lower()
+        query = self.query_one("#filter", Input).value.lower()
         empty = BOXES[key][1]
         board.clear_options()
         shown = [(i, entry) for i, entry in enumerate(self.sections[key]) if query in entry.search.lower()]
@@ -478,13 +478,15 @@ class MagiApp(App):
     def on_option_list_option_highlighted(self, event):
         self.show_detail(event.option_list)
 
-    @on(Input.Changed, ".filter")
-    def filter_changed(self, event):
-        self.fill(event.input.id.removeprefix("filter-"))
+    @on(Input.Changed, "#filter")
+    def filter_changed(self):
+        # Only the boxes already loaded: one still loading would draw its empty message.
+        for key in BOXES.keys() & self.counted:
+            self.fill(key, self.entry(self.query_one(f"#list-{key}", Board)))
 
-    @on(Input.Submitted, ".filter")
-    def filter_submitted(self, event):
-        self.query_one(f"#list-{event.input.id.removeprefix('filter-')}", Board).focus()
+    @on(Input.Submitted, "#filter")
+    def filter_submitted(self):
+        self.current_board().focus()
 
     def action_focus_tab(self, number):
         tab = next(tab for tab, n in TAB_NUMBERS.items() if n == number)
@@ -511,12 +513,10 @@ class MagiApp(App):
             self.query_one(f"#list-{TABS[tab][0]}", Board).focus()
 
     def action_focus_filter(self):
-        self.query_one(f"#filter-{self.current_section}", Input).focus()
+        self.query_one("#filter", Input).focus()
 
     def action_clear_filter(self):
-        key = self.current_section
-        self.query_one(f"#filter-{key}", Input).value = ""
-        self.fill(key)
+        self.query_one("#filter", Input).value = ""
         self.current_board().focus()
 
     def action_open_current(self):

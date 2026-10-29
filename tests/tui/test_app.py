@@ -73,13 +73,18 @@ async def main(cache):
         await pilot.click("#detail", offset=(10, 2))
         assert opened[-1] == PR_ONE.url, "click on a detail link opens it"
         await pilot.press("slash")
-        assert app.focused is app.query_one("#filter-prs"), "slash focuses the filter of the focused box"
+        assert app.focused is app.query_one("#top #filter"), "slash focuses the one filter, in the header"
+        assert not app.query(".panel Input"), "the boxes have no filter of their own"
         await pilot.press(*"second")
-        listed = lambda: [o.id for o in (app.query_one("#list-prs", OptionList).get_option_at_index(i)
-                                          for i in range(app.query_one("#list-prs", OptionList).option_count)) if not o.disabled]
-        assert len(listed()) == 1, "filter narrows the list"
+        listed = lambda key: [o.id for o in (app.query_one(f"#list-{key}", OptionList).get_option_at_index(i)
+                                             for i in range(app.query_one(f"#list-{key}", OptionList).option_count)) if not o.disabled]
+        assert len(listed("prs")) == 1, "the filter narrows every box"
+        assert listed("kanban") == [], "the filter narrows every box"
+        await pilot.press("enter")
+        assert focused("prs") and len(listed("prs")) == 1, "enter goes back to the box, still filtered"
         await pilot.press("escape")
-        assert len(listed()) == 2, "escape clears the filter"
+        assert len(listed("prs")) == 2, "escape clears the filter in every box"
+        assert len(listed("kanban")) == 1, "escape clears the filter in every box"
         assert focused("prs"), "escape clears the filter"
         await pilot.press("3")
         assert focused("kanban"), "3 focuses the kanban box"
@@ -226,7 +231,7 @@ def test_reopen(cache):
 
 
 async def refresh_keeps_the_row(cache):
-    boards = [board([PR_ONE, PR_TWO]), board([PR_THREE, PR_ONE, PR_TWO])]
+    boards = [board([PR_ONE, PR_TWO]), board([PR_THREE, PR_ONE, PR_TWO]), board([PR_THREE, PR_ONE])]
     now = [1000.0]
     app = magi_app(cache, load=lambda: boards.pop(0), clock=lambda: now[0])
     async with started(app) as pilot:
@@ -238,11 +243,57 @@ async def refresh_keeps_the_row(cache):
         await pilot.pause()
         assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 3", "refresh reloads the board"
         assert app.current().url == PR_TWO.url, "refresh keeps the highlighted row when its item is still on the board"
-        assert "Second change" in str(app.query_one("#detail", Static).render()), "refresh keeps the details of the highlighted row"
+        now[0] += 31
+        await pilot.press("r")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        prs = app.query_one("#list-prs", OptionList)
+        first = next(i for i in range(prs.option_count) if not prs.get_option_at_index(i).disabled)
+        assert prs.highlighted == first, "refresh moves to the first row when the highlighted item left the board"
 
 
 def test_refresh_keeps_the_row(cache):
     asyncio.run(refresh_keeps_the_row(cache))
+
+
+async def filtering_keeps_the_row(cache):
+    boards = [board([PR_ONE, PR_TWO]), board([PR_ONE, PR_TWO, PR_THREE])]
+    now = [1000.0]
+    app = magi_app(cache, load=lambda: boards.pop(0), clock=lambda: now[0])
+    async with started(app) as pilot:
+        await pilot.click("#list-prs", offset=(2, 4))
+        await pilot.press("slash", *"change")
+        assert app.entry(app.query_one("#list-prs", OptionList)).url == PR_TWO.url, "a filter that still shows the row keeps it"
+        await pilot.press("escape")
+        assert app.current().url == PR_TWO.url, "clearing the filter keeps the row"
+        await pilot.press("slash", *"second", "enter")
+        now[0] += 31
+        await pilot.press("r")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        prs = app.query_one("#list-prs", OptionList)
+        assert [app.sections["prs"][int(prs.get_option_at_index(i).id)].url for i in range(prs.option_count)
+                if not prs.get_option_at_index(i).disabled] == [PR_TWO.url], "a refresh keeps the filter"
+
+
+def test_filtering_keeps_the_row(cache):
+    asyncio.run(filtering_keeps_the_row(cache))
+
+
+async def filtering_before_the_first_load(cache):
+    loaded = threading.Event()
+    def load():
+        loaded.wait(5)
+        return board([PR_ONE])
+    app = magi_app(cache, load=load)
+    async with app.run_test(size=(160, 40)) as pilot:
+        await pilot.press("slash", "x")
+        assert app.query_one("#list-kanban", OptionList).option_count == 0, "a filter typed before the first load leaves the boxes empty"
+        loaded.set()
+
+
+def test_filtering_before_the_first_load(cache):
+    asyncio.run(filtering_before_the_first_load(cache))
 
 
 async def throttle_across_runs(cache):
