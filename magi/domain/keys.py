@@ -2,13 +2,15 @@
 
 import re
 
+TICKET_KEY = r"[A-Z][A-Z0-9]+-\d+"
+
 
 def ticket_keys_in(pr, project):
     return {k.upper() for k in re.findall(rf"{re.escape(project)}-\d+", f"{pr.title} {pr.head_ref_name}", flags=re.I)}
 
 
 def title_keys_in(pr, project):
-    return set(re.findall(r"\[([A-Z][A-Z0-9]+-\d+)\]", pr.title)) | ticket_keys_in(pr, project)
+    return set(re.findall(rf"\[({TICKET_KEY})\]", pr.title)) | ticket_keys_in(pr, project)
 
 
 def title_parts(title):

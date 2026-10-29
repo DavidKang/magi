@@ -2,7 +2,7 @@ import inspect
 
 import pytest
 
-from magi.adapters import clock, github, jira, storage
+from magi.adapters import clock, factory, github, jira, storage
 from magi.application import ports
 
 
@@ -12,7 +12,8 @@ def calls(port):
 
 
 @pytest.mark.parametrize("port, adapter", [(ports.Tickets, jira), (ports.PullRequests, github),
-                                           (ports.Store, storage.JsonFiles), (ports.Clock, clock.SystemClock)])
+                                           (ports.Store, storage.JsonFiles), (ports.Clock, clock.SystemClock),
+                                           (ports.FactorySource, factory)])
 def test_adapters_answer_their_ports(port, adapter):
     def parameters(name):
         found = list(inspect.signature(getattr(adapter, name)).parameters)

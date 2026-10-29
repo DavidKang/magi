@@ -141,6 +141,7 @@ Epics are not configured: the board shows every epic of the project in Developin
 | `1` / `2` | Switch to the `Overview` tab or the `Mine` tab |
 | `3`-`6` | Jump to the `Overview` tab's boxes: attention, team PRs, changes, epics |
 | `7`-`8` | Jump to the `Mine` tab's boxes: your open PRs, your Jira tickets not done, grouped by status |
+| `9` | Open the `Factory` tab: the software factory's tickets (see [Factory](#factory)) |
 | `j` / `k` | Move down / up |
 | `enter` | Open the selected item in the browser |
 | `c` | Open the selected PR's comments, reviews and code threads with their diff, or the selected ticket's description and comments (`j`/`k` move, `enter` opens it in the browser, `esc` closes) |
@@ -180,6 +181,14 @@ A change you have not seen yet puts a `●` on its rows in every box, a `N new` 
 
 Run inside a [herdr](https://herdr.dev) pane, Magi tells herdr when a refresh brings a change you have not seen: herdr marks the workspace as done and plays its done sound, as it does for an agent that finished while you looked elsewhere. Herdr's `[ui.sound]` settings apply. Quitting Magi gives the pane back. A herdr that is missing or takes over a second to answer is skipped until the next news, so it never holds the board.
 
+### Factory
+
+The `Factory` tab, in the TUI only, lists one row per ticket of the local software factory: its key, its stage, how long ago the stage changed, the status of its herdr session and the stage's detail. Tickets waiting for you come first, then blocked reviews, then building, then ready.
+
+- Stages come from the `<KEY>.json` files the factory writes in `~/.local/state/factory`; a ticket's session is the herdr agent working in a folder named after its key, alone or followed by `-` and a slug. A ticket without one reads `absent`.
+- It is read every 10 seconds, apart from the board's refresh, and never calls Jira or GitHub. A missing or failing herdr shows every session absent; Magi starts without it.
+- `enter` opens the ticket in Jira and `y` copies its key.
+
 ### Snoozed
 
 `s` takes the selected attention item or team PR off its box until Magi sees a change on it newer than the one it had: a push, a review, a ticket move. CI turning red or a conflict alone does not wake it. It then comes back, marked new. A snooze holds in its own box only, survives a restart, and is dropped once the item leaves the box. The box title counts the rows it hides, as `N snoozed`, and `S` brings it all back.
@@ -189,7 +198,7 @@ Run inside a [herdr](https://herdr.dev) pane, Magi tells herdr when a refresh br
 Magi writes the board to `~/.cache/magi/board.html` after each refresh and snooze. `magi web` opens it and keeps it fresh without the TUI, refreshing every 5 minutes (a running TUI's refreshes count too); `ctrl-c` stops it.
 
 - The page reloads itself after each refresh and never calls GitHub or Jira on its own.
-- It has the TUI's boxes, without the snoozed rows. Clicking a row shows its details beside the boxes; links open in a new tab.
+- It has the TUI's boxes, without the snoozed rows and without the factory. Clicking a row shows its details beside the boxes; links open in a new tab.
 - Its theme is picked in the page, apart from the TUI's. Each theme has its own look: GitHub's dark for the default, [thelcars.com](https://www.thelcars.com)'s frame for LCARS (look for 47), the MAGI's vote for NERV, Unit-01's battery for EVA 01 and Night City's wanted level for Cyberpunk.
 - The styles come from Tailwind's CDN, so it needs a network connection; its fonts (SIL Open Font License) ship inside Magi.
 
@@ -229,6 +238,7 @@ The LCARS, NERV and Cyberpunk themes show how the board is doing in the header:
 | Epics | epics | MISSIONS | PROJECTS | MAIN JOBS |
 | Your PRs | my prs | MY REPORTS | MY SORTIES | MY GIGS |
 | Your tickets | my tickets | AWAY MISSIONS | MY ORDERS | SIDE JOBS |
+| Factory tickets | factory | FACTORY | FACTORY | FACTORY |
 | Details | details | SENSOR READINGS | MAGI ANALYSIS | KIROSHI SCAN |
 
 ### LCARS
@@ -283,6 +293,7 @@ The LCARS, NERV and Cyberpunk themes show how the board is doing in the header:
 | `~/.cache/magi/seen.json` | The last change you saw on each PR or ticket, so new ones stay marked until you pass them |
 | `~/.cache/magi/snoozed.json` | What you snoozed in each box, with the change each item had then |
 | `~/.cache/magi/board.html` | The board as a web page, rewritten after each refresh and snooze (see [Web page](#web-page)) |
+| `~/.local/state/factory/<KEY>.json` | The software factory's stage of each ticket, written by the factory and only read by Magi for the `Factory` tab |
 | `~/.cache/magi/last-refresh` | When the last refresh started, so reopening the app or pressing `r` waits 30 seconds |
 
 Magi used to be called Tarkon. On start, it moves any `tarkon` folder in those three places to `magi`, unless a `magi` folder is already there.
@@ -308,8 +319,8 @@ python3.12 -m venv .venv
 | Path | What it does |
 |------|--------------|
 | `magi/domain/` | The board's rules: entities, status columns, review state, what needs attention, what changed, what stays snoozed |
-| `magi/application/` | One refresh: fetches through the interfaces in `ports.py` and builds the board as data |
-| `magi/adapters/` | Talks to the outside: `gh`, `acli`, JSON files, data paths, the clock |
+| `magi/application/` | One refresh: fetches through the interfaces in `ports.py` and builds the board as data; the factory's tickets (`factory.py`) |
+| `magi/adapters/` | Talks to the outside: `gh`, `acli`, `herdr`, JSON files, the factory's stage files, data paths, the clock |
 | `magi/cli.py` | Entry point: wires the adapters into the refresh and starts the app |
 | `magi/tui/` | The terminal app: rows and detail text (`entries.py`), popups and settings (`screens.py`), themes (`theme.py`), who to tell about news (`notifiers.py`), the web page (`web.py`) |
 | `magi/rows.py` | PR and ticket rows as plain data, formatted by `tui/entries.py` |

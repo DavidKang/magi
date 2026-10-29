@@ -9,7 +9,7 @@ from rich.text import Text
 from .. import rows
 from ..domain import changes
 from ..domain.attention import STALE_PR_DAYS
-from ..domain.ages import days_since
+from ..domain.ages import ago, days_since
 from ..domain.review import TURNS, turn
 from ..domain.status import COLUMNS, status_label, ticket_order
 from . import theme
@@ -299,6 +299,21 @@ def ticket_entry(ticket, prs, settings):
         lines += [colored("dim", "…") + colored("dim", MORE_HINT)] if len(shown) > DESCRIPTION_LINES else []
     return Entry([(ticket.key, ""), (ticket.summary, "")], "\n".join(lines), url, ticket.key,
                  f'{ticket.key} {ticket.summary} {status}', (f'{ticket.key} · {ticket.summary}', items), group=status)
+
+
+# A factory ticket waiting for you raises a flag and a blocked review an alarm; a ready one reads calm, a building one neutral.
+STAGE_TONES = {"waiting-you": "warn-pill", "review-blocked": "bad-alarm", "building": "dim-pill", "ready": "ok-pill"}
+
+
+def factory_entry(ticket, now, settings):
+    """A factory ticket as a row, from its stage file and herdr; now dates how long ago its stage changed."""
+    tone = STAGE_TONES[ticket.stage]
+    age, session, url = ago(ticket.since, now) if ticket.since else "", ticket.agent or "absent", settings.jira_browse + ticket.key
+    lines = [heading(ticket.key), "", field("stage", colored(tone.rpartition("-")[0], ticket.stage) + (colored("dim", f" · {age} ago") if age else "")),
+             field("session", escape(session))]
+    lines += ["", escape(ticket.detail)] if ticket.detail else []
+    return Entry([(ticket.key, ""), (ticket.stage, tone), (age, "dim-right"), (session, "dim"), (ticket.detail, "")],
+                 "\n".join([*lines, "", separator(), link(url, url)]), url, ticket.key, f"{ticket.key} {ticket.stage} {session} {ticket.detail}")
 
 
 TURN_TONES = {"needs review": "blue", "on the author": "bad", "ready to merge": "ok", "drafts": "dim"}

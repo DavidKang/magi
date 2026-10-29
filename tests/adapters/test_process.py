@@ -26,3 +26,7 @@ def test_missing_tools(tmp_path):
         assert "acli not found" in result.stderr, f"missing gh and acli are explained before {' '.join(args) or 'the TUI'} starts"
         assert "brew install acli" in result.stderr, f"missing gh and acli are explained before {' '.join(args) or 'the TUI'} starts"
         assert "Traceback" not in result.stderr, f"missing gh and acli are explained before {' '.join(args) or 'the TUI'} starts"
+
+
+def test_run_json_reads_a_commands_json():
+    assert process.run_json([sys.executable, "-c", "print('{\"ok\": 1}')"]) == {"ok": 1}, "run_json returns the command's output read as json"

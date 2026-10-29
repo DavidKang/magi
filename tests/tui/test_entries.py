@@ -6,6 +6,7 @@ from textual.content import Content
 from builders import CHANGES, NOTE, OUTDATED, PR_ONE, PR_TWO, REPLY, STATED, THREAD, TICKET_DETAIL, board
 from magi.domain.ages import days_since
 from magi.domain.entities import Ticket
+from magi.domain.factory import FactoryTicket
 from magi.tui import entries
 
 
@@ -187,3 +188,26 @@ def test_change_timeline_shows_the_ten_newest():
     timeline = lines[lines.index("── timeline ──") + 1:]
     assert len(timeline) == 10, "the timeline keeps the ten newest lines"
     assert timeline[0] == "Oct 25 12:00  In review ACME-1 joins the epics", "a change in the timeline reads its label, ref and note"
+
+
+def test_factory_rows_flag_the_tickets_needing_you():
+    now = dt.datetime(2026, 10, 29, 12, 0, tzinfo=dt.timezone.utc)
+    since = now - dt.timedelta(minutes=95)
+    tone = {stage: entries.factory_entry(FactoryTicket("ACME-1", stage, "", since, None), now, STATED).cells[1][1].partition("-")[0]
+            for stage in ("waiting-you", "review-blocked", "building", "ready")}
+    assert tone["waiting-you"] in ("warn", "bad") and tone["review-blocked"] in ("warn", "bad"), \
+        "a ticket waiting for you or blocked in review stands out in a warning or alarm color"
+    assert tone["ready"] == "ok" and tone["building"] == "dim", "a ready ticket reads calm and a building one neutral"
+
+
+def test_factory_row_shows_the_key_stage_age_and_session():
+    now = dt.datetime(2026, 10, 29, 12, 0, tzinfo=dt.timezone.utc)
+    working = entries.factory_entry(FactoryTicket("ACME-1", "waiting-you", "which repo?", now - dt.timedelta(minutes=95), "working"), now, STATED)
+    assert [value for value, _ in working.cells] == ["ACME-1", "waiting-you", "1h", "working", "which repo?"], \
+        "a factory row shows the key, the stage, how long ago it changed, the herdr session and the detail"
+    assert working.url == STATED.jira_browse + "ACME-1" and working.copy == "ACME-1", "a factory row opens its jira ticket and copies its key"
+    detail = Content.from_markup(working.detail).plain
+    assert all(text in detail for text in ["ACME-1", "waiting-you", "1h ago", "working", "which repo?"]), \
+        "a factory row's details repeat its stage, age, session and detail"
+    absent = entries.factory_entry(FactoryTicket("ACME-2", "building", "", None, None), now, STATED)
+    assert [value for value, _ in absent.cells][2:4] == ["", "absent"], "a ticket with no herdr session reads absent, and an undated stage has no age"

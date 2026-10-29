@@ -7,14 +7,15 @@ STDLIB = {"dataclasses", "datetime", "math", "re"}
 NAMES = {"entities": ["Epic", "FoundPr", "PullRequest", "Ticket", "TicketDetail", "ticket_from"],
          "status": ["COLUMNS", "DISCARDED", "EPIC_STATUSES", "STATUS_LABELS", "STATUS_RANK", "UnmappedStatus",
                     "column_for", "status_label", "ticket_order"],
-         "keys": ["ticket_keys_in", "title_keys_in", "title_parts"],
+         "keys": ["TICKET_KEY", "ticket_keys_in", "title_keys_in", "title_parts"],
          "review": ["CI_LABELS", "TURNS", "looks_ready_but_blocked", "pr_events", "review_state", "turn"],
          "attention": ["ACTIVE_COLUMNS", "STALE_PR_DAYS", "attention_items"],
          "changes": ["CHANGES_HOURS", "change_mark", "change_text", "changes_between", "group_changes", "latest", "moved_from", "pr_subject",
                      "recent_changes", "snapshot", "snapshot_epics", "subject_text", "ticket_subject", "vanished_prs"],
          "histories": ["kept_histories", "pr_histories"],
          "snoozes": ["asleep", "awake", "change_marks"],
-         "ages": ["days_since"]}
+         "ages": ["AGE_UNITS", "ago", "days_since"],
+         "factory": ["Agent", "FactoryTicket", "STAGES", "Stage", "factory_tickets", "session_of"]}
 
 
 def test_domain_imports_only_itself_and_pure_stdlib():

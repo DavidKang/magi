@@ -1,4 +1,4 @@
-"""Run the gh and acli processes the adapters read from."""
+"""Run the gh, acli and herdr processes the adapters read from."""
 
 import json
 import shutil
@@ -14,8 +14,8 @@ def missing_tools():
     return [f"{tool} not found. Install it with: {how}" for tool, how in TOOLS.items() if shutil.which(tool) is None]
 
 
-def run_json(cmd):
-    out = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+def run_json(cmd, timeout=None):
+    out = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=timeout).stdout
     return json.loads(out)
 
 

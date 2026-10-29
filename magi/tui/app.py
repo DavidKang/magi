@@ -24,7 +24,7 @@ from ..domain.snoozes import asleep, awake, change_marks
 from . import frames, notifiers, screens, theme, web
 from .board_files import (CACHE, KEPT_UPGRADES, REFRESH_COOLDOWN, REFRESH_SECONDS, SNOOZABLE, last_started, mark_start, page,
                           read_snoozed, refresh_mark, save_board, snoozes)
-from .entries import cell_row, entries, escape, ticket_entry
+from .entries import cell_row, entries, escape, factory_entry, ticket_entry
 from .frames import LCARS_NAMES
 from .screens import LOGO_BLACK, LOGO_WHITE, ConfigScreen, ReviewScreen, ThemeScreen, TicketScreen, logo
 from .system import leave, open_in_browser, pbcopy
@@ -39,16 +39,24 @@ MIN_TITLE, MAX_TITLE = 20, 60
 NARROW_TITLE = 10
 CHANGE_WIDTHS = [12, 18, None]
 NO_CHANGES = f"no changes in the last {changes.CHANGES_HOURS} h"
+# The board's boxes: magi web draws these too.
 SECTIONS = {"attention": ("attention", "nothing to flag", [2, None]),
             "prs": ("team prs", "no open prs", PR_WIDTHS),
             "changes": ("changes", NO_CHANGES, CHANGE_WIDTHS),
             "epics": ("epics", "no epics", [9, 20, 6, None]),
             "mine_prs": ("my prs", "no open prs", PR_WIDTHS),
             "mine_tickets": ("my tickets", "no open tickets", [10, None])}
+# The factory's box is the TUI's alone: magi web never reads the factory's stage files or herdr.
+BOXES = {**SECTIONS, "factory": ("factory", "no factory tickets", [10, 18, 4, 8, None])}
+FACTORY_SECONDS = 10
 REFRESHING = {"lcars": "ENGAGING WARP DRIVE…", "cyberpunk": "JACKING IN…"}
 CONDITION_TONES = {"green": "ok", "yellow": "warn", "red": "bad"}
-TABS = {"overview": ["attention", "prs", "changes", "epics"], "mine": ["mine_prs", "mine_tickets"]}
-NUMBERS = {key: n for n, key in enumerate(SECTIONS, len(TABS) + 1)}
+BOARD_TABS = {"overview": ["attention", "prs", "changes", "epics"], "mine": ["mine_prs", "mine_tickets"]}
+TABS = {**BOARD_TABS, "factory": ["factory"]}
+# The board's tabs take the first digits and the boxes the next ones; the factory's tab answers to its one box's digit,
+# so the board keeps its keys.
+NUMBERS = {key: n for n, key in enumerate(BOXES, len(BOARD_TABS) + 1)}
+TAB_NUMBERS = {**{tab: n for n, tab in enumerate(BOARD_TABS, 1)}, "factory": NUMBERS["factory"]}
 TAB_OF = {key: tab for tab, keys in TABS.items() for key in keys}
 LEFT_CAP, RIGHT_CAP = "\ue0b6", "\ue0b4"
 # NERV writes titles into the box line and outlines its tabs, after nerv-ui's labels and navigation.
@@ -64,7 +72,7 @@ FORTY_SEVEN = "█ █ ███\n█ █   █\n███   █\n  █   █\n 
 
 
 def widths(key, room=None):
-    found = SECTIONS[key][2]
+    found = BOXES[key][2]
     found = LCARS_PR_WIDTHS if found is PR_WIDTHS and theme.frame() else found
     if None not in found[:-1]:
         return found
@@ -76,7 +84,7 @@ def widths(key, room=None):
 
 
 def section_name(key):
-    default = SECTIONS[key][0] if key in SECTIONS else key
+    default = BOXES[key][0] if key in BOXES else key
     return frames.box_name(theme.current, key, default)
 
 
@@ -99,7 +107,7 @@ def elbow(color):
 
 class SideButton(Static):
     def __init__(self, key):
-        super().__init__(f"{NUMBERS[key]:02d}\n{LCARS_NAMES.get(key, SECTIONS[key][0]).upper()}", id=f"side-{key}", classes="side")
+        super().__init__(f"{NUMBERS[key]:02d}\n{LCARS_NAMES.get(key, BOXES[key][0]).upper()}", id=f"side-{key}", classes="side")
         self.key = key
 
     def on_click(self):
@@ -156,8 +164,8 @@ class MagiApp(App):
     TITLE = "MAGI"
     AUTO_FOCUS = "Board"
     CSS_PATH = "app.tcss"
-    BINDINGS = [*(Binding(str(n), f"focus_tab({n})", "tabs", key_display="1-2", show=n == 1) for n in range(1, len(TABS) + 1)),
-                *(Binding(str(n), f"focus_box({n})", "boxes", key_display="3-8", show=n == 3) for n in NUMBERS.values()),
+    BINDINGS = [*(Binding(str(n), f"focus_tab({n})", "tabs", key_display="1-2", show=n == 1) for n in range(1, len(BOARD_TABS) + 1)),
+                *(Binding(str(n), f"focus_box({n})", "boxes", key_display="3-9", show=n == 3) for n in NUMBERS.values()),
                 Binding("slash", "focus_filter", "filter", key_display="/"),
                 Binding("escape", "clear_filter", "clear", show=False),
                 Binding("c", "open_review", "comments"),
@@ -169,13 +177,16 @@ class MagiApp(App):
                 Binding("t", "pick_theme", "theme"),
                 Binding("q", "quit", "quit")]
 
-    def __init__(self, collect=None, load=None, fetch_ticket=None, opener=open_in_browser, copier=pbcopy, clock=time.time, cache=CACHE,
+    def __init__(self, collect=None, load=None, fetch_ticket=None, factory=list, opener=open_in_browser, copier=pbcopy, clock=time.time, cache=CACHE,
                  config_path=config.PATH, edit_config=False, notifier=notifiers.Silent()):
         super().__init__()
         self.notifier, self.watching = notifier, False
         self.config_path, self.edit_config = config_path, edit_config
         self.load = load or (lambda: collect(self.settings))
         self.fetch_ticket, self.loading_ticket = fetch_ticket, None
+        self.factory, self.factory_tickets, self.reading_factory = factory, [], False
+        # The factory rows last drawn: None until the box is first drawn, so an empty factory still says so.
+        self.factory_drawn = None
         self.opener, self.copier, self.clock, self.cache = opener, copier, clock, cache
         self.stamp = refresh_mark(cache)
         self.seen_path = cache.with_name("seen.json")
@@ -187,8 +198,10 @@ class MagiApp(App):
         self.passing = None
         self.refreshing = False
         self.last_refresh = None
-        self.sections = {key: [] for key in SECTIONS}
+        self.sections = {key: [] for key in BOXES}
         self.board = None
+        # The boxes read at least once: only those show a count, and the factory is read apart from the board.
+        self.counted = set()
         self.settings = None
         self.updated_at = None
         self.refresh_failed = False
@@ -213,12 +226,12 @@ class MagiApp(App):
                     yield Static(id="condition")
                     yield Static("loading…", id="status")
                 with Horizontal(id="pills"):
-                    for n, tab in enumerate(TABS, 1):
+                    for tab, n in TAB_NUMBERS.items():
                         yield TabPill(n, tab)
-        yield Tabs(*(Tab(f"[{n}] {tab.capitalize()}", id=f"tab-{tab}") for n, tab in enumerate(TABS, 1)))
+        yield Tabs(*(Tab(f"[{n}] {tab.capitalize()}", id=f"tab-{tab}") for tab, n in TAB_NUMBERS.items()))
         with Horizontal(classes="pane"):
             with Vertical(id="sidebar"):
-                for key in SECTIONS:
+                for key in BOXES:
                     yield SideButton(key)
                 yield Static(FORTY_SEVEN, id="side-fill")
             with ContentSwitcher(initial=f"pane-{next(iter(TABS))}", id="panes"):
@@ -272,6 +285,46 @@ class MagiApp(App):
             self.query_one("#status", Static).update(f"next refresh in {math.ceil(wait)}s")
             self.set_timer(wait, self.start_refresh)
         self.set_interval(REFRESH_SECONDS, self.start_refresh)
+        self.read_factory()
+        self.set_interval(FACTORY_SECONDS, self.read_factory)
+
+    def read_factory(self):
+        # One read at a time: a herdr that hangs must not pile up threads.
+        if not self.reading_factory:
+            self.reading_factory = True
+            self.fetch_factory()
+
+    @work(group="factory", exit_on_error=False)
+    async def fetch_factory(self):
+        found, error = await off_loop(self.factory)
+        self.reading_factory = False
+        # A factory that cannot be read keeps what it showed: it never stops the board.
+        if not error:
+            self.factory_tickets = found
+            self.show_factory()
+
+    def show_factory(self):
+        rows = self.factory_rows()
+        if rows == self.factory_drawn:
+            return
+        board = self.query_one("#list-factory", Board)
+        kept = self.entry(board)
+        self.sections["factory"] = self.factory_drawn = rows
+        self.counted.add("factory")
+        self.title_panels()
+        self.fill("factory")
+        # The factory is read every few seconds: the row you are on stays highlighted.
+        same = [i for i in range(board.option_count) if kept and board.get_option_at_index(i).id
+                and self.sections["factory"][int(board.get_option_at_index(i).id)].copy == kept.copy]
+        if same:
+            board.highlighted = same[0]
+            # Back on the row you were on: the first row, drawn for a moment, was not passed by.
+            if self.current_section == "factory":
+                self.passing = kept.url
+
+    def factory_rows(self):
+        now = dt.datetime.fromtimestamp(self.clock(), dt.timezone.utc)
+        return [factory_entry(ticket, now, self.settings) for ticket in self.factory_tickets]
 
     def action_refresh(self):
         if self.refreshing:
@@ -294,22 +347,8 @@ class MagiApp(App):
 
     @work(exclusive=True, exit_on_error=False)
     async def fetch(self, started):
-        loop = asyncio.get_running_loop()
-        outcome = loop.create_future()
-
-        def load():
-            try:
-                found = (self.load(), None)
-            except Exception as error:
-                found = (None, error)
-            try:
-                loop.call_soon_threadsafe(lambda: outcome.done() or outcome.set_result(found))
-            except RuntimeError:  # the app quit and closed its loop while the refresh ran
-                pass
-
-        # A daemon thread, not the loop's executor: quitting must not wait for acli and gh to finish.
-        threading.Thread(target=load, daemon=True).start()
-        board, error = await outcome
+        # Off the loop on a daemon thread: quitting must not wait for acli and gh to finish.
+        board, error = await off_loop(self.load)
         if error:
             self.failed(error)
             return
@@ -347,18 +386,19 @@ class MagiApp(App):
         self.query_one("#status", Static).update(frames.status(theme.current, when, self.settings.github_user))
 
     def title_panels(self):
-        for n, (tab, keys) in enumerate(TABS.items(), 1):
+        for tab, keys in TABS.items():
+            n = TAB_NUMBERS[tab]
             dot = " ●" if any(entry.url in self.news for key in keys for entry in self.sections[key]) else ""
             self.query_one(f"#tab-{tab}", Tab).label = f"[{n}] {tab.capitalize()}{dot}"
             left, seg, right = self.query(f"#pill-{tab} Static")
             left.update(glyphs(TAB_CAPS)[0])
             right.update(glyphs(TAB_CAPS)[1])
             seg.update(f" {n:02d} {tab.upper()}{dot} ")
-        for key in SECTIONS:
+        for key in BOXES:
             new = sum(1 for entry in self.sections[key] if entry.url in self.news)
             snoozed = self.hidden.get(key, 0)
             count = " · ".join([str(len(self.sections[key]))] + [f"{new} new"] * bool(new) + [f"{snoozed} snoozed"] * bool(snoozed)) \
-                if self.board else None
+                if key in self.counted else None
             self.query_one(f"#panel-{key}").border_title = panel_title(key, count)
             self.query_one(f"#panel-{key} PanelTitle", PanelTitle).show(f"{NUMBERS[key]:02d}", section_name(key).upper(),
                                                                        "" if count is None else str(count))
@@ -368,7 +408,9 @@ class MagiApp(App):
 
     def fill_sections(self, board):
         self.board = board
-        self.sections = entries(board, self.settings)
+        self.sections = {**entries(board, self.settings), "factory": self.factory_rows()}
+        self.factory_drawn = self.sections["factory"]
+        self.counted.update(self.sections)
         self.hide_snoozed(board["changes"])
         self.find_news(board["changes"])
         self.level = condition(board["prs"], self.settings.github_user)
@@ -381,7 +423,7 @@ class MagiApp(App):
         self.query_one("#condition", Static).update(flag if theme.frame() == "nerv" else pill)
         self.paint_frame()
         self.title_panels()
-        for key in SECTIONS:
+        for key in BOXES:
             self.fill(key)
 
     def find_news(self, found):
@@ -439,7 +481,7 @@ class MagiApp(App):
     def mark_seen(self, url):
         self.seen[url] = changes.change_mark(self.news.pop(url))
         storage.write(self.seen_path, {"seen": self.seen})
-        for key in SECTIONS:
+        for key in BOXES:
             board = self.query_one(f"#list-{key}", Board)
             for index in range(board.option_count):
                 option_id = board.get_option_at_index(index).id
@@ -513,7 +555,7 @@ class MagiApp(App):
     def fill(self, key):
         board = self.query_one(f"#list-{key}", Board)
         query = self.query_one(f"#filter-{key}", Input).value.lower()
-        empty = SECTIONS[key][1]
+        empty = BOXES[key][1]
         board.clear_options()
         shown = [(i, entry) for i, entry in enumerate(self.sections[key]) if query in entry.search.lower()]
         group = None
@@ -562,12 +604,12 @@ class MagiApp(App):
         self.query_one(f"#list-{event.input.id.removeprefix('filter-')}", Board).focus()
 
     def action_focus_tab(self, number):
-        tab = list(TABS)[number - 1]
+        tab = next(tab for tab, n in TAB_NUMBERS.items() if n == number)
         if TAB_OF[self.current_section] != tab:
             self.action_focus_box(NUMBERS[TABS[tab][0]])
 
     def action_focus_box(self, number):
-        key = list(SECTIONS)[number - NUMBERS["attention"]]
+        key = list(BOXES)[number - NUMBERS["attention"]]
         self.show_tab(TAB_OF[key])
         self.query_one(f"#list-{key}", Board).focus()
 
@@ -656,11 +698,30 @@ def error_message(error):
 
 
 def write_page(path, board, settings, snoozed, at):
-    """The board as a web page at path, as the TUI shows it: its boxes and numbers, without the snoozed rows."""
+    """The board as a web page at path, as the TUI shows it: its boxes and numbers, without the snoozed rows nor the factory."""
     storage.write_text(path, web.page(board, settings, snoozed, at, SECTIONS, NUMBERS, REFRESH_SECONDS))
 
 
-def main(collect, fetch_ticket, edit_config=False):
-    app = MagiApp(collect, fetch_ticket=fetch_ticket, edit_config=edit_config, notifier=notifiers.notifier(os.environ))
+async def off_loop(call):
+    """call's result or error, run on a daemon thread rather than the loop's executor: quitting must not wait for it."""
+    loop = asyncio.get_running_loop()
+    outcome = loop.create_future()
+
+    def run():
+        try:
+            found = (call(), None)
+        except Exception as error:
+            found = (None, error)
+        try:
+            loop.call_soon_threadsafe(lambda: outcome.done() or outcome.set_result(found))
+        except RuntimeError:  # the app quit and closed its loop while call ran
+            pass
+
+    threading.Thread(target=run, daemon=True).start()
+    return await outcome
+
+
+def main(collect, fetch_ticket, factory=list, edit_config=False):
+    app = MagiApp(collect, fetch_ticket=fetch_ticket, factory=factory, edit_config=edit_config, notifier=notifiers.notifier(os.environ))
     app.run()
     leave(app)

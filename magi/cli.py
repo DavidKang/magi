@@ -2,9 +2,10 @@
 
 import sys
 
-from .adapters import github, jira, paths, process
+from .adapters import factory, github, jira, paths, process
 from .adapters.clock import SystemClock
 from .adapters.storage import JsonFiles
+from .application.factory import Factory
 from .application.refresh import Refresh
 from .application.upgrades import UPGRADES
 
@@ -39,4 +40,4 @@ def main():
         sys.exit(watch(wired.collect))
     from .tui.app import main as run
 
-    run(wired.collect, wired.ticket, edit_config=args == ["config"])
+    run(wired.collect, wired.ticket, Factory(factory).collect, edit_config=args == ["config"])
