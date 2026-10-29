@@ -43,7 +43,7 @@ async def first_run(cache):
         await pilot.pause()
         assert json.loads(path.read_text()) == {**SETTINGS, "theme": "default"}, "saving writes the config"
         assert calls == [1], "saving opens the board"
-        assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 1", "saving opens the board"
+        assert str(app.query_one("#panel-prs").border_title) == "[2] team prs 1", "saving opens the board"
         assert cache.exists(), "the TUI cache is written into a folder created on demand"
 
 
@@ -63,7 +63,7 @@ async def edit(cache):
         await app.workers.wait_for_complete()
         await pilot.pause()
         assert json.loads(app.config_path.read_text())["team"] == ["alice", "bob", "carol"], "config command saves the changes"
-        assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 1", "config command then opens the board"
+        assert str(app.query_one("#panel-prs").border_title) == "[2] team prs 1", "config command then opens the board"
 
 
 def test_edit(cache):
@@ -94,7 +94,7 @@ async def edit_cancel(cache):
         await app.workers.wait_for_complete()
         await pilot.pause()
         assert json.loads(app.config_path.read_text()) == {**SETTINGS, "theme": "default"}, "cancel keeps the saved config"
-        assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 1", "cancel goes to the board"
+        assert str(app.query_one("#panel-prs").border_title) == "[2] team prs 1", "cancel goes to the board"
 
 
 def test_edit_cancel(cache):

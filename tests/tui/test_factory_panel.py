@@ -4,7 +4,7 @@ import re
 import threading
 from types import SimpleNamespace
 
-from textual.widgets import OptionList, Static, Tabs
+from textual.widgets import OptionList, Static
 
 from builders import failing_load, magi_app, pick_theme, started
 from magi.domain.factory import FactoryTicket
@@ -23,33 +23,29 @@ def factory_app(cache, factory=lambda: TICKETS):
 async def factory_box(cache):
     app = factory_app(cache)
     async with started(app) as pilot:
-        await pilot.press("2", "9")
+        await pilot.press("5")
         await pilot.pause()
         rows = app.query_one("#list-factory", OptionList)
         shown = [rows.get_option_at_index(i).prompt.plain for i in range(rows.option_count)]
-        assert (app.current_section, app.query_one(Tabs).active) == ("factory", "tab-mine"), "9 focuses the factory box and keeps the tab shown"
+        assert app.current_section == "factory", "5 focuses the factory box"
         assert len(shown) == 2 and "ACME-77" in shown[0] and "ACME-78" in shown[1], \
             "the factory box lists one row per factory ticket, in the order the factory gives"
         assert "which repo?" in str(app.query_one("#detail", Static).render()), "the focused factory row shows its details"
-        assert str(app.query_one("#panel-factory").border_title) == "[9] factory 2", "the factory box is numbered 9 and counts its tickets"
-        await pilot.press("3")
+        assert str(app.query_one("#panel-factory").border_title) == "[5] factory 2", "the factory box is numbered 5 and counts its tickets"
+        await pilot.press("1")
         assert app.current_section == "kanban", "the board's boxes keep their keys beside the factory"
 
 
 async def factory_under_the_details(cache):
     app = factory_app(cache)
     async with started(app) as pilot:
-        for tab in ("1", "2"):
-            await pilot.press(tab)
-            await pilot.pause()
-            box, details = app.query_one("#panel-factory").region, app.query_one("#panel-details").region
-            assert box.height and (box.x, box.width) == (details.x, details.width) and box.y >= details.bottom, \
-                f"the factory box sits under the details, as wide, on tab {tab}"
-            epics = app.query_one("#panel-epics").region
-            assert epics.height and (epics.x, epics.width) == (box.x, box.width) and epics.y >= box.bottom, \
-                f"the epics box sits under the factory, as wide, on tab {tab}"
-            assert box.height == epics.height, f"the factory box is as tall as the epics box, whatever each lists, on tab {tab}"
-        assert [tab.id for tab in app.query_one(Tabs).query("Tab")] == ["tab-overview", "tab-mine"], "the factory has no tab of its own"
+        box, details = app.query_one("#panel-factory").region, app.query_one("#panel-details").region
+        assert box.height and (box.x, box.width) == (details.x, details.width) and box.y >= details.bottom, \
+            "the factory box sits under the details, as wide"
+        epics = app.query_one("#panel-epics").region
+        assert epics.height and (epics.x, epics.width) == (box.x, box.width) and epics.y >= box.bottom, \
+            "the epics box sits under the factory, as wide"
+        assert box.height == epics.height, "the factory box is as tall as the epics box, whatever each lists"
 
 
 def test_factory_under_the_details(cache):
@@ -63,7 +59,7 @@ def test_factory_box(cache):
 async def factory_reread_keeps_the_row(cache):
     app = factory_app(cache)
     async with started(app) as pilot:
-        await pilot.press("9", "j")
+        await pilot.press("5", "j")
         app.read_factory()
         await app.workers.wait_for_complete()
         await pilot.pause()
@@ -89,7 +85,7 @@ async def factory_reread_without_changes_keeps_the_box(cache):
     factory, calls = counted(TICKETS)
     app = factory_app(cache, factory=factory)
     async with started(app) as pilot:
-        await pilot.press("9")
+        await pilot.press("5")
         await app.workers.wait_for_complete()
         drawn = []
         fill = app.fill
@@ -105,7 +101,7 @@ async def factory_reread_with_changes_redraws_the_box(cache):
     factory, calls = counted(TICKETS, TICKETS[:1])
     app = factory_app(cache, factory=factory)
     async with started(app) as pilot:
-        await pilot.press("9")
+        await pilot.press("5")
         await app.workers.wait_for_complete()
         app.read_factory()
         await app.workers.wait_for_complete()
@@ -146,7 +142,7 @@ def test_factory_read_one_at_a_time(cache):
 async def empty_factory_without_a_board(cache):
     app = magi_app(cache, load=failing_load, factory=list, clock=NOW.timestamp)
     async with started(app) as pilot:
-        await pilot.press("9")
+        await pilot.press("5")
         await pilot.pause()
         assert app.board is None and shown_rows(app) == ["no factory tickets"], \
             "an empty factory says so on a cold start, before the board ever loads"
@@ -159,7 +155,7 @@ def test_empty_factory_without_a_board(cache):
 async def theme_redraws_the_factory_without_a_board(cache):
     app = magi_app(cache, load=failing_load, factory=lambda: TICKETS, clock=NOW.timestamp, theme="nerv")
     async with started(app) as pilot:
-        await pilot.press("9")
+        await pilot.press("5")
         await pilot.pause()
         before = [str(span.style) for span in app.query_one("#list-factory", OptionList).get_option_at_index(0).prompt.spans]
         await pick_theme(pilot, "cyberpunk")
@@ -187,7 +183,7 @@ async def factory_redraw_marks_nothing_seen(cache):
     factory, _ = counted(TICKETS, changed)
     app = factory_app(cache, factory=factory)
     async with started(app) as pilot:
-        await pilot.press("9", "j")
+        await pilot.press("5", "j")
         first = app.settings.jira_browse + "ACME-77"
         app.news[first] = {"at": "2026-10-29T11:00:00", "label": "In review"}
         app.read_factory()
@@ -204,10 +200,10 @@ def test_factory_redraw_marks_nothing_seen(cache):
 async def factory_counts_without_a_board(cache):
     app = magi_app(cache, load=failing_load, factory=lambda: TICKETS, clock=NOW.timestamp)
     async with started(app) as pilot:
-        await pilot.press("9")
+        await pilot.press("5")
         await app.workers.wait_for_complete()
         await pilot.pause()
-        assert app.board is None and str(app.query_one("#panel-factory").border_title) == "[9] factory 2", \
+        assert app.board is None and str(app.query_one("#panel-factory").border_title) == "[5] factory 2", \
             "the factory box counts its tickets as soon as the factory is read, before the board ever loads"
 
 
@@ -236,7 +232,7 @@ def broken_factory():
 async def factory_failure_keeps_the_board(cache):
     app = factory_app(cache, factory=broken_factory)
     async with started(app) as pilot:
-        await pilot.press("9")
+        await pilot.press("5")
         await pilot.pause()
         rows = app.query_one("#list-factory", OptionList)
         assert rows.get_option_at_index(0).prompt.plain == "no factory tickets", "a factory that cannot be read shows an empty box"
@@ -255,7 +251,7 @@ async def factory_failure_keeps_its_rows(cache):
         return TICKETS if len(reads) == 1 else broken_factory()
     app = factory_app(cache, factory=factory)
     async with started(app) as pilot:
-        await pilot.press("9")
+        await pilot.press("5")
         await app.workers.wait_for_complete()
         app.read_factory()
         await app.workers.wait_for_complete()
@@ -273,8 +269,7 @@ async def lcars_factory_button(cache):
     async with started(app) as pilot:
         await pilot.click("#side-factory")
         await pilot.pause()
-        assert (app.current_section, app.query_one(Tabs).active) == ("factory", "tab-overview"), "the factory's lcars button focuses its box"
-        assert [pill.has_class("-on") for pill in app.query(".tab-pill")] == [True, False], "the shown tab's pill stays lit"
+        assert app.current_section == "factory", "the factory's lcars button focuses its box"
 
 
 def test_lcars_factory_button(cache):
@@ -302,23 +297,23 @@ async def g_presses(cache, monkeypatch, *keys, tickets=TICKETS):
 
 
 def test_g_jumps_to_the_session(cache, monkeypatch):
-    assert asyncio.run(g_presses(cache, monkeypatch, "9", "j", "g")) == ["w2H:p2"], "g on a factory row jumps to its herdr session"
+    assert asyncio.run(g_presses(cache, monkeypatch, "5", "j", "g")) == ["w2H:p2"], "g on a factory row jumps to its herdr session"
 
 
 def test_g_without_a_session_does_nothing(cache, monkeypatch):
-    assert asyncio.run(g_presses(cache, monkeypatch, "9", "g")) == [], "g on a factory row without a session does nothing"
+    assert asyncio.run(g_presses(cache, monkeypatch, "5", "g")) == [], "g on a factory row without a session does nothing"
 
 
 def test_g_outside_the_factory_does_nothing(cache, monkeypatch):
     # The epics box's first row is ACME-100: a factory ticket with that key must not make g jump from there.
     tickets = [FactoryTicket("ACME-100", "building", "", NOW, "working", "w1:p1")]
-    assert asyncio.run(g_presses(cache, monkeypatch, "9", "6", "g", tickets=tickets)) == [], "g outside the factory does nothing"
+    assert asyncio.run(g_presses(cache, monkeypatch, "5", "4", "g", tickets=tickets)) == [], "g outside the factory does nothing"
 
 
 async def g_waits_behind_a_popup(cache):
     app = factory_app(cache)
     async with started(app) as pilot:
-        await pilot.press("9", "j", "t")
+        await pilot.press("5", "j", "t")
         await pilot.pause()
         assert not app.check_action("focus_session", ()), "a popup blocks g, as it blocks every board key"
 

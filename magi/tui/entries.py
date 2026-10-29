@@ -10,6 +10,7 @@ from .. import rows
 from ..domain import changes
 from ..domain.ages import ago, days_since
 from ..domain.labels import BLOCKED_LABEL, blocked
+from ..domain.mine import my_changes, my_epics, my_prs
 from ..domain.review import CI_LABELS, STALE_PR_DAYS, TURNS, review_state, turn
 from ..domain.status import COLUMNS, STATUS_COLUMNS, kanban_order, status_label, ticket_order
 from . import theme
@@ -320,8 +321,10 @@ def kanban_entry(ticket, prs, settings, mine):
     what its oldest PR misses and the days since it last changed."""
     pr = min(rows.prs_naming(ticket.key, prs, settings), key=lambda found: found.created_at, default=None)
     group, missing = turn(pr) if pr else (None, "")
-    cells = [(ticket.key, ""), ("blocked", "bad-pill") if blocked(ticket) else ("", ""), (ticket.assignee, "accent" if mine else "dim"),
-             (missing, f"{TURN_TONES[group]}-pill" if pr else ""), (f"{days_since(ticket.detail.updated)}d", "dim-right"), (ticket.summary, "")]
+    # My tickets off the board carry no assignee, and one cached before the detail fetch no detail.
+    detail = ticket.detail
+    cells = [(ticket.key, ""), ("blocked", "bad-pill") if detail and blocked(ticket) else ("", ""), (ticket.assignee or "", "accent" if mine else "dim"),
+             (missing, f"{TURN_TONES[group]}-pill" if pr else ""), (f"{days_since(detail.updated)}d" if detail else "", "dim-right"), (ticket.summary, "")]
     return replace(ticket_entry(ticket, prs, settings), cells=cells)
 
 
@@ -399,16 +402,32 @@ def turn_entry(entry, group, stale):
 
 def entries(board, settings):
     prs, by_key = board["prs"], board["by_key"]
-    histories = board["histories"]
-    mine = {t.key for t in board["my_tickets"]}
-    return {"kanban": [kanban_entry(t, prs, settings, t.key in mine) for t in sorted(board["kanban"], key=kanban_order)],
-            "prs": team_pr_entries(prs, by_key, settings, {pr.url for pr in board["review_prs"]}),
-            "changes": [change_entry(c, changes.group_changes(board["changes"], c["group"], histories), histories.get(c["group"], []),
-                                     changes.group_author(board["changes"], c["group"]))
-                        for c in changes.latest(board["changes"], "group")],
-            "epics": [epic_entry(e, board["tickets_by_epic"][e.key], settings) for e in board["epics"]],
+    return {**board_entries(board, settings, board["kanban"], prs, board["changes"], board["epics"]),
             "mine_prs": [pr_entry(pr, by_key, settings) for pr in sorted(board["my_prs"], key=lambda p: p.created_at)],
             "mine_tickets": [ticket_entry(t, prs, settings) for t in sorted(board["my_tickets"], key=ticket_order)]}
+
+
+def mine_entries(board, settings):
+    """The boxes with only my work: my tickets not done, even off the board, my PRs and the ones asking for my review,
+    the changes on them and on my tickets, and the epics holding my tickets."""
+    keys = {t.key for t in board["my_tickets"]}
+    on_board = {t.key for t in board["kanban"]}
+    # Mine on the board first, in its Jira rank, then the ones off it.
+    tickets = [t for t in board["kanban"] if t.key in keys] + [t for t in board["my_tickets"] if t.key not in on_board]
+    prs = my_prs(board["my_prs"], board["review_prs"])
+    return board_entries(board, settings, tickets, prs, my_changes(board["changes"], prs, keys, settings.jira_browse),
+                         my_epics(board["epics"], board["tickets_by_epic"], keys))
+
+
+def board_entries(board, settings, tickets, prs, found, epics):
+    histories = board["histories"]
+    mine = {t.key for t in board["my_tickets"]}
+    return {"kanban": [kanban_entry(t, board["prs"], settings, t.key in mine) for t in sorted(tickets, key=kanban_order)],
+            "prs": team_pr_entries(prs, board["by_key"], settings, {pr.url for pr in board["review_prs"]}),
+            "changes": [change_entry(c, changes.group_changes(found, c["group"], histories), histories.get(c["group"], []),
+                                     changes.group_author(found, c["group"]))
+                        for c in changes.latest(found, "group")],
+            "epics": [epic_entry(e, board["tickets_by_epic"][e.key], settings) for e in epics]}
 
 
 def pill(value, width, tone):

@@ -13,6 +13,7 @@ NAMES = {"entities": ["Epic", "FoundPr", "PullRequest", "Ticket", "TicketDetail"
          "changes": ["CHANGES_HOURS", "change_mark", "change_text", "changes_between", "group_author", "group_changes", "latest", "moved_from", "pr_subject",
                      "recent_changes", "snapshot", "snapshot_epics", "subject_text", "ticket_subject", "vanished_prs"],
          "histories": ["kept_histories", "pr_histories"],
+         "mine": ["authored", "my_changes", "my_epics", "my_prs"],
          "snoozes": ["asleep", "awake", "change_marks"],
          "ages": ["AGE_UNITS", "ago", "days_since"],
          "factory": ["Agent", "FactoryTicket", "STAGES", "Stage", "factory_tickets", "session_of"]}

@@ -80,7 +80,7 @@ or with an API token:
    acli jira auth login --site "acme.atlassian.net" --email "you@acme.com" --token < token.txt
    ```
 
-`acli` decides which Jira site is queried and who "you" are: the **Mine** tab lists the tickets assigned to the `acli` user. The **Jira site** setting below is only used to build ticket links.
+`acli` decides which Jira site is queried and who "you" are: the web page's **my tickets** box lists the tickets assigned to the `acli` user. The **Jira site** setting below is only used to build ticket links.
 
 ## Installation
 
@@ -138,20 +138,19 @@ Epics are not configured: the board shows every epic of the project in Developin
 
 | Key | Action |
 |-----|--------|
-| `1` / `2` | Switch to the `Overview` tab or the `Mine` tab |
-| `3`-`5` | Jump to the `Overview` tab's boxes: kanban, team PRs, changes |
-| `6` | Jump to the epics box under the factory, on every tab |
-| `7`-`8` | Jump to the `Mine` tab's boxes: your open PRs, your Jira tickets not done, grouped by status |
-| `9` | Jump to the factory box under the details: the software factory's tickets (see [Factory](#factory)) |
+| `1`-`3` | Jump to the main boxes: kanban, team PRs, changes |
+| `4` | Jump to the epics box under the factory |
+| `5` | Jump to the factory box under the details: the software factory's tickets (see [Factory](#factory)) |
 | `j` / `k` | Move down / up |
 | `enter` | Open the selected item in the browser |
 | `c` | Open the selected PR's comments, reviews and code threads with their diff, or the selected ticket's description and comments (`j`/`k` move, `enter` opens it in the browser, `esc` closes) |
 | `v` | Open the Jira ticket of the selected PR in a popup, fetched from Jira the first time after each refresh (`c` opens its description and comments, `enter` opens it in the browser, `esc` closes) |
 | `/` | Filter every box but details from the header (`escape` clears it) |
+| `m` | Show only your work, marked `mine` in the header, and press it again for the whole team: your tickets not done in the kanban, even off the board; your PRs and the ones asking for your review; the changes on them and on your tickets; the epics holding your tickets. The factory stays as it is |
 | `y` | Copy the selected link (the key, for an epic) |
 | `g` | Jump to the herdr session of the selected factory ticket (see [Factory](#factory)) |
 | `s` | Snooze the selected team PR until it changes (see [Snoozed](#snoozed)) |
-| `S` | Bring back every snoozed item of the current box |
+| `S` | Bring back every snoozed item the current box hides as it shows now (with `m` on, only your own) |
 | `r` | Refresh (once every 30 seconds at most; it also refreshes every 5 minutes) |
 | `t` | Pick a theme (see [Themes](#themes)) |
 | `q` | Quit |
@@ -160,9 +159,9 @@ Epics are not configured: the board shows every epic of the project in Developin
 
 The kanban box lists the tickets on your project's Jira board: every ticket of the **Jira project** that is not an epic, not in `Backlog` and not done. They are grouped by status, in this order: in review, in progress, ready to deploy, then to do, and keep Jira's rank within a status.
 
-Each row shows the ticket's key, a red `blocked` when the ticket has the `blocked` label, who has it (yours in the accent colour), what its oldest PR is missing, as a team PR's row does, and the days since the ticket last changed, then its summary. Its detail is the ticket's own, as in **my tickets**.
+Each row shows the ticket's key, a red `blocked` when the ticket has the `blocked` label, who has it (yours in the accent colour), what its oldest PR is missing, as a team PR's row does, and the days since the ticket last changed, then its summary. Its detail is the ticket's own.
 
-A ticket's detail, in the kanban box and in **my tickets**, gives its type and priority, its status in its column's colour, its labels, the blocked one in red, then its epic, creator and last update. Then it lists each PR that names the ticket with its review state in colour, who opened it and its age, then its links and the start of its description.
+A ticket's detail, in the kanban box and in the web page's **my tickets**, gives its type and priority, its status in its column's colour, its labels, the blocked one in red, then its epic, creator and last update. Then it lists each PR that names the ticket with its review state in colour, who opened it and its age, then its links and the start of its description.
 
 ### Team PRs
 
@@ -185,7 +184,7 @@ The changes box keeps one row per PR: its latest change, or the latest move of a
 
 ### What is new
 
-A change you have not seen yet puts a `●` on its rows in every box, a `N new` count in the box title and a `●` on its tab; the detail opens with the change and its time. Moving the cursor off the row marks it seen. The first start marks nothing.
+A change you have not seen yet puts a `●` on its rows in every box, and a `N new` count in the box title; the detail opens with the change and its time. Moving the cursor off the row marks it seen. The first start marks nothing.
 
 ### Herdr
 
@@ -193,7 +192,7 @@ Run inside a [herdr](https://herdr.dev) pane, Magi tells herdr when a refresh br
 
 ### Factory
 
-The factory box, in the TUI only, sits under the details on every tab and lists one row per ticket of the local software factory: its key, its stage, how long ago the stage changed, the status of its herdr session and the stage's detail, or the ticket's summary when the stage has none. Tickets waiting for you come first, then blocked reviews, then building, then ready.
+The factory box, in the TUI only, sits under the details and lists one row per ticket of the local software factory: its key, its stage, how long ago the stage changed, the status of its herdr session and the stage's detail, or the ticket's summary when the stage has none. Tickets waiting for you come first, then blocked reviews, then building, then ready.
 
 - Stages come from the `<KEY>.json` files the factory writes in `~/.local/state/factory`; a ticket's session is the herdr agent working in a folder named after its key, alone or followed by `-` and a slug. A ticket without one reads `absent`.
 - It is read every 10 seconds, apart from the board's refresh, and never calls Jira or GitHub. A missing or failing herdr shows every session absent; Magi starts without it.
@@ -202,14 +201,14 @@ The factory box, in the TUI only, sits under the details on every tab and lists 
 
 ### Snoozed
 
-`s` takes the selected team PR off its box until Magi sees a change on it newer than the one it had: a push, a review, a ticket move. CI turning red or a conflict alone does not wake it. It then comes back, marked new. A snooze holds in its own box only, survives a restart, and is dropped once the item leaves the box. The box title counts the rows it hides, as `N snoozed`, and `S` brings it all back.
+`s` takes the selected team PR off its box until Magi sees a change on it newer than the one it had: a push, a review, a ticket move. CI turning red or a conflict alone does not wake it. It then comes back, marked new. A snooze holds in its own box only, survives a restart and `m`, and is dropped once the item leaves the board. The box title counts the rows it hides, as `N snoozed`, and `S` brings them back.
 
 ### Web page
 
 Magi writes the board to `~/.cache/magi/board.html` after each refresh and snooze. `magi web` opens it and keeps it fresh without the TUI, refreshing every 5 minutes (a running TUI's refreshes count too); `ctrl-c` stops it.
 
 - The page reloads itself after each refresh and never calls GitHub or Jira on its own.
-- It has the TUI's boxes, without the snoozed rows and without the factory. Clicking a row shows its details beside the boxes; links open in a new tab.
+- It has the TUI's boxes and two of its own, **my prs** (your open PRs) and **my tickets** (your Jira tickets not done, grouped by status), without the snoozed rows and without the factory. Clicking a row shows its details beside the boxes; links open in a new tab.
 - Its theme is picked in the page, apart from the TUI's. Each theme has its own look: GitHub's dark for the default, [thelcars.com](https://www.thelcars.com)'s frame for LCARS (look for 47), the MAGI's vote for NERV, Unit-01's battery for EVA 01 and Night City's wanted level for Cyberpunk.
 - The styles come from Tailwind's CDN, so it needs a network connection; its fonts (SIL Open Font License) ship inside Magi.
 
@@ -247,8 +246,8 @@ The LCARS, NERV and Cyberpunk themes show how the board is doing in the header:
 | Team PRs | team prs | CREW REPORTS | SORTIES | FIXER GIGS |
 | Last 24 hours | changes | CAPTAIN'S LOG | OPERATIONS LOG | DATASHARDS |
 | Epics | epics | MISSIONS | PROJECTS | MAIN JOBS |
-| Your PRs | my prs | MY REPORTS | MY SORTIES | MY GIGS |
-| Your tickets | my tickets | AWAY MISSIONS | MY ORDERS | SIDE JOBS |
+| Your PRs (web page) | my prs | MY REPORTS | MY SORTIES | MY GIGS |
+| Your tickets (web page) | my tickets | AWAY MISSIONS | MY ORDERS | SIDE JOBS |
 | Factory tickets | factory | FACTORY | FACTORY | FACTORY |
 | Details | details | SENSOR READINGS | MAGI ANALYSIS | KIROSHI SCAN |
 
@@ -289,7 +288,7 @@ The LCARS, NERV and Cyberpunk themes show how the board is doing in the header:
 - Colours picked by eye from Cyberpunk 2077's HUD, since the game has no published palette: off-red text, cyan lines, yellow focus.
 - A **hatched line** across the top turns red at five stars.
 - The header shows the **net uplink** time, and a refresh under way reads `JACKING IN…`.
-- Square boxes with **slanted titles, tabs and badges**, and the age of a PR open more than three days gets a red ▲.
+- Square boxes with **slanted titles and badges**, and the age of a PR open more than three days gets a red ▲.
 
 ## Data locations
 

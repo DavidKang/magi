@@ -6,7 +6,7 @@ from dataclasses import replace
 import pytest
 from rich.console import Console
 from textual.color import Color
-from textual.widgets import Static, Tabs
+from textual.widgets import Static
 
 from builders import EPIC, PR_ONE, SETTINGS, STATED, TICKETS, bare_board, board, make_pr, settings_file
 from magi.tui import boxes, entries, theme
@@ -35,24 +35,21 @@ async def cyberpunk(cache):
         await pilot.pause()
         assert app.has_class("cyberpunk") and not app.has_class("lcars") and not app.has_class("nerv"), "cyberpunk draws its own frame"
         assert not app.query_one("#sidebar").display and not app.query_one("#elbow").display, "cyberpunk has no LCARS sidebar or elbow"
-        assert not app.query_one(Tabs).display and app.query_one("#pills").display, "cyberpunk shows its tabs as blocks"
         bar = app.query_one("#bar")
         assert str(bar.render()).startswith("╱╱╱╱"), "a hatched line tops the screen"
         assert bar.styles.color == Color.parse(NIGHT_CITY["bad"]), "the hatched line turns red on alert"
         assert str(app.query_one("#condition").render()) == "◢ HEAT ★★★★★ ◤", "cyberpunk shows the red alert as a five-star wanted level"
         assert str(app.query_one("#status").render()) == f"NIGHT CITY · NET UPLINK {dt.datetime.fromtimestamp(1000.0):%H:%M}", \
             "cyberpunk times the last refresh by its net uplink"
-        titles = {key: str(app.query_one(f"#panel-{key}").border_title) for key in ("kanban", "prs", "changes", "epics", "mine_prs", "mine_tickets")}
-        assert titles == {"kanban": "03-JOB BOARD 1", "prs": "04-FIXER GIGS 1", "changes": "05-DATASHARDS 1", "epics": "06-MAIN JOBS 1",
-                          "mine_prs": "07-MY GIGS 1", "mine_tickets": "08-SIDE JOBS 2"}, "cyberpunk names the boxes in Night City's words"
+        titles = {key: str(app.query_one(f"#panel-{key}").border_title) for key in ("kanban", "prs", "changes", "epics")}
+        assert titles == {"kanban": "01-JOB BOARD 1", "prs": "02-FIXER GIGS 1", "changes": "03-DATASHARDS 1", "epics": "04-MAIN JOBS 1"}, "cyberpunk names the boxes in Night City's words"
         assert str(app.query_one("#panel-details").border_title) == "KIROSHI SCAN", "cyberpunk calls the details a Kiroshi scan"
         pieces = [str(s.render()) for s in app.query_one("#panel-prs .ptitle").query(Static)]
-        assert pieces == ["┌─", "◢", "04", "FIXER GIGS", "", "1", "◤", "─┐"], "cyberpunk titles a box with a slanted block on a square line"
+        assert pieces == ["┌─", "◢", "02", "FIXER GIGS", "", "1", "◤", "─┐"], "cyberpunk titles a box with a slanted block on a square line"
         assert app.query_one("#panel-prs .pbody").styles.border_left[0] == "solid", "cyberpunk draws square box lines"
         for key, tone in (("kanban", "focus"), ("prs", "line")):
             assert app.query_one(f"#panel-{key} .pbody").styles.border_left[1] == Color.parse(NIGHT_CITY[tone]), \
                 f"cyberpunk draws the {key} box {tone == 'focus' and 'yellow, focused' or 'cyan'}"
-        assert str(app.query_one("#pill-overview .cap").render()) == "◢", "cyberpunk slants its tabs"
         prompts = [app.query_one("#list-prs").get_option_at_index(i).prompt.plain for i in range(2)]
         assert prompts[0] == "── ON THE AUTHOR (1) ──", "cyberpunk writes the turn groups in capitals"
         assert f"◢ {'RED CI · CONFLICT':<27} ◤" in prompts[1], "cyberpunk slants its badges, keeping their padding"

@@ -32,7 +32,7 @@ async def ticket_popup(cache):
     opened, copied = [], []
     app = magi_app(cache, load=lambda: board([PR_ONE, NO_TICKET, PR_TWO]), fetch_ticket=fetch_ticket, opener=opened.append, copier=copied.append)
     async with started(app) as pilot:
-        await pilot.press("4", "v")
+        await pilot.press("2", "v")
         await until(pilot, lambda: isinstance(app.screen, app_module.TicketScreen), "v opens the ticket of the selected PR in a popup")
         assert fetched == ["ACME-1"], "v asks Jira for the ticket the PR names"
         assert "ACME-1" in str(app.screen.query_one("#ticket").border_title), "the popup title names the ticket"
@@ -67,7 +67,7 @@ async def failed_ticket(cache):
 
     app = magi_app(cache, fetch_ticket=fetch_ticket)
     async with started(app) as pilot:
-        await pilot.press("4", "v")
+        await pilot.press("2", "v")
         await until(pilot, lambda: any(n.message == "ACME-1 not found" for n in app._notifications), "a ticket Jira cannot give says why")
         assert not isinstance(app.screen, app_module.TicketScreen), "a ticket Jira cannot give opens no popup"
 
@@ -87,7 +87,7 @@ async def slow_ticket(cache):
     app = magi_app(cache, fetch_ticket=fetch_ticket)
     async with started(app) as pilot:
         try:
-            await pilot.press("4", "v", "v", "t")
+            await pilot.press("2", "v", "v", "t")
             assert fetched == ["ACME-1"], "v while its ticket loads asks Jira nothing more"
         finally:
             release.set()

@@ -14,7 +14,7 @@ async def review_popup(cache):
     app = magi_app(cache, load=lambda: board([PR_ONE, pr_two]), opener=opened.append, copier=copied.append)
     async with started(app) as pilot:
         text = lambda selector: str(app.screen.query_one(selector, Static).render())
-        await pilot.press("4", "j", "c")
+        await pilot.press("2", "j", "c")
         assert isinstance(app.screen, app_module.ReviewScreen), "c opens the review comments of the selected PR"
         assert not app.check_action("pick_theme", ()), "the review popup blocks the theme key"
         assert app.screen.query_one(OptionList).option_count == 3, "the popup lists the review and every open thread"
@@ -60,7 +60,7 @@ async def long_diff(cache):
     pr_two = replace(PR_TWO, threads=[thread])
     app = magi_app(cache, load=lambda: board([PR_ONE, pr_two]))
     async with started(app, size=(100, 30)) as pilot:
-        await pilot.press("4", "j", "c")
+        await pilot.press("2", "j", "c")
         await pilot.pause()
         box = app.screen.query_one("#review-diff-box")
         assert box.max_scroll_x == 0, "a long diff line wraps inside the popup instead of scrolling sideways"

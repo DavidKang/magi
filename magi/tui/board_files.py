@@ -56,5 +56,5 @@ def page(cache):
 
 
 def write_page(path, board, settings, snoozed, at):
-    """The board as a web page at path, as the TUI shows it: its boxes and numbers, without the snoozed rows nor the factory."""
+    """The board as a web page at path, with its own boxes and numbers, my prs and my tickets among them, without the snoozed rows nor the factory."""
     storage.write_text(path, web.page(board, settings, snoozed, at, SECTIONS, NUMBERS, REFRESH_SECONDS))

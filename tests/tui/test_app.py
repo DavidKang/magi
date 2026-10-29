@@ -25,10 +25,7 @@ async def main(cache):
         detail = lambda: str(app.query_one("#detail", Static).render())
         title = lambda key: str(app.query_one(f"#panel-{key}").border_title)
         focused = lambda key: app.focused is app.query_one(f"#list-{key}")
-        assert [tab.label.plain for tab in app.query("Tab")] == ["[1] Overview", "[2] Mine"], \
-            "the tab bar shows Overview and Mine, Overview first"
-        assert app.query_one("Tabs").active == "tab-overview", "the tab bar shows Overview and Mine, Overview first"
-        assert app.query_one("Tabs").region.width == app.screen.region.width, "the tab bar spans the whole width"
+        assert not app.query("Tabs") and not app.query("#pills") and not app.query(".tab-pill"), "there is no tab bar: one pane holds the boxes"
         assert app.query_one("#panel-details").region.y == app.query_one("#panel-kanban").region.y, "details starts level with the first box"
         assert isinstance(app.query_one("#top #logo"), Image), "the header shows the logo instead of the rocket"
         assert "🚀" not in str(app.query_one("#top .brand").render()), "the header shows the logo instead of the rocket"
@@ -45,9 +42,10 @@ async def main(cache):
         assert not app.query("#panel-desk"), "there is no my desk or worktrees box"
         assert not app.query("#panel-worktrees"), "there is no my desk or worktrees box"
         titles = [str(panel.border_title) for panel in app.query(".panel")]
-        assert titles == ["[3] kanban 1", "[4] team prs 2", "[5] changes 1", "[7] my prs 1", "[8] my tickets 2", "details", "[9] factory 0", "[6] epics 1"], \
-            "overview numbers its boxes next to details, and epics sits under the factory"
-        assert "Ticket one" in detail(), "overview starts on the kanban box"
+        assert titles == ["[1] kanban 1", "[2] team prs 2", "[3] changes 1", "details", "[5] factory 0", "[4] epics 1"], \
+            "the boxes are numbered from 1, kanban, team prs and changes beside the details, and epics sits under the factory"
+        assert not app.query("#panel-mine_prs") and not app.query("#panel-mine_tickets"), "the tui has no my prs nor my tickets box"
+        assert "Ticket one" in detail(), "the board starts on the kanban box"
         prompts = [app.query_one("#list-prs", OptionList).get_option_at_index(i).prompt for i in range(5)]
         assert [p.plain for p in prompts[2:4]] == ["", "── ready to merge (1) ──"], "a blank line separates the groups"
         assert str(prompts[0].style) == f"bold {theme.THEMES['default']['fg']}", "group headers stand out in bold, in the text colour"
@@ -58,9 +56,9 @@ async def main(cache):
         await pilot.press("enter")
         assert opened == [PR_ONE.url], "enter opens the item of the focused box"
         opened.clear()
-        await pilot.press("4")
-        assert focused("prs"), "4 focuses the team prs box"
-        assert "Second change" in detail(), "4 focuses the team prs box"
+        await pilot.press("2")
+        assert focused("prs"), "2 focuses the team prs box"
+        assert "Second change" in detail(), "2 focuses the team prs box"
         await pilot.press("k")
         assert "[ACME-1] First change" in detail(), "k moves up, detail keeps the ticket prefix"
         await pilot.press("j")
@@ -86,70 +84,33 @@ async def main(cache):
         assert len(listed("prs")) == 2, "escape clears the filter in every box"
         assert len(listed("kanban")) == 1, "escape clears the filter in every box"
         assert focused("prs"), "escape clears the filter"
+        await pilot.press("1")
+        assert focused("kanban"), "1 focuses the kanban box"
+        assert "Ticket one" in detail(), "1 focuses the kanban box"
+        await pilot.press("4")
+        assert focused("epics"), "4 focuses the epics box"
+        assert "Epic one" in detail(), "4 focuses the epics box"
         await pilot.press("3")
-        assert focused("kanban"), "3 focuses the kanban box"
-        assert "Ticket one" in detail(), "3 focuses the kanban box"
-        await pilot.press("6")
-        assert focused("epics"), "6 focuses the epics box"
-        assert "Epic one" in detail(), "6 focuses the epics box"
-        await pilot.press("5")
-        assert focused("changes"), "5 focuses the changes box"
-        await pilot.press("6")
+        assert focused("changes"), "3 focuses the changes box"
+        await pilot.press("4")
         await pilot.press("y")
         assert copied == ["ACME-100"], "y copies the epic key"
         now[0] += 15
         await pilot.press("r")
         await app.workers.wait_for_complete()
         await pilot.pause()
-        assert title("prs") == "[4] team prs 2", "refresh within 30 seconds is skipped"
+        assert title("prs") == "[2] team prs 2", "refresh within 30 seconds is skipped"
         assert any("next refresh in 15s" in n.message for n in app._notifications), "skipped refresh says when the next one is allowed"
         now[0] += 16
         await pilot.press("r")
         await app.workers.wait_for_complete()
         await pilot.pause()
-        assert title("prs") == "[4] team prs 3", "refresh reloads the board"
+        assert title("prs") == "[2] team prs 3", "refresh reloads the board"
         assert focused("epics"), "refresh keeps the focused box"
-        tabs = app.query_one("Tabs")
-        await pilot.press("7")
+        await pilot.press("1")
         await pilot.pause()
-        assert tabs.active == "tab-mine", "7 opens the mine tab on my open prs"
-        assert focused("mine_prs"), "7 opens the mine tab on my open prs"
-        assert "First change" in detail(), "7 opens the mine tab on my open prs"
-        await pilot.press("8")
-        await pilot.pause()
-        tickets = app.query_one("#list-mine_tickets", OptionList)
-        prompts = [str(tickets.get_option_at_index(i).prompt) for i in range(tickets.option_count)]
-        assert len(prompts) == 5, "my tickets are grouped under their status, a blank line between groups"
-        assert prompts[0].startswith("── Todo (1)"), "my tickets are grouped under their status"
-        assert "OPS-7" in prompts[1], "my tickets are grouped under their status"
-        assert prompts[2] == "", "my tickets are grouped under their status, a blank line between groups"
-        assert prompts[3].startswith("── In Progress (1)"), "my tickets are grouped under their status"
-        assert "ACME-1" in prompts[4], "my tickets are grouped under their status"
-        assert focused("mine_tickets"), "8 focuses my tickets on the first ticket"
-        assert "Ticket seven" in detail(), "8 focuses my tickets on the first ticket"
-        assert "creator" not in detail(), "a ticket cached before the detail fetch shows no detail fields"
-        assert "epic" not in detail(), "a ticket cached before the detail fetch shows no detail fields"
-        await pilot.press("c")
-        await pilot.pause()
-        assert not isinstance(app.screen, app_module.ReviewScreen), "c on a ticket cached before the detail fetch opens nothing"
-        assert any("no review comments" in n.message for n in app._notifications), \
-            "c on a ticket cached before the detail fetch says it has no review comments"
-        await pilot.press("slash", *"seven")
-        await pilot.pause()
-        prompts = [str(tickets.get_option_at_index(i).prompt) for i in range(tickets.option_count)]
-        assert len(prompts) == 2, "filtering my tickets drops the groups with no match"
-        assert prompts[0].startswith("── Todo (1)"), "filtering my tickets drops the groups with no match"
-        assert "OPS-7" in prompts[1], "filtering my tickets drops the groups with no match"
-        await pilot.press("escape")
-        await pilot.pause()
-        await pilot.press("2")
-        await pilot.pause()
-        assert tabs.active == "tab-mine", "2 on the mine tab keeps the focused box"
-        assert focused("mine_tickets"), "2 on the mine tab keeps the focused box"
-        assert "Ticket seven" in detail(), "2 on the mine tab keeps the focused box"
-        await pilot.press("j")
-        assert "Ticket one" in detail(), "j skips the status line to the next ticket, with its PRs"
-        assert "app#1" in detail(), "j skips the status line to the next ticket, with its PRs"
+        assert focused("kanban") and "Ticket one" in detail(), "1 focuses the kanban box after a refresh"
+        assert "app#1" in detail(), "a kanban ticket shows its PRs"
         await pilot.press("enter")
         assert opened[-1] == "https://acme.atlassian.net/browse/ACME-1", "enter opens the ticket in Jira"
         await pilot.press("c")
@@ -166,21 +127,6 @@ async def main(cache):
             "the ticket popup shows the whole description"
         await pilot.press("j", "enter")
         assert opened[-1] == "https://acme.atlassian.net/browse/ACME-1?focusedCommentId=10", "enter on a ticket comment opens that comment in Jira"
-        await pilot.press("escape")
-        await pilot.press("1")
-        await pilot.pause()
-        assert tabs.active == "tab-overview", "1 goes back to the overview tab"
-        assert focused("kanban"), "1 goes back to the overview tab"
-        await pilot.press("2")
-        await pilot.pause()
-        assert tabs.active == "tab-mine", "2 opens the mine tab"
-        assert focused("mine_prs"), "2 opens the mine tab"
-        await pilot.press("1")
-        await pilot.pause()
-        await pilot.click("#tab-mine")
-        await pilot.pause()
-        assert tabs.active == "tab-mine", "clicking the mine tab focuses my prs"
-        assert focused("mine_prs"), "clicking the mine tab focuses my prs"
 
 
 @pytest.mark.usefixtures("aliases")
@@ -218,11 +164,11 @@ async def reopen(cache):
     app = magi_app(cache, load=load, clock=lambda: 1015.0)
     async with started(app):
         assert calls == [], "reopening within 30 seconds does not refresh"
-        assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 1", "reopening within 30 seconds shows the saved board"
+        assert str(app.query_one("#panel-prs").border_title) == "[2] team prs 1", "reopening within 30 seconds shows the saved board"
     app = magi_app(cache, load=load, clock=lambda: 1090.0)
     async with started(app):
         assert calls == [1], "reopening after 30 seconds refreshes once"
-        assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 3", "refreshed board replaces the saved one"
+        assert str(app.query_one("#panel-prs").border_title) == "[2] team prs 3", "refreshed board replaces the saved one"
         assert storage.read(cache)["at"] == 1090.0, "successful refresh saves the board"
 
 
@@ -241,7 +187,7 @@ async def refresh_keeps_the_row(cache):
         await pilot.press("r")
         await app.workers.wait_for_complete()
         await pilot.pause()
-        assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 3", "refresh reloads the board"
+        assert str(app.query_one("#panel-prs").border_title) == "[2] team prs 3", "refresh reloads the board"
         assert app.current().url == PR_TWO.url, "refresh keeps the highlighted row when its item is still on the board"
         now[0] += 31
         await pilot.press("r")
@@ -481,3 +427,10 @@ def test_changes_is_a_bit_shorter_than_kanban_and_team_prs(cache):
     assert abs(kanban - prs) <= 1, f"kanban and team prs are as tall as each other: {kanban}, {prs}"
     assert changes < min(kanban, prs), f"changes is shorter than kanban and team prs: {kanban}, {prs}, {changes}"
     assert changes * 2 > kanban, f"changes is only a bit shorter, over half kanban's height: {kanban}, {changes}"
+
+
+def test_digits_reach_the_five_boxes():
+    boxes = [binding for binding in MagiApp.BINDINGS if binding.action.startswith("focus_box")]
+    assert [(b.key, b.action) for b in boxes] == [(str(n), f"focus_box({n})") for n in range(1, 6)], "digits 1 to 5 reach the boxes, one each"
+    assert [(b.key_display, b.description) for b in boxes if b.show] == [("1-5", "boxes")], "the footer shows the digits once, as 1-5"
+    assert not any(binding.action.startswith("focus_tab") for binding in MagiApp.BINDINGS), "no key switches tabs: there are none"

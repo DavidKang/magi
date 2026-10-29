@@ -8,6 +8,7 @@ from ..domain.changes import recent_changes, snapshot, snapshot_epics, vanished_
 from ..domain.entities import Epic, PullRequest, TicketDetail, ticket_from
 from ..domain.histories import kept_histories, pr_histories
 from ..domain.keys import ticket_keys_in
+from ..domain.mine import authored
 from ..domain.status import ACTIVE_COLUMNS
 
 # Minutes added to the time since the last refresh when asking Jira what changed, for clock skew and slow refreshes.
@@ -137,7 +138,7 @@ class Refresh:
         self.save_state(now, changes or [], histories)
         pool.shutdown()
         return {"epics": epics, "tickets_by_epic": tickets_by_epic, "by_key": by_key, "prs": prs, "review_prs": review_prs,
-                "my_prs": [pr for pr in prs if pr.author["login"] == settings.github_user], "my_tickets": my_tickets,
+                "my_prs": authored(prs, settings.github_user), "my_tickets": my_tickets,
                 "kanban": kanban.result(), "changes": changes or [], "histories": histories, "now": now}
 
 

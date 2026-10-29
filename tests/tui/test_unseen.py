@@ -2,12 +2,12 @@ import asyncio
 import json
 
 import pytest
-from textual.widgets import OptionList, Tab
+from textual.widgets import OptionList
 
 from builders import PR_ONE, PR_TWO, SUBJECT, board, magi_app, started
 from magi.adapters import storage
 
-BOXES = ("prs", "changes", "mine_prs")
+BOXES = ("prs", "changes")
 
 
 def two_prs():
@@ -27,23 +27,19 @@ async def unseen(cache):
     storage.write(cache.with_name("seen.json"), {"seen": {"https://github.com/acme/app/pull/99": "2026-10-20T10:00 Merged"}})
     app = magi_app(cache, load=two_prs)
     async with started(app) as pilot:
-        assert marked(app) == {"prs": [True, False], "changes": [True], "mine_prs": [True]}, \
+        assert marked(app) == {"prs": [True, False], "changes": [True]}, \
             "every row of an item with an unseen change carries a dot, in every box"
-        assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 2 · 1 new", "a box counts its unseen rows"
-        assert str(app.query_one("#panel-epics").border_title) == "[6] epics 1", "a box with nothing new shows no count"
-        assert [str(app.query_one(f"#tab-{tab}", Tab).label) for tab in ("overview", "mine")] == ["[1] Overview ●", "[2] Mine ●"], \
-            "a tab with unseen rows carries a dot"
-        await pilot.press("4")
+        assert str(app.query_one("#panel-prs").border_title) == "[2] team prs 2 · 1 new", "a box counts its unseen rows"
+        assert str(app.query_one("#panel-epics").border_title) == "[4] epics 1", "a box with nothing new shows no count"
+        await pilot.press("2")
         await pilot.pause()
         assert str(app.query_one("#detail").render()).startswith("● New PR · 02:04"), "the detail opens with the unseen change"
         assert marked(app)["prs"] == [True, False], "the dot stays while the cursor is on the row"
         await pilot.press("j")
         await pilot.pause()
-        assert marked(app) == {"prs": [False, False], "changes": [False], "mine_prs": [False]}, \
+        assert marked(app) == {"prs": [False, False], "changes": [False]}, \
             "leaving the row clears its dot in every box"
-        assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 2", "leaving the row drops the box's new count"
-        assert [str(app.query_one(f"#tab-{tab}", Tab).label) for tab in ("overview", "mine")] == ["[1] Overview", "[2] Mine"], \
-            "leaving the row clears the tabs' dots"
+        assert str(app.query_one("#panel-prs").border_title) == "[2] team prs 2", "leaving the row drops the box's new count"
         assert not str(app.query_one("#detail").render()).startswith("●"), "a seen change leaves the detail as it was"
     assert storage.read(cache.with_name("seen.json")) == {"seen": {PR_ONE.url: "2026-10-24T02:04 New PR"}}, \
         "what was seen is saved, and items no longer on the board are dropped"
@@ -59,7 +55,7 @@ async def changed_twice(cache):
     app = magi_app(cache, load=lambda: found)
     async with started(app) as pilot:
         assert marked(app)["prs"] == [True, False], "an item's newest change decides whether it is new"
-        await pilot.press("4")
+        await pilot.press("2")
         await pilot.pause()
         assert str(app.query_one("#detail").render()).startswith("● New PR · 03:00"), \
             "the detail opens with the item's newest change, a pr new in the window still a new pr"
@@ -107,7 +103,6 @@ async def lcars_unseen(cache):
     async with started(app) as pilot:
         assert marked(app)["prs"][0], "LCARS marks unseen rows too"
         assert str(app.query_one("#panel-prs .count").render()) == "2 · 1 new", "LCARS counts unseen rows in the title pill"
-        assert "●" in str(app.query_one("#pill-mine .seg").render()), "LCARS marks a tab pill with unseen rows"
 
 
 @pytest.mark.usefixtures("default_theme")
@@ -126,7 +121,7 @@ async def refresh_on_a_row(cache):
     loaded = {"board": two_prs()}
     app = magi_app(cache, load=lambda: loaded["board"])
     async with started(app) as pilot:
-        await pilot.press("4", "j")
+        await pilot.press("2", "j")
         await pilot.pause()
         loaded["board"] = with_change(PR_TWO.url, "2026-10-25T03:00", "New commits")
         app.start_refresh()
@@ -146,7 +141,7 @@ async def changed_again(cache):
     app = magi_app(cache, load=two_prs)
     async with started(app) as pilot:
         assert marked(app)["prs"] == [True, False], "an item that changed again after it was seen is marked again"
-        await pilot.press("4", "j")
+        await pilot.press("2", "j")
         await pilot.pause()
     assert storage.read(cache.with_name("seen.json")) == {"seen": {PR_ONE.url: "2026-10-24T02:04 New PR"}}, \
         "leaving the row saves its latest change as seen"
@@ -161,12 +156,12 @@ async def moving_between(cache):
     storage.write(cache.with_name("seen.json"), {"seen": {}})
     app = magi_app(cache, load=lambda: with_change(PR_TWO.url, "2026-10-25T03:00", "[bold]Re-review[/bold]"))
     async with started(app) as pilot:
-        await pilot.press("4", "j")
+        await pilot.press("2", "j")
         await pilot.pause()
         assert marked(app)["prs"] == [False, True], "moving between two unseen rows marks only the one left"
         assert str(app.query_one("#detail").render()).startswith("● [bold]Re-review[/bold] · 03:00"), \
             "the detail shows a change's label as written"
-        await pilot.press("3")
+        await pilot.press("1")
         await pilot.pause()
         assert marked(app)["prs"] == [False, False], "leaving a row for another box marks it seen"
 
@@ -180,7 +175,7 @@ async def filtering(cache):
     storage.write(cache.with_name("seen.json"), {"seen": {}})
     app = magi_app(cache, load=two_prs)
     async with started(app) as pilot:
-        await pilot.press("4", "slash", *"second", "escape")
+        await pilot.press("2", "slash", *"second", "escape")
         await pilot.pause()
         assert marked(app)["prs"] == [True, False], "a filter that hides the cursor's row does not mark it seen"
 

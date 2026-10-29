@@ -370,3 +370,9 @@ def test_factory_detail_without_a_board_keeps_the_stage():
     detail = Content.from_markup(entry.detail).plain
     assert detail.startswith("ACME-9") and "building" in detail and "agent" not in detail, \
         "a factory ticket the board does not know heads its details with its key, and one without a session shows no agent output"
+
+
+def test_a_kanban_ticket_without_detail_or_assignee():
+    cells = [value for value, _ in entries.kanban_entry(Ticket(key="OPS-7", summary="Ticket seven", status="Tareas por hacer"), [], STATED, True).cells]
+    assert cells[1:3] == ["", ""] and cells[4] == "", \
+        "a ticket of mine off the board, cached before its detail, shows no blocked mark, no assignee and no age"

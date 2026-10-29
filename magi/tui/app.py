@@ -11,7 +11,7 @@ from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import ContentSwitcher, Footer, Input, Static, Tab, Tabs
+from textual.widgets import Footer, Input, Static
 from textual.widgets.option_list import Option
 
 from .. import config
@@ -23,18 +23,18 @@ from ..domain.snoozes import asleep, awake, change_marks
 from . import frames, notifiers, screens, theme
 from .board_files import (CACHE, KEPT_UPGRADES, REFRESH_COOLDOWN, REFRESH_SECONDS, SNOOZABLE, last_started, mark_start, page,
                           read_snoozed, refresh_mark, save_board, snoozes, write_page)
-from .boxes import ASIDE, BOXES, LCARS_PR_WIDTHS, MIN_TITLE, NUMBERS, TAB_NUMBERS, TAB_OF, TABS, panel_title, section_name, widths
-from .entries import cell_row, entries, escape, factory_entry, ticket_entry
+from .boxes import ASIDE, BOXES, DIGITS, LCARS_PR_WIDTHS, MAIN, MIN_TITLE, panel_title, section_name, widths
+from .entries import cell_row, entries, escape, factory_entry, mine_entries, ticket_entry
 from .screens import LOGO_BLACK, LOGO_WHITE, ConfigScreen, ReviewScreen, ThemeScreen, TicketScreen, logo
 from .system import error_message, leave, off_loop, open_in_browser, pbcopy
 from .theme import COLORS, use_theme
-from .widgets import (FORTY_SEVEN, HATCHED_LINE, HAZARD_STRIPE, HEAVY_LINE, LEFT_CAP, RIGHT_CAP, TAB_CAPS, TITLE_CAPS, Board,
-                      PanelTitle, SideButton, TabPill, elbow, glyphs)
+from .widgets import (FORTY_SEVEN, HATCHED_LINE, HAZARD_STRIPE, HEAVY_LINE, LEFT_CAP, RIGHT_CAP, TITLE_CAPS, Board, PanelTitle, SideButton,
+                      elbow, glyphs)
 
 FACTORY_SECONDS = 10
 REFRESHING = {"lcars": "ENGAGING WARP DRIVE…", "cyberpunk": "JACKING IN…"}
 CONDITION_TONES = {"green": "ok", "yellow": "warn", "red": "bad"}
-BOARD_ACTIONS = {"focus_tab", "focus_box", "focus_filter", "clear_filter", "copy_current", "refresh", "open_review", "view_ticket", "pick_theme",
+BOARD_ACTIONS = {"focus_box", "toggle_mine", "focus_filter", "clear_filter", "copy_current", "refresh", "open_review", "view_ticket", "pick_theme",
                  "snooze", "wake_snoozed", "focus_session"}
 
 
@@ -42,8 +42,7 @@ class MagiApp(App):
     TITLE = "MAGI"
     AUTO_FOCUS = "Board"
     CSS_PATH = "app.tcss"
-    BINDINGS = [*(Binding(str(n), f"focus_tab({n})", "tabs", key_display="1-2", show=n == 1) for n in range(1, len(TABS) + 1)),
-                *(Binding(str(n), f"focus_box({n})", "boxes", key_display="3-9", show=n == 3) for n in NUMBERS.values()),
+    BINDINGS = [*(Binding(str(n), f"focus_box({n})", "boxes", key_display=f"1-{len(DIGITS)}", show=n == 1) for n in DIGITS.values()),
                 Binding("slash", "focus_filter", "filter", key_display="/"),
                 Binding("escape", "clear_filter", "clear", show=False),
                 Binding("c", "open_review", "comments"),
@@ -53,6 +52,7 @@ class MagiApp(App):
                 Binding("s", "snooze", "snooze"),
                 Binding("S", "wake_snoozed", "wake", show=False),
                 Binding("r", "refresh", "refresh"),
+                Binding("m", "toggle_mine", "mine"),
                 Binding("t", "pick_theme", "theme"),
                 Binding("q", "quit", "quit")]
 
@@ -82,6 +82,7 @@ class MagiApp(App):
         self.board = None
         # The boxes read at least once: only those show a count, and the factory is read apart from the board.
         self.counted = set()
+        self.mine = False
         self.settings = None
         self.updated_at = None
         self.refresh_failed = False
@@ -105,21 +106,16 @@ class MagiApp(App):
                     yield Static("MAGI", classes="brand")
                     yield Static(id="condition")
                     yield Input(placeholder="/ filter", id="filter")
+                    yield Static("mine", id="mine")
                     yield Static("loading…", id="status")
-                with Horizontal(id="pills"):
-                    for tab, n in TAB_NUMBERS.items():
-                        yield TabPill(n, tab)
-        yield Tabs(*(Tab(f"[{n}] {tab.capitalize()}", id=f"tab-{tab}") for tab, n in TAB_NUMBERS.items()))
         with Horizontal(classes="pane"):
             with Vertical(id="sidebar"):
                 for key in BOXES:
                     yield SideButton(key)
                 yield Static(FORTY_SEVEN, id="side-fill")
-            with ContentSwitcher(initial=f"pane-{next(iter(TABS))}", id="panes"):
-                for tab, keys in TABS.items():
-                    with Vertical(id=f"pane-{tab}"):
-                        for key in keys:
-                            yield from self.box(key)
+            with Vertical(id="panes"):
+                for key in MAIN:
+                    yield from self.box(key)
             with Vertical(id="aside"):
                 with Vertical(id="panel-details", classes="panel") as panel:
                     panel.border_title = "details"
@@ -264,21 +260,13 @@ class MagiApp(App):
         self.query_one("#status", Static).update(frames.status(theme.current, when, self.settings.github_user))
 
     def title_panels(self):
-        for tab, keys in TABS.items():
-            n = TAB_NUMBERS[tab]
-            dot = " ●" if any(entry.url in self.news for key in keys for entry in self.sections[key]) else ""
-            self.query_one(f"#tab-{tab}", Tab).label = f"[{n}] {tab.capitalize()}{dot}"
-            left, seg, right = self.query(f"#pill-{tab} Static")
-            left.update(glyphs(TAB_CAPS)[0])
-            right.update(glyphs(TAB_CAPS)[1])
-            seg.update(f" {n:02d} {tab.upper()}{dot} ")
         for key in BOXES:
             new = sum(1 for entry in self.sections[key] if entry.url in self.news)
             snoozed = self.hidden.get(key, 0)
             count = " · ".join([str(len(self.sections[key]))] + [f"{new} new"] * bool(new) + [f"{snoozed} snoozed"] * bool(snoozed)) \
                 if key in self.counted else None
             self.query_one(f"#panel-{key}").border_title = panel_title(key, count)
-            self.query_one(f"#panel-{key} PanelTitle", PanelTitle).show(f"{NUMBERS[key]:02d}", section_name(key).upper(),
+            self.query_one(f"#panel-{key} PanelTitle", PanelTitle).show(f"{DIGITS[key]:02d}", section_name(key).upper(),
                                                                        "" if count is None else str(count))
         details = self.query_one("#panel-details")
         details.border_title = section_name("details").upper() if theme.frame() else "details"
@@ -287,10 +275,16 @@ class MagiApp(App):
     def fill_sections(self, board):
         kept = {key: self.entry(self.query_one(f"#list-{key}", Board)) for key in BOXES}
         self.board = board
-        self.sections = {**entries(board, self.settings), "factory": self.factory_rows()}
+        # magi web's my prs and my tickets have no box here.
+        team, mine = entries(board, self.settings), mine_entries(board, self.settings)
+        found = {**(mine if self.mine else team), "factory": self.factory_rows()}
+        self.sections = {key: found[key] for key in BOXES}
         self.factory_drawn = self.sections["factory"]
         self.counted.update(self.sections)
-        self.hide_snoozed(board["changes"])
+        # What S wakes: the snoozes of the box as it shows now.
+        self.snoozable = {key: {entry.url for entry in self.sections[key]} for key in SNOOZABLE}
+        # An item either mode shows is still on the board: its snooze holds while the other mode shows.
+        self.hide_snoozed(board["changes"], {key: {entry.url for entry in team[key] + mine[key]} for key in SNOOZABLE})
         self.find_news(board["changes"])
         self.level = condition(board["prs"], self.settings.github_user)
         tone = COLORS[CONDITION_TONES[self.level]]
@@ -315,10 +309,10 @@ class MagiApp(App):
             storage.write(self.seen_path, {"seen": self.seen})
         self.news = {item: change for item, change in current.items() if self.seen.get(item) != changes.change_mark(change)}
 
-    def hide_snoozed(self, found):
-        """Snoozed items leave their box until they change; a snooze that woke up is dropped."""
+    def hide_snoozed(self, found, known):
+        """Snoozed items leave their box until they change; a snooze that woke up, or whose item left the board, is dropped."""
         saved = self.snoozed or read_snoozed(self.snoozed_path)
-        self.snoozed = {key: asleep(saved[key], found, {entry.url for entry in self.sections[key]}) for key in SNOOZABLE}
+        self.snoozed = {key: asleep(saved[key], found, known[key]) for key in SNOOZABLE}
         if self.snoozed != saved:
             storage.write(self.snoozed_path, {"snoozed": self.snoozed})
         for key in SNOOZABLE:
@@ -337,7 +331,8 @@ class MagiApp(App):
 
     def action_wake_snoozed(self):
         if self.board and self.current_section in SNOOZABLE and self.snoozed[self.current_section]:
-            self.snoozed[self.current_section] = {}
+            key = self.current_section
+            self.snoozed[key] = {url: mark for url, mark in self.snoozed[key].items() if url not in self.snoozable[key]}
             self.snoozes_changed()
 
     def snoozes_changed(self):
@@ -408,6 +403,12 @@ class MagiApp(App):
         bar.update(stripe)
         self.query_one("#elbow", Static).update(elbow(color))
         self.query_one("#elbow-logo").styles.background = color
+
+    def action_toggle_mine(self):
+        self.mine = not self.mine
+        self.set_class(self.mine, "mine")
+        if self.board:
+            self.fill_sections(self.board)
 
     def action_pick_theme(self):
         self.push_screen(ThemeScreen(self.settings.theme), self.theme_picked)
@@ -488,29 +489,9 @@ class MagiApp(App):
     def filter_submitted(self):
         self.current_board().focus()
 
-    def action_focus_tab(self, number):
-        tab = next(tab for tab, n in TAB_NUMBERS.items() if n == number)
-        if TAB_OF.get(self.current_section) != tab:
-            self.action_focus_box(NUMBERS[TABS[tab][0]])
-
     def action_focus_box(self, number):
-        key = list(BOXES)[number - NUMBERS[next(iter(BOXES))]]
-        if key in TAB_OF:
-            self.show_tab(TAB_OF[key])
+        key = next(key for key, n in DIGITS.items() if n == number)
         self.query_one(f"#list-{key}", Board).focus()
-
-    def show_tab(self, tab):
-        self.query_one(Tabs).active = f"tab-{tab}"
-        self.query_one(ContentSwitcher).current = f"pane-{tab}"
-
-    @on(Tabs.TabActivated)
-    def tab_activated(self, event):
-        tab = event.tab.id.removeprefix("tab-")
-        self.query_one(ContentSwitcher).current = f"pane-{tab}"
-        for pill in self.query(TabPill):
-            pill.set_class(pill.id == f"pill-{tab}", "-on")
-        if TAB_OF.get(self.current_section) != tab:
-            self.query_one(f"#list-{TABS[tab][0]}", Board).focus()
 
     def action_focus_filter(self):
         self.query_one("#filter", Input).focus()

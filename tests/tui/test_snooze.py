@@ -31,11 +31,11 @@ def snoozed(cache):
 async def snooze_until_it_changes(cache):
     app = magi_app(cache, load=two_prs)
     async with started(app) as pilot:
-        await pilot.press("4", "s")
+        await pilot.press("2", "s")
         await pilot.pause()
         assert len(rows(app, "prs")) == 1, "s hides the selected team pr"
-        assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 1 · 1 snoozed", "a box counts its snoozed items"
-        assert len(rows(app, "mine_prs")) == 1, "a snooze hides the item in its own box only"
+        assert str(app.query_one("#panel-prs").border_title) == "[2] team prs 1 · 1 snoozed", "a box counts its snoozed items"
+        assert len(rows(app, "changes")) == 1, "a snooze hides the item in its own box only"
     assert snoozed(cache) == {"prs": {PR_ONE.url: "2026-10-24T02:04 New PR"}}, "a snooze keeps the item's newest change"
     app = magi_app(cache, load=two_prs)
     async with started(app):
@@ -43,7 +43,7 @@ async def snooze_until_it_changes(cache):
     app = magi_app(cache, load=approved, clock=lambda: 2000.0)
     async with started(app):
         assert len(rows(app, "prs")) == 2, "a change newer than the snooze brings the item back"
-        assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 2 · 1 new", \
+        assert str(app.query_one("#panel-prs").border_title) == "[2] team prs 2 · 1 new", \
             "a woken item leaves the snoozed count, and the change that woke it is new"
     assert snoozed(cache) == {"prs": {}}, "a woken item drops its snooze"
 
@@ -70,13 +70,13 @@ def test_snoozes_saved_by_the_last_format_survive_the_upgrade(cache):
 async def wake_the_box(cache):
     app = magi_app(cache, load=two_prs)
     async with started(app) as pilot:
-        await pilot.press("4", "s")
+        await pilot.press("2", "s")
         await pilot.pause()
         assert ["[ACME-2]" in row for row in rows(app, "prs")] == [True], "s hides the selected team pr"
         await pilot.press("S")
         await pilot.pause()
         assert len(rows(app, "prs")) == 2, "S brings back every snoozed item of the box"
-        await pilot.press("6", "s")
+        await pilot.press("4", "s")
         await pilot.pause()
         assert len(rows(app, "epics")) == 1, "only team prs snooze"
     assert snoozed(cache) == {"prs": {}}, "S saves the box with no snoozes"
@@ -94,11 +94,11 @@ def notified(app, text):
 async def boxes_that_do_not_snooze(cache):
     app = magi_app(cache, load=two_prs)
     async with started(app) as pilot:
-        for box in ("3", "6", "7"):
+        for box in ("1", "3", "4"):
             await pilot.press(box, "s")
             await pilot.pause()
         assert notified(app, "only team prs snooze"), "s says which boxes snooze"
-        assert [len(rows(app, box)) for box in ("kanban", "epics", "mine_prs")] == [1, 1, 1], "s hides nothing in a box that does not snooze"
+        assert [len(rows(app, box)) for box in ("kanban", "changes", "epics")] == [1, 1, 1], "s hides nothing in a box that does not snooze"
     assert not cache.with_name("snoozed.json").exists(), "s in a box that does not snooze saves nothing"
 
 
@@ -123,7 +123,7 @@ def test_snooze_keys_wait_for_the_board(cache):
 
 async def empty_box(cache):
     async with started(magi_app(cache, load=lambda: board([]))) as pilot:
-        await pilot.press("4", "s")
+        await pilot.press("2", "s")
         await pilot.pause()
     assert not cache.with_name("snoozed.json").exists(), "s in an empty box snoozes nothing"
 
@@ -135,7 +135,7 @@ def test_s_in_an_empty_box(cache):
 
 async def quiet_pr(cache):
     async with started(magi_app(cache, load=lambda: {**two_prs(), "changes": []})) as pilot:
-        await pilot.press("4", "s")
+        await pilot.press("2", "s")
         await pilot.pause()
     assert snoozed(cache) == {"prs": {PR_ONE.url: None}}, "a pr snoozed with no change keeps no mark until one comes"
 
@@ -156,7 +156,7 @@ def ticket_moved():
 async def woken_by_its_ticket(cache):
     app = magi_app(cache, load=two_prs)
     async with started(app) as pilot:
-        await pilot.press("4", "s")
+        await pilot.press("2", "s")
         await pilot.pause()
         assert len(rows(app, "prs")) == 1, "s hides the selected team pr"
     app = magi_app(cache, load=ticket_moved, clock=lambda: 2000.0)

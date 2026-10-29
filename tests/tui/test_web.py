@@ -94,7 +94,7 @@ def test_a_blocked_kanban_ticket_shows_its_red_pill_on_the_page():
 async def snooze_on_the_page(cache):
     async with started(magi_app(cache, load=two_prs)) as pilot:
         assert PR_ONE.url in box(page(cache), "prs"), "the team pr is on the page before the snooze"
-        await pilot.press("4", "s")
+        await pilot.press("2", "s")
         await pilot.pause()
     assert PR_ONE.url not in box(page(cache), "prs"), "a snoozed item leaves the web page as it leaves the tui"
 

@@ -1,4 +1,4 @@
-"""The board's widgets: its boxes' lists and titles, and the LCARS sidebar buttons and tab pills."""
+"""The board's widgets: its boxes' lists and titles, and the LCARS sidebar buttons."""
 
 from rich.text import Text
 from textual.binding import Binding
@@ -6,15 +6,14 @@ from textual.containers import Horizontal
 from textual.widgets import OptionList, Static
 
 from . import frames, theme
-from .boxes import BOXES, NUMBERS
+from .boxes import BOXES, DIGITS
 from .frames import LCARS_NAMES
 from .theme import COLORS
 
 LEFT_CAP, RIGHT_CAP = "\ue0b6", "\ue0b4"
-# NERV writes titles into the box line and outlines its tabs, after nerv-ui's labels and navigation.
+# NERV writes titles into the box line, after nerv-ui's labels.
 # Cyberpunk slants its blocks and keeps its lines square, after the game's HUD.
 TITLE_CAPS = {"lcars": (LEFT_CAP, RIGHT_CAP), "nerv": ("", ""), "cyberpunk": ("◢", "◤")}
-TAB_CAPS = {"lcars": (LEFT_CAP, RIGHT_CAP), "nerv": ("▕", "▏"), "cyberpunk": ("◢", "◤")}
 FRAME_EDGES = {"lcars": ("╭─", "─╮"), "nerv": ("┏━", "━┓"), "cyberpunk": ("┌─", "─┐")}
 HAZARD_STRIPE = "◢◤" * 200
 HATCHED_LINE = "╱" * 400
@@ -36,21 +35,11 @@ def elbow(color):
 
 class SideButton(Static):
     def __init__(self, key):
-        super().__init__(f"{NUMBERS[key]:02d}\n{LCARS_NAMES.get(key, BOXES[key][0]).upper()}", id=f"side-{key}", classes="side")
+        super().__init__(f"{DIGITS[key]:02d}\n{LCARS_NAMES.get(key, BOXES[key][0]).upper()}", id=f"side-{key}", classes="side")
         self.key = key
 
     def on_click(self):
-        self.app.action_focus_box(NUMBERS[self.key])
-
-
-class TabPill(Horizontal):
-    def __init__(self, number, tab):
-        super().__init__(Static(LEFT_CAP, classes="cap"), Static(f" {number:02d} {tab.upper()} ", classes="seg"),
-                         Static(RIGHT_CAP, classes="cap"), id=f"pill-{tab}", classes="tab-pill")
-        self.number = number
-
-    def on_click(self):
-        self.app.action_focus_tab(self.number)
+        self.app.action_focus_box(DIGITS[self.key])
 
 
 class PanelTitle(Horizontal):

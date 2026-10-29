@@ -8,10 +8,10 @@ Screen { background: $tk-bg; color: $tk-fg; }
 #status { width: 1fr; text-align: right; color: $tk-accent; }
 .pane { height: 1fr; }
 #panes { width: 1fr; height: 1fr; }
-#panes > Vertical { height: 1fr; }
 #aside { width: 1fr; height: 1fr; }
-/* The factory and epics under the details share one height: a part each to the details' three. */
-#panel-details { height: 3fr; }
+/* The factory and epics under the details share one fixed height: a split by parts rounds one of them a row short. */
+#panel-details { height: 1fr; }
+#panel-factory, #panel-epics { height: 8; }
 /* Changes is a bit shorter than kanban and team prs: three parts to their four. */
 #panel-kanban, #panel-prs { height: 4fr; }
 #panel-changes { height: 3fr; }
@@ -20,6 +20,8 @@ Screen { background: $tk-bg; color: $tk-fg; }
 .panel:focus-within { border: round $tk-focus; }
 #filter { border: none; height: 1; width: 30; padding: 0 1; margin-left: 2; background: $tk-bg; color: $tk-fg; }
 #filter:focus { border: none; background: $tk-raised; }
+#mine { display: none; width: auto; margin-left: 2; color: $tk-accent; text-style: bold; }
+.mine #mine { display: block; }
 Board { border: none; padding: 0; background: $tk-bg; height: 1fr; text-wrap: nowrap; text-overflow: ellipsis; }
 Board:focus { border: none; }
 Board > .option-list--option-highlighted { background: $tk-pick; text-style: none; }
@@ -61,7 +63,7 @@ TicketScreen { align: center middle; background: $tk-veil; }
 .framed #panel-details .pbody { padding: 1 1 0 1; }
 .framed #review, .framed #ticket { border: panel $tk-accent; border-title-color: $tk-title; }
 #header, #header-main { height: auto; }
-#elbow, #bar, #sidebar, #condition, #pills, .ptitle { display: none; }
+#elbow, #bar, #sidebar, #condition, .ptitle { display: none; }
 .lcars #elbow { display: block; width: 13; height: 5; margin-bottom: 1; background: $tk-bg; }
 #elbow-logo { display: none; }
 .lcars #elbow-logo { display: block; overlay: screen; position: absolute; height: 2; }
@@ -82,13 +84,9 @@ TicketScreen { align: center middle; background: $tk-veil; }
 .framed FooterKey { margin-right: 1; background: $tk-line; color: $tk-title; }
 .framed FooterKey .footer-key--key { background: $tk-accent; color: $tk-title; }
 .framed FooterKey .footer-key--description { color: $tk-title; }
-.framed #top { margin: 1 0 0 0; }
-.framed Tabs { display: none; }
-.framed #pills { display: block; height: 1; padding: 0 1; margin: 1 0; }
 .framed #panes { margin-right: 2; }
-.tab-pill, .ptitle { height: 1; width: auto; }
-.tab-pill { margin-right: 1; }
-.tab-pill Static, .ptitle Static { width: auto; height: 1; }
+.ptitle { height: 1; width: auto; }
+.ptitle Static { width: auto; height: 1; }
 .framed .ptitle { display: block; dock: top; width: 1fr; }
 .lcars .pbody { border: round $tk-line; border-top: none; }
 .lcars .panel:focus-within .pbody { border: round $tk-accent; border-top: none; }
@@ -102,8 +100,8 @@ TicketScreen { align: center middle; background: $tk-veil; }
 .ptitle .name { padding: 0 1; color: $tk-line; text-style: bold; }
 .ptitle .fill { width: 1fr; }
 .edge { color: $tk-line; }
-.tab-pill.-on .cap, .panel:focus-within .cap, .panel:focus-within .edge { color: $tk-accent; }
-.tab-pill.-on .seg, .panel:focus-within .seg { background: $tk-accent; }
+.panel:focus-within .cap, .panel:focus-within .edge { color: $tk-accent; }
+.panel:focus-within .seg { background: $tk-accent; }
 .panel:focus-within .name { color: $tk-accent; }
 .framed #top .brand { color: $tk-accent; }
 .framed #condition { display: block; width: auto; margin-left: 2; text-style: bold; }
@@ -115,8 +113,6 @@ TicketScreen { align: center middle; background: $tk-veil; }
 .nerv .ptitle .name { color: $tk-accent; }
 .nerv .ptitle .fill { color: $tk-line; }
 .nerv .panel:focus-within .ptitle .fill, .nerv .panel:focus-within .edge { color: $tk-focus; }
-.nerv .tab-pill .seg { background: $tk-bg; color: $tk-dim; }
-.nerv .tab-pill.-on .seg { background: $tk-bg; color: $tk-accent; }
 .nerv #review, .nerv #ticket, .nerv #themes { border: heavy $tk-accent; border-title-color: $tk-accent; }
 .nerv #review-diff-box { border: heavy $tk-line; }
 .nerv #top #nerv-logo { display: block; }

@@ -39,7 +39,7 @@ CSS = Path(__file__).with_name("web.css").read_text(encoding="utf-8")
 
 
 def page(board, settings, snoozed, at, boxes, numbers, every):
-    """boxes are the TUI's sections, by key: their name, what an empty one says and its cell widths, and numbers what the TUI numbers them;
+    """boxes are the page's sections, by key: their name, what an empty one says and its cell widths, and numbers the page's own numbering;
     snoozed hides what the TUI hides."""
     # Built in the default theme so the TUI's theme never reaches the page.
     with theme.using("default"):

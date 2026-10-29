@@ -5,7 +5,7 @@ from dataclasses import replace
 import pytest
 from rich.console import Console
 from textual.color import Color
-from textual.widgets import Static, Tabs
+from textual.widgets import Static
 
 from builders import ALERT_PRS, CHANGES, PR_ONE, PR_TWO, STATED, THREAD, bare_board, board, magi_app, pick_theme, started
 from magi.tui import boxes, entries, theme
@@ -30,12 +30,11 @@ async def nerv(cache):
         assert app.has_class("nerv") and not app.has_class("lcars"), "nerv draws its own frame, not LCARS'"
         assert not app.query_one("#sidebar").display, "nerv has no sidebar: the boxes take the full width"
         assert not app.query_one("#elbow").display, "nerv has no LCARS elbow"
-        assert not app.query_one(Tabs).display and app.query_one("#pills").display, "nerv shows its tabs as blocks"
         assert app.query_one("#nerv-logo").display and not app.query_one("#top .brand").display, "nerv shows the white logo, not a name"
         assert not app.query_one("#top #logo").display, "nerv shows the white logo, not the coloured one"
-        overview, status = app.query_one("#pill-overview").region, app.query_one("#status").content_region
+        brand, status = app.query_one("#nerv-logo").region, app.query_one("#status").content_region
         boxes = [app.query_one(f"#panel-{key}").region for key in ("kanban", "details")]
-        assert (boxes[0].x, boxes[1].right) == (overview.x, status.right), "nerv lines the boxes up with the overview tab and the status"
+        assert (boxes[0].x, boxes[1].right) == (brand.x, status.right), "nerv lines the boxes up with the logo and the status"
         key = app.query_one("FooterKey")
         assert key.region.x == boxes[0].x, "nerv lines its footer up with the boxes"
         assert key.get_component_rich_style("footer-key--description").color.triplet.hex == "#000000", "nerv keeps black footer text on green"
@@ -44,13 +43,12 @@ async def nerv(cache):
         assert str(bar.render()).startswith("◢◤◢◤"), "a hazard stripe tops the screen"
         assert str(app.query_one("#status").render()) == f"MAGI · MELCHIOR BALTHASAR CASPER · SYNC {dt.datetime.fromtimestamp(1000.0):%H:%M}", \
             "nerv times the last refresh by the MAGI"
-        titles = {key: str(app.query_one(f"#panel-{key}").border_title) for key in ("kanban", "prs", "changes", "epics", "mine_prs", "mine_tickets")}
-        assert titles == {"kanban": "03-COMMAND BOARD 1", "prs": "04-SORTIES 1", "changes": "05-OPERATIONS LOG 1", "epics": "06-PROJECTS 1",
-                          "mine_prs": "07-MY SORTIES 1", "mine_tickets": "08-MY ORDERS 2"}, "nerv names the boxes in NERV's words"
+        titles = {key: str(app.query_one(f"#panel-{key}").border_title) for key in ("kanban", "prs", "changes", "epics")}
+        assert titles == {"kanban": "01-COMMAND BOARD 1", "prs": "02-SORTIES 1", "changes": "03-OPERATIONS LOG 1", "epics": "04-PROJECTS 1"}, "nerv names the boxes in NERV's words"
         assert str(app.query_one("#panel-details").border_title) == "MAGI ANALYSIS", "nerv calls the details the MAGI analysis"
         title = app.query_one("#panel-prs .ptitle")
         pieces = [str(s.render()) for s in title.query(Static)]
-        assert pieces[:4] + pieces[5:] == ["┏━", "", "■ 04", "SORTIES", "1", "", "━┓"], "nerv writes a box's title into its heavy top line"
+        assert pieces[:4] + pieces[5:] == ["┏━", "", "■ 02", "SORTIES", "1", "", "━┓"], "nerv writes a box's title into its heavy top line"
         assert pieces[4].startswith("━━━━"), "nerv runs the heavy top line between the title and the count"
         assert title.query_one(".name").styles.color == Color.parse(MAGI["accent"]), "nerv titles are orange text, after nerv-ui's labels"
         assert title.query_one(".code").styles.background == Color.parse(MAGI["bg"]), "nerv titles are text, not filled blocks"
@@ -60,9 +58,6 @@ async def nerv(cache):
             colours = [box.query_one(".pbody").styles.border_left[1], box.query_one(".ptitle .fill").styles.color,
                        *[edge.styles.color for edge in box.query(".ptitle .edge")]]
             assert colours == [Color.parse(MAGI[tone])] * 4, f"nerv draws the {key} box {tone == 'focus' and 'orange, focused' or 'green'}"
-        assert str(app.query_one("#pill-overview .cap").render()) == "▕", "nerv outlines its tabs, after nerv-ui's navigation"
-        tabs = [app.query_one(f"#pill-{tab} .seg").styles.color for tab in ("overview", "mine")]
-        assert tabs == [Color.parse(MAGI["accent"]), Color.parse(theme.THEMES["nerv"]["dim"])], "nerv lights the current tab orange and dims the rest"
         for tone, label in zip(ALERT_PRS, ("NORMAL", "PATTERN ORANGE", "PATTERN BLUE")):
             app.show_board(board([ALERT_PRS[tone]]), 1000.0)
             await pilot.pause()
@@ -82,7 +77,7 @@ async def nerv_review(cache):
     pr_two = replace(PR_TWO, reviews=[*PR_TWO.reviews, CHANGES], threads=[THREAD])
     app = magi_app(cache, load=lambda: board([PR_ONE, pr_two]), theme="nerv")
     async with started(app) as pilot:
-        await pilot.press("4", "j", "c", "j")
+        await pilot.press("2", "j", "c", "j")
         await pilot.pause()
         popup = app.screen.query_one("#review")
         assert popup.styles.border_top == ("heavy", Color.parse(MAGI["accent"])), "the comments popup has nerv's heavy orange line, not a filled bar"
@@ -100,8 +95,7 @@ def frame_state(app):
     return {"classes": {name for name in ("framed", "lcars", "nerv", "eva01") if app.has_class(name)},
             "brand": [app.query_one(sel).display for sel in ("#top .brand", "#top #logo", "#nerv-logo")], "bar": str(app.query_one("#bar").render())[:4],
             "condition": str(app.query_one("#condition").render()), "status": str(app.query_one("#status").render()),
-            "title": str(app.query_one("#panel-prs").border_title), "pieces": pieces[:4] + pieces[5:], "fill": pieces[4][:4],
-            "tab": str(app.query_one("#pill-overview .cap").render())}
+            "title": str(app.query_one("#panel-prs").border_title), "pieces": pieces[:4] + pieces[5:], "fill": pieces[4][:4]}
 
 
 async def frames(cache, names):
@@ -148,7 +142,7 @@ async def eva01(cache):
     app = magi_app(cache, theme="eva01")
     async with started(app) as pilot:
         assert app.has_class("nerv") and app.query_one("#nerv-logo").display, "EVA 01 draws the NERV frame"
-        assert str(app.query_one("#panel-prs").border_title) == "04-SORTIES 1", "EVA 01 names the boxes in NERV's words"
+        assert str(app.query_one("#panel-prs").border_title) == "02-SORTIES 1", "EVA 01 names the boxes in NERV's words"
         for key, tone in (("kanban", "focus"), ("prs", "line")):
             box = app.query_one(f"#panel-{key}")
             colours = [box.query_one(".pbody").styles.border_left[1], *[edge.styles.color for edge in box.query(".ptitle .edge")]]

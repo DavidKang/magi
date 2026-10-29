@@ -5,7 +5,7 @@ import threading
 
 import pytest
 from textual.color import Color
-from textual.widgets import Footer, Input, OptionList, Static, Tabs
+from textual.widgets import Footer, Input, OptionList, Static
 from textual.widgets._footer import FooterKey
 from textual_image.widget import get_cell_size
 
@@ -21,8 +21,8 @@ async def lcars_theme(cache):
     path = app.config_path
     async with started(app) as pilot:
         assert app.screen.styles.background == Color.parse(theme.THEMES["default"]["bg"]), "a config without a theme starts with the default one"
-        assert not any(app.query_one(f"#{name}").display for name in ("elbow", "bar", "sidebar", "condition", "pills")), "the default theme has no LCARS frame"
-        assert app.query_one(Tabs).display, "the default theme keeps its tabs"
+        assert not any(app.query_one(f"#{name}").display for name in ("elbow", "bar", "sidebar", "condition")), "the default theme has no LCARS frame"
+        assert not app.query("Tabs") and not app.query("#pills"), "the board has no tabs"
         assert app.query_one("#top #logo").display and not app.query_one("#elbow-logo").display, "the default theme keeps its logo in the masthead"
         assert app.query_one("#top").region.y == 1, "the default theme leaves a row above its header"
         assert not any(app.query_one(f"#{name}").display for name in ("footcap", "foot-cap")) and app.query_one(Footer).region.x == 0, \
@@ -42,19 +42,14 @@ async def lcars_theme(cache):
         assert not app.query_one("#top #logo").display, "LCARS moves the logo out of the masthead"
         assert app.query_one("#bar").region.right == app.screen.region.right, "the logo in the elbow leaves the bar its full width"
         assert app.query_one("#sidebar").region.y == app.query_one("#elbow").region.bottom + 1, "the LCARS elbow sits one row above the sidebar, like its buttons"
-        assert not app.query_one(Tabs).display, "LCARS swaps the tabs for pills"
-        pills = list(app.query(".tab-pill"))
-        assert ["".join(str(s.render()) for s in pill.query(Static)) for pill in pills] == ["\ue0b6 01 OVERVIEW \ue0b4", "\ue0b6 02 MINE \ue0b4"], \
-            "LCARS swaps the tabs for pills"
-        assert [pill.has_class("-on") for pill in pills] == [True, False], "the pill of the shown tab is lit"
+        assert not app.query(".tab-pill"), "LCARS draws no tab pills: the board has no tabs"
         title = app.query_one("#panel-prs .ptitle")
         assert title.display, "LCARS titles panels with a pill"
-        assert [str(s.render()) for s in title.query(Static)] == ["╭─", "\ue0b6", "04", "CREW REPORTS", "", "1", "\ue0b4", "─╮"], \
+        assert [str(s.render()) for s in title.query(Static)] == ["╭─", "\ue0b6", "02", "CREW REPORTS", "", "1", "\ue0b4", "─╮"], \
             "LCARS titles panels with a pill set into the box's top line: code, name, filler and count"
         assert [str(s.render()) for s in app.query_one("#panel-details").query(".ptitle Static")][3] == "SENSOR READINGS", "the details panel has a pill title too"
         assert app.query_one("#top").region.y == app.query_one("#bar").region.y + 2, "the LCARS masthead leaves a row under the bar"
-        assert app.query_one("#pills").region.y == app.query_one("#top").region.y + 2, "the LCARS pills leave a row around them"
-        assert app.query_one("#sidebar").region.y == app.query_one("#pills").region.y + 2, "the LCARS pills leave a row around them"
+        assert app.query_one("#sidebar").region.y >= app.query_one("#top").region.bottom + 1, "the LCARS masthead leaves a row above the boxes"
         assert app.query_one("#panel-changes").region.bottom == app.query_one("#panel-epics").region.bottom, "the LCARS columns end on the same row"
         foot_cap = app.query_one("#foot-cap")
         assert (str(foot_cap.render()), foot_cap.region.x) == ("\ue0b6", app.query_one("#panes").region.x), "the LCARS footer opens with a round cap on the boxes' line"
@@ -68,22 +63,21 @@ async def lcars_theme(cache):
         assert str(app.query_one("#status").render()) == rows.stardate(dt.datetime.fromtimestamp(1000.0)), "LCARS dates the last refresh in stardates"
         assert app.query_one("#condition").display, "LCARS shows the board's alert level"
         assert str(app.query_one("#condition").render()) == "\ue0b6 RED ALERT \ue0b4", "LCARS shows the board's alert level as a pill"
-        assert str(app.query_one("#panel-changes").border_title) == "05-CAPTAIN'S LOG 1", "LCARS calls the changes the Captain's Log"
+        assert str(app.query_one("#panel-changes").border_title) == "03-CAPTAIN'S LOG 1", "LCARS calls the changes the Captain's Log"
         assert "CAPTAIN'S" in str(app.query_one("#side-changes").render()), "LCARS calls the changes the Captain's Log"
-        assert str(app.query_one("#panel-prs").border_title) == "04-CREW REPORTS 1", "LCARS calls the team PRs crew reports"
+        assert str(app.query_one("#panel-prs").border_title) == "02-CREW REPORTS 1", "LCARS calls the team PRs crew reports"
         assert "REPORTS" in str(app.query_one("#side-prs").render()), "LCARS calls the team PRs crew reports"
-        titles = {key: str(app.query_one(f"#panel-{key}").border_title) for key in ("kanban", "epics", "mine_prs", "mine_tickets", "details")}
-        assert titles == {"kanban": "03-DUTY ROSTER 1", "epics": "06-MISSIONS 1", "mine_prs": "07-MY REPORTS 1", "mine_tickets": "08-AWAY MISSIONS 2",
-                          "details": "SENSOR READINGS"}, "LCARS names the boxes in Starfleet's words"
+        titles = {key: str(app.query_one(f"#panel-{key}").border_title) for key in ("kanban", "epics", "details")}
+        assert titles == {"kanban": "01-DUTY ROSTER 1", "epics": "04-MISSIONS 1", "details": "SENSOR READINGS"}, "LCARS names the boxes in Starfleet's words"
         key = app.query(FooterKey).first()
         assert (app.query_one(Footer).styles.background, key.styles.background) == (Color.parse(lcars["bg"]), Color.parse(lcars["line"])), \
             "LCARS turns the footer into a row of buttons"
         assert key.get_component_rich_style("footer-key--key").bgcolor.triplet.hex == lcars["accent"], "LCARS turns the footer into a row of buttons"
         buttons = list(app.query(".side"))
         assert app.query_one("#sidebar").display, "LCARS adds a sidebar button per box, lit for the focused one"
-        assert [str(b.render()).split() [0] for b in buttons] == ["03", "04", "05", "06", "07", "08", "09"], \
+        assert [str(b.render()).split() [0] for b in buttons] == ["01", "02", "03", "04", "05"], \
             "LCARS adds a sidebar button per box, lit for the focused one"
-        assert [b.has_class("-on") for b in buttons] == [True, False, False, False, False, False, False], \
+        assert [b.has_class("-on") for b in buttons] == [True, False, False, False, False], \
             "LCARS adds a sidebar button per box, lit for the focused one"
         await pilot.click("#side-changes")
         await pilot.pause()
@@ -99,19 +93,6 @@ async def lcars_theme(cache):
             "LCARS boxes keep their pill on top and a line on the other three sides"
         assert [corner.styles.color for corner in app.query("#panel-changes .edge")] == [Color.parse(lcars["accent"])] * 2, \
             "the focused box lights its lines"
-        await pilot.click("#pill-mine")
-        await pilot.pause()
-        assert (app.current_section, app.query_one(Tabs).active) == ("mine_prs", "tab-mine"), "a tab pill shows its tab"
-        assert app.query_one("#panel-mine_tickets").region.bottom == app.query_one("#panel-epics").region.bottom, "the LCARS columns end on the same row"
-        assert [pill.has_class("-on") for pill in app.query(".tab-pill")] == [False, True], "the pill of the shown tab is lit"
-        await pilot.press("1")
-        await pilot.pause()
-        assert [pill.has_class("-on") for pill in app.query(".tab-pill")] == [True, False], "the pill of the shown tab is lit"
-        await pilot.press("7")
-        await pilot.pause()
-        assert [pill.has_class("-on") for pill in app.query(".tab-pill")] == [False, True], "the pill of the shown tab is lit"
-        await pilot.press("5")
-        await pilot.pause()
         assert app.screen.styles.background == Color.parse(lcars["bg"]), "t switches the TUI to LCARS"
         assert app.query_one("#panel-prs .fill").styles.background == Color.parse(lcars["line"]), "t switches the TUI to LCARS"
         assert lcars["accent"] in app.sections["prs"][0].detail, "the switch repaints the board"
@@ -123,16 +104,15 @@ async def lcars_theme(cache):
         assert app.query_one("#sidebar").display, "the picard LCARS keeps the LCARS frame"
         await pick_theme(pilot, "default")
         assert app.screen.styles.background == Color.parse(theme.THEMES["default"]["bg"]), "t switches back to the default theme"
-        assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 1", "the default theme keeps its titles, states and header"
+        assert str(app.query_one("#panel-prs").border_title) == "[2] team prs 1", "the default theme keeps its titles, states and header"
         assert "red CI · conflict" in app.query_one("#list-prs").get_option_at_index(1).prompt.plain, \
             "the default theme keeps its titles, states and header"
         assert str(app.query_one("#top .brand").render()) == "MAGI", "the default theme keeps its titles, states and header"
         assert not app.query_one("#sidebar").display, "the default theme keeps its titles, states and header"
-        assert app.query_one(Tabs).display and not app.query_one("#pills").display, "the default theme keeps its tabs"
         assert not any(title.display for title in app.query(".ptitle")), "the default theme keeps its bordered titles"
         assert app.query_one("#panel-prs").styles.border_top[0] == "round", "the default theme keeps its bordered titles"
         assert not app.query_one("#condition").display, "the default theme drops the LCARS words"
-        assert str(app.query_one("#panel-changes").border_title) == "[5] changes 1", "the default theme drops the LCARS words"
+        assert str(app.query_one("#panel-changes").border_title) == "[3] changes 1", "the default theme drops the LCARS words"
         assert str(app.query_one("#status").render()).startswith("updated "), "the default theme drops the LCARS words"
         assert app.query_one("#list-prs").get_option_at_index(0).prompt.plain == "── on the author (1) ──", \
             "the default theme drops the LCARS words and writes the turn groups in lowercase"

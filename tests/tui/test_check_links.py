@@ -52,7 +52,7 @@ async def clicked(cache, url):
     pr = replace(PR_TWO, ci="failing", failed_checks=failed_check(url))
     app = magi_app(cache, load=lambda: board([PR_ONE, pr]), opener=opened.append)
     async with started(app) as pilot:
-        await pilot.press("4", "j")
+        await pilot.press("2", "j")
         await pilot.pause()
         await app.run_action(next(action for text, action in clicks(app.current().detail) if text == "lint"))
         await pilot.pause()
