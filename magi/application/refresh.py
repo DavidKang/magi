@@ -148,5 +148,4 @@ def saved_board(data):
             "by_key": {t.key: t for tickets in tickets_by_epic.values() for t in tickets},
             "prs": [PullRequest(**pr) for pr in data["prs"]], "review_prs": [PullRequest(**pr) for pr in data["review_prs"]],
             "my_prs": [PullRequest(**pr) for pr in data["my_prs"]], "my_tickets": [ticket_from(t) for t in data["my_tickets"]],
-            # A board saved before the kanban box has no kanban: it shows empty until the next refresh.
-            "kanban": [ticket_from(t) for t in data.get("kanban", [])]}
+            "kanban": [ticket_from(t) for t in data["kanban"]]}

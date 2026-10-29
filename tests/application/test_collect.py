@@ -54,8 +54,6 @@ def test_cached_board_reads_back(tmp_path):
     storage.write(tmp_path / "cache.json", {"board": found})
     again = saved_board(storage.read(tmp_path / "cache.json")["board"])
     assert again == found, "a cached board reads back as the same board"
-    older = {key: value for key, value in storage.read(tmp_path / "cache.json")["board"].items() if key != "kanban"}
-    assert saved_board(older)["kanban"] == [], "a board cached before the kanban box reads back with an empty kanban"
 
 
 def test_state_write():
@@ -162,7 +160,7 @@ NO_PRS = types.SimpleNamespace(search_prs=lambda query: [], fetch_prs=lambda ite
 def test_changes_saved_by_format_3_survive_the_upgrade(tmp_path):
     files = {name: tmp_path / path.name for name, path in paths.REFRESH_FILES.items()}
     old = {"at": "2026-10-25T08:00", "item": PR_ONE.url, "tone": "commented", "label": "New PR", "note": None, "aside": None,
-           "subject": changes.pr_subject(PR_ONE.url, "app#1", PR_ONE.title)}
+           "subject": {"kind": "pr", "url": PR_ONE.url, "ref": "app#1", "title": PR_ONE.title}}
     moved = {"at": "2026-10-25T07:00", "item": STATED.jira_browse + "ACME-1", "tone": "waiting", "label": "En proceso", "note": None,
              "aside": "was: Tareas por hacer", "subject": changes.ticket_subject("ACME-1", STATED.jira_browse, "Ticket one")}
     pushed = {**old, "at": "2026-10-25T08:30", "tone": "waiting", "label": "New commits"}
@@ -174,10 +172,11 @@ def test_changes_saved_by_format_3_survive_the_upgrade(tmp_path):
     files["state"].write_text(json.dumps({"version": 3, "snapshot": saved, "changes": [pushed, reviewed, old, moved, joined]}))
     store = storage.JsonFiles(files, UPGRADES)
     untitled = {**taken, "tickets": {t.key: {"status": t.status, "summary": None} for t in TICKETS}}
+    unsigned = {**old["subject"], "author": None}
     assert store.read("state") == {"snapshot": untitled, "histories": {}, "changes": [
-        {**pushed, "group": old["item"], "told": True},
-        {**reviewed, "group": old["item"], "told": True},
-        {**old, "group": old["item"], "told": False},
+        {**pushed, "subject": unsigned, "group": old["item"], "told": True},
+        {**reviewed, "subject": unsigned, "group": old["item"], "told": True},
+        {**old, "subject": unsigned, "group": old["item"], "told": False},
         {**moved, "label": "In Progress", "aside": "was: Todo", "group": moved["item"], "told": False},
         {**joined, "label": "Done", "group": joined["item"], "told": False}]}, \
         "a state saved by format 3 keeps its snapshot, starts with no pr histories, reads its ticket statuses in english, " \
@@ -210,6 +209,19 @@ def test_a_state_saved_by_format_5_survives_the_upgrade(tmp_path):
     store = storage.JsonFiles(files, UPGRADES)
     assert store.read("state") == {"snapshot": taken, "changes": [moved], "histories": {}}, \
         "a state saved by format 5 reads as it was: only the saved prs changed shape"
+
+
+def test_a_state_saved_by_format_6_survives_the_upgrade(tmp_path):
+    files = {name: tmp_path / path.name for name, path in paths.REFRESH_FILES.items()}
+    taken = changes.snapshot([], {}, [PR_ONE], STATED)
+    merged = {"at": "2026-10-25T07:00", "item": PR_ONE.url, "group": PR_ONE.url, "tone": "good", "label": "Merged", "note": None,
+              "aside": None, "told": False, "subject": changes.pr_subject(PR_ONE.url, "app#1", PR_ONE.title, "alice")}
+    older = {**taken, "prs": {url: {k: v for k, v in pr.items() if k != "author"} for url, pr in taken["prs"].items()}}
+    unsigned = {**merged, "subject": {k: v for k, v in merged["subject"].items() if k != "author"}}
+    files["state"].write_text(json.dumps({"version": 6, "snapshot": older, "changes": [unsigned], "histories": {}}))
+    found = storage.JsonFiles(files, UPGRADES).read("state")
+    assert found["snapshot"]["prs"][PR_ONE.url]["author"] is None, "a pr in a snapshot saved by format 6 reads with no author"
+    assert found["changes"][0]["subject"]["author"] is None, "a pr change saved by format 6 reads with no author"
 
 
 def test_known_epics_load_their_tickets_while_jira_lists_the_epics():

@@ -256,14 +256,14 @@ def epic_entry(epic, tickets, settings):
                  "\n".join(lines), settings.jira_browse + epic.key, epic.key, f'{epic.key} {epic.summary}', progress=(done, len(tickets)))
 
 
-def change_entry(change, told, history):
+def change_entry(change, told, history, author):
     url = change["item"]
     text = changes.change_text(change)
     # A ticket's key leads its title already; a PR's ref goes beside its state.
     state = f'{change["label"]} - {change["subject"]["ref"]}' if change["subject"]["kind"] == "pr" else change["label"]
     lines = [heading(state), "", link(url, text) if url else escape(text), "", separator("timeline"), *activity(history, told)]
     return Entry([(f'{change["at"][5:10]} {change["at"][11:16]}', "dim"), (change["label"].lower(), rows.TUI_REVIEW.get(change["tone"], "dim")),
-                  (text, "")],
+                  (author or "", "dim"), (text, "")],
                  "\n".join(lines), url, url, f'{text} {change["label"]}')
 
 
@@ -384,7 +384,8 @@ def entries(board, settings):
     mine = {t.key for t in board["my_tickets"]}
     return {"kanban": [kanban_entry(t, prs, settings, t.key in mine) for t in sorted(board["kanban"], key=kanban_order)],
             "prs": team_pr_entries(prs, by_key, settings, {pr.url for pr in board["review_prs"]}),
-            "changes": [change_entry(c, changes.group_changes(board["changes"], c["group"], histories), histories.get(c["group"], []))
+            "changes": [change_entry(c, changes.group_changes(board["changes"], c["group"], histories), histories.get(c["group"], []),
+                                     changes.group_author(board["changes"], c["group"]))
                         for c in changes.latest(board["changes"], "group")],
             "epics": [epic_entry(e, board["tickets_by_epic"][e.key], settings) for e in board["epics"]],
             "mine_prs": [pr_entry(pr, by_key, settings) for pr in sorted(board["my_prs"], key=lambda p: p.created_at)],

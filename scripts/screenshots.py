@@ -102,7 +102,7 @@ KANBAN = [on_board(t, days) for t, days in zip([t for t in ALL_TICKETS if t.colu
 
 
 def subject(item):
-    return {"kind": "pr", "url": item.url, "ref": f"{item.repo}#{item.number}", "title": item.title}
+    return {"kind": "pr", "url": item.url, "ref": f"{item.repo}#{item.number}", "title": item.title, "author": item.author["login"]}
 
 
 def change(item, hours, tone, label, aside=None):

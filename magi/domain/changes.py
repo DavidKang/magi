@@ -15,8 +15,8 @@ WAS = "was: "
 STATUS_TONES = {"todo": "draft", "doing": "waiting", "review": "commented", "deploy": "approved", "done": "approved"}
 
 
-def pr_subject(url, ref, title):
-    return {"kind": "pr", "url": url, "ref": ref, "title": title}
+def pr_subject(url, ref, title, author):
+    return {"kind": "pr", "url": url, "ref": ref, "title": title, "author": author}
 
 
 def ticket_subject(key, browse, title=None):
@@ -46,7 +46,7 @@ def moved_from(change):
 def snapshot(epics, tickets_by_epic, prs, settings):
     return {"epics": {e.key: {"summary": e.summary, "tickets": [t.key for t in tickets_by_epic[e.key]]} for e in epics},
             "tickets": {t.key: {"status": t.status, "summary": t.summary} for tickets in tickets_by_epic.values() for t in tickets},
-            "prs": {pr.url: {"label": f"{pr.repo}#{pr.number}", "title": pr.title,
+            "prs": {pr.url: {"label": f"{pr.repo}#{pr.number}", "title": pr.title, "author": pr.author["login"],
                              "review": list(review_state(pr)), "ci": list(CI_LABELS[pr.ci]),
                              "head": pr.head_ref_oid, "pushed": max((c["committedDate"] for c in pr.commits), default=""),
                              "reviews": sum(1 for r in pr.reviews if r["submittedAt"]),
@@ -103,7 +103,7 @@ def changes_between(before, now, summaries, ended, settings):
     for key in gone_epics:
         found.append(change(ticket_subject(key, settings.jira_browse, before_epics[key]["summary"]), "draft", "Off the epics"))
     for url, pr in now["prs"].items():
-        subject = pr_subject(url, pr["label"], pr["title"])
+        subject = pr_subject(url, pr["label"], pr["title"], pr["author"])
         old = before["prs"].get(url)
         if not old:
             if not (pr["tickets"] and quiet.issuperset(pr["tickets"])):
@@ -119,7 +119,7 @@ def changes_between(before, now, summaries, ended, settings):
                                 told=pr["pushed"] > old.get("pushed", "")))
     for url in vanished_prs(before, now):
         pr = before["prs"][url]
-        found.append(change(pr_subject(url, pr["label"], pr["title"]), *PR_END_LABELS[ended[url]]))
+        found.append(change(pr_subject(url, pr["label"], pr["title"], pr["author"]), *PR_END_LABELS[ended[url]]))
     # After the PRs: a refresh stamps its changes alike, so a PR's own change leads its ticket's move.
     for key, entry in now["tickets"].items():
         status = entry["status"]
@@ -170,6 +170,11 @@ def latest(changes, by):
         elif c["label"] == NEW_PR and newer["item"] == c["item"] and newer["label"] not in FINAL_PR_LABELS:
             kept[c[by]] = {**c, "at": newer["at"]}
     return list(kept.values())
+
+
+def group_author(changes, group):
+    """Who opened the PR a group's changes are about: None for a ticket's own group, or for changes saved before subjects kept it."""
+    return next((c["subject"]["author"] for c in changes if c["group"] == group and c["subject"]["kind"] == "pr"), None)
 
 
 def group_changes(changes, group, histories):

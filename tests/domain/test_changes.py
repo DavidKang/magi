@@ -40,14 +40,14 @@ def test_domain_returns_data():
     found = changes.changes_between(before, now, {}, {gone.url: "MERGED"}, STATED)
     assert (found == [
           {"item": gone.url, "group": gone.url, "tone": "approved", "label": "Merged", "note": None, "aside": None, "told": False,
-           "subject": {"kind": "pr", "url": gone.url, "ref": "app#8", "title": "[ACME-1] Gone"}}]), \
-        "a vanished pr is labelled from the state it was given, as data"
+           "subject": {"kind": "pr", "url": gone.url, "ref": "app#8", "title": "[ACME-1] Gone", "author": gone.author["login"]}}]), \
+        "a vanished pr is labelled from the state it was given, as data, and keeps who opened it"
 
 
 def test_pr_titles_read_like_their_links():
     for title, shown in (("[ACME-1]NoSpace", "[ACME-1] NoSpace"), ("[ACME-6]   multi   space", "[ACME-6] multi   space"),
                          ("[ACME-1][ACME-30] mixed", "[ACME-1] [ACME-30] mixed"), ("[ACME-4] ", "[ACME-4]"), ("No key", "No key")):
-        assert changes.subject_text(changes.pr_subject("u", "app#1", title)) == shown, f"a pr titled {title!r} reads {shown!r}"
+        assert changes.subject_text(changes.pr_subject("u", "app#1", title, "alice")) == shown, f"a pr titled {title!r} reads {shown!r}"
 
 
 def test_a_new_ticket_names_its_own_epic():
@@ -122,7 +122,7 @@ def test_a_pr_change_leads_its_ticket_move_from_the_same_refresh():
 
 
 def test_recent_changes_keep_every_change_of_the_last_day():
-    subject = changes.pr_subject(PR_ONE.url, "app#1", PR_ONE.title)
+    subject = changes.pr_subject(PR_ONE.url, "app#1", PR_ONE.title, PR_ONE.author["login"])
     earlier = {"at": "2026-10-25T08:00", **changes.change(subject, "waiting", changes.PUSHED)}
     stale = {**earlier, "at": "2026-10-24T08:00"}
     before = changes.snapshot([], {}, [replace(PR_ONE, head_ref_oid="a1")], STATED)

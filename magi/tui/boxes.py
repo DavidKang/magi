@@ -10,7 +10,7 @@ LCARS_PR_WIDTHS = [None, 10, 31, 8, 18]
 MIN_TITLE, MAX_TITLE = 20, 60
 # A box too narrow for MIN_TITLE still shows this much of the title.
 NARROW_TITLE = 10
-CHANGE_WIDTHS = [12, 18, None]
+CHANGE_WIDTHS = [12, 18, 14, None]
 NO_CHANGES = f"no changes in the last {changes.CHANGES_HOURS} h"
 # The board's boxes: magi web draws these too.
 SECTIONS = {"kanban": ("kanban", "no tickets on the board", [10, 11, 16, 22, 4, None]),

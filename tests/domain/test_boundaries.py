@@ -10,7 +10,7 @@ NAMES = {"entities": ["Epic", "FoundPr", "PullRequest", "Ticket", "TicketDetail"
          "labels": ["BLOCKED_LABEL", "blocked"],
          "keys": ["TICKET_KEY", "ticket_keys_in", "title_keys_in", "title_parts"],
          "review": ["CI_LABELS", "STALE_PR_DAYS", "TURNS", "looks_ready_but_blocked", "pr_events", "review_state", "turn"],
-         "changes": ["CHANGES_HOURS", "change_mark", "change_text", "changes_between", "group_changes", "latest", "moved_from", "pr_subject",
+         "changes": ["CHANGES_HOURS", "change_mark", "change_text", "changes_between", "group_author", "group_changes", "latest", "moved_from", "pr_subject",
                      "recent_changes", "snapshot", "snapshot_epics", "subject_text", "ticket_subject", "vanished_prs"],
          "histories": ["kept_histories", "pr_histories"],
          "snoozes": ["asleep", "awake", "change_marks"],

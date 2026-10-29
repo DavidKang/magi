@@ -83,7 +83,7 @@ ALERT_PRS = {"ok": make_pr(review_decision="APPROVED", ci="passing", mergeable="
 TICKETS = [make_ticket(), make_ticket(key="ACME-2", summary="Ticket two", status="Finalizado", column="done")]
 TICKET_DETAIL = make_ticket_detail()
 EPIC = make_epic()
-SUBJECT = {"kind": "pr", "url": "https://github.com/acme/app/pull/1", "ref": "app#1", "title": "[ACME-1] First change"}
+SUBJECT = {"kind": "pr", "url": "https://github.com/acme/app/pull/1", "ref": "app#1", "title": "[ACME-1] First change", "author": "alice"}
 
 
 def board(prs):

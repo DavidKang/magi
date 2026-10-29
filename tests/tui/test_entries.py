@@ -3,7 +3,7 @@ from dataclasses import replace
 
 from textual.content import Content
 
-from builders import CHANGES, NOTE, OUTDATED, PR_ONE, PR_TWO, REPLY, STATED, THREAD, TICKET_DETAIL, board
+from builders import CHANGES, NOTE, OUTDATED, PR_ONE, PR_TWO, REPLY, STATED, SUBJECT, THREAD, TICKET_DETAIL, board
 from magi.domain import review
 from magi.domain.ages import days_since
 from magi.domain.entities import Ticket
@@ -202,6 +202,15 @@ def test_change_timeline_keeps_an_aside_that_is_no_move():
     lines = Content.from_markup(detail).plain.splitlines()
     assert lines[lines.index("── timeline ──") + 1:] == ["Oct 24 02:04  Commented new review"], \
         "a change that is no status move keeps its aside after its label"
+
+
+def test_a_change_row_names_who_opened_its_pr():
+    opened = {**board([PR_ONE])["changes"][0], "subject": SUBJECT}
+    moved = {**opened, "at": "2026-10-24T03:00", "label": "In review", "subject": {"kind": "ticket", "url": "u", "ref": "ACME-1", "title": "T"}}
+    row = entries.entries({**board([PR_ONE]), "changes": [moved, opened]}, STATED)["changes"][0]
+    assert row.cells[2] == ("alice", "dim"), "a change row names who opened its group's pr, even when a ticket move leads the group"
+    alone = entries.entries({**board([]), "changes": [{**moved, "group": "u", "item": "u"}]}, STATED)["changes"][0]
+    assert alone.cells[2] == ("", "dim"), "a ticket's own change row names nobody"
 
 
 def test_change_detail_names_the_pr_beside_its_state():

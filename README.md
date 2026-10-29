@@ -178,7 +178,7 @@ The detail of a PR says in one status line what it is missing, as its row does, 
 
 ### Changes
 
-The changes box keeps one row per PR: its latest change, or the latest move of a ticket only that PR names. Its detail lists the PR's commits and reviews with the moves of its ticket and what GitHub's history does not tell, such as a draft marked ready or how the PR left the board, newest first, from what the refresh already fetched.
+The changes box keeps one row per PR: its latest change, or the latest move of a ticket only that PR names. Each row names who opened the PR. Its detail lists the PR's commits and reviews with the moves of its ticket and what GitHub's history does not tell, such as a draft marked ready or how the PR left the board, newest first, from what the refresh already fetched.
 
 ### What is new
 
