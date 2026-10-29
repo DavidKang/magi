@@ -6,10 +6,9 @@ import time
 from .. import config
 from ..adapters import storage
 from ..application.refresh import saved_board
-from .app import error_message, write_page
 from .board_files import (CACHE, REFRESH_COOLDOWN, REFRESH_SECONDS, mark_start, marked, page, read_snoozed, refresh_mark,
-                          save_board, snoozes)
-from .system import open_in_browser
+                          save_board, snoozes, write_page)
+from .system import error_message, open_in_browser
 
 # Seconds magi web wakes past a refresh's due time: a running TUI's tick, due at the same moment, starts its refresh first.
 TUI_FIRST = 3

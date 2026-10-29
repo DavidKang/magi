@@ -11,7 +11,8 @@ from builders import EPIC, PR_ONE, PR_TWO, STATED, bare_board, board, magi_app, 
 from magi.adapters import storage
 from magi.domain.review import condition
 from magi.tui import entries, frames, web
-from magi.tui.app import NUMBERS, REFRESH_SECONDS, SECTIONS
+from magi.tui.board_files import REFRESH_SECONDS
+from magi.tui.boxes import NUMBERS, SECTIONS
 from magi.tui.theme import FRAMES, LCARS, THEMES
 
 

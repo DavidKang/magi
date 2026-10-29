@@ -9,8 +9,7 @@ from textual.color import Color
 from textual.widgets import Static, Tabs
 
 from builders import EPIC, PR_ONE, SETTINGS, STATED, TICKETS, bare_board, board, make_pr, settings_file
-from magi.tui import app as app_module
-from magi.tui import entries, theme
+from magi.tui import boxes, entries, theme
 from magi.tui.app import MagiApp
 from test_nerv import frame_state
 from test_theme import pick_theme
@@ -115,7 +114,7 @@ def test_cyberpunk_fills_its_badges():
     theme.use_theme("cyberpunk")
     late = replace(PR_ONE, created_at=f"{dt.date.today() - dt.timedelta(days=58)}T10:00:00Z", review_decision="CHANGES_REQUESTED", ci="passing")
     found = bare_board(prs=[late])
-    row = entries.cell_row(entries.entries(found, STATED)["prs"][0], app_module.widths("prs"))
+    row = entries.cell_row(entries.entries(found, STATED)["prs"][0], boxes.widths("prs"))
     style = lambda text: row.get_style_at_offset(Console(), row.plain.index(text))
     assert f"◢ {'CHANGES · CONFLICT':<27} ◤    ▲ 58D " in row.plain, "cyberpunk draws what a PR is missing as a slanted badge and a critical age as an alarm"
     assert (style("CHANGES").color.triplet.hex, style("CHANGES").bgcolor.triplet.hex) == (NIGHT_CITY["bg"], NIGHT_CITY["bad"]), \

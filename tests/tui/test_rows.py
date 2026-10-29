@@ -9,7 +9,7 @@ from builders import EPIC, PR_ONE, PR_TWO, STATED, TICKETS, bare_board, make_pr
 from magi import rows
 from magi.domain import ages
 from magi.tui import app as app_module
-from magi.tui import entries, theme
+from magi.tui import boxes, entries, theme
 
 
 def test_rows_view_model():
@@ -42,7 +42,7 @@ def test_styles_live_in_a_tcss_file():
 
 
 def test_pr_rows():
-    row = lambda pr, room=100: entries.cell_row(entries.pr_entry(pr, {}, STATED), app_module.widths("prs", room)).plain
+    row = lambda pr, room=100: entries.cell_row(entries.pr_entry(pr, {}, STATED), boxes.widths("prs", room)).plain
     assert row(PR_ONE).startswith("[ACME-1] First change "), "a pr row starts with the PR's title"
     assert row(PR_ONE).rstrip().endswith(" app") and "#1" not in row(PR_ONE), "a pr row ends with its repo, without the PR number"
     assert len(row(PR_ONE)) == 100, "the title stretches with the box"
@@ -81,7 +81,7 @@ def test_team_prs_are_grouped_by_turn():
     assert [(e.url, e.group) for e in listed] == [("u2", "needs review"), ("u7", "needs review"), ("u1", "needs review"),
                                                  ("u3", "on the author"), ("u4", "ready to merge"), ("u5", "drafts"), ("u6", "drafts")], \
         "team PRs are grouped by whose turn it is: my review requests first, then oldest first in each group, drafts last"
-    row = lambda entry: entries.cell_row(entry, app_module.widths("prs", 100)).plain
+    row = lambda entry: entries.cell_row(entry, boxes.widths("prs", 100)).plain
     assert "your review" in row(listed[0]), "a PR that asks for my review says so"
     assert "no review yet" in row(listed[1]), "a PR nobody reviewed says so"
     assert "changes · conflict" in row(listed[3]), "a PR on its author says what blocks it"
@@ -119,7 +119,7 @@ def test_lcars_epic_bars_round_to_tenths():
 @pytest.mark.usefixtures("default_theme")
 def test_lcars_pills_fit_their_text():
     pr = replace(PR_ONE, created_at=opened(123), review_decision="CHANGES_REQUESTED", ci="passing")
-    row = lambda: entries.cell_row(entries.entries(bare_board(prs=[pr]), STATED)["prs"][0], app_module.widths("prs")).plain
+    row = lambda: entries.cell_row(entries.entries(bare_board(prs=[pr]), STATED)["prs"][0], boxes.widths("prs")).plain
     assert f"{'changes · conflict':<27} 123d" in row(), "the default theme keeps its plain cells"
     theme.use_theme("okuda")
     for label in (f"◖ {'CHANGES · CONFLICT':<27} ◗", "◖ 123D ◗"):
@@ -140,10 +140,10 @@ def test_longest_turn_label_fits(name):
     pr = make_pr(reviews=[{"state": "CHANGES_REQUESTED", "submittedAt": "2026-10-22T09:00:00Z", "author": {"login": "bob"}, "body": ""}],
                  commits=[], ci="failing", mergeable="CONFLICTING")
     entry = entries.team_pr_entries([pr], {}, STATED, set())[0]
-    row = entries.cell_row(entry, app_module.widths("prs", 160)).plain
+    row = entries.cell_row(entry, boxes.widths("prs", 160)).plain
     assert "changes · red ci · conflict" in row.lower(), "the longest turn label shows whole in every theme"
 
 
 @pytest.mark.usefixtures("default_theme")
 def test_narrow_box_keeps_some_title():
-    assert app_module.widths("prs", 50)[0] == app_module.NARROW_TITLE, "a box too narrow for the columns still shows ten columns of title"
+    assert boxes.widths("prs", 50)[0] == boxes.NARROW_TITLE, "a box too narrow for the columns still shows ten columns of title"

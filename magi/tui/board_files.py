@@ -1,6 +1,8 @@
 """The files the TUI and magi web share beside the cache: the board, the mark a refresh leaves as it starts, the snoozes and the page."""
 
 from ..adapters import paths, storage
+from . import web
+from .boxes import NUMBERS, SECTIONS
 
 # A refresh costs about 4-6 s and 10-16 of GitHub's 5000 GraphQL points an hour, after scripts/profile_refresh.py.
 REFRESH_SECONDS = 5 * 60
@@ -50,3 +52,8 @@ def snoozes(cache):
 def page(cache):
     """The board as a web page, written beside the cache."""
     return cache.with_name("board.html")
+
+
+def write_page(path, board, settings, snoozed, at):
+    """The board as a web page at path, as the TUI shows it: its boxes and numbers, without the snoozed rows nor the factory."""
+    storage.write_text(path, web.page(board, settings, snoozed, at, SECTIONS, NUMBERS, REFRESH_SECONDS))

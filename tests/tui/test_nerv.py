@@ -8,8 +8,7 @@ from textual.color import Color
 from textual.widgets import Static, Tabs
 
 from builders import ALERT_PRS, CHANGES, PR_ONE, PR_TWO, STATED, THREAD, bare_board, board, magi_app, pick_theme, started
-from magi.tui import app as app_module
-from magi.tui import entries, theme
+from magi.tui import boxes, entries, theme
 
 # nerv-ui's design tokens (github.com/mdrbx/nerv-ui): black, orange text and focus, green grid, red alert, amber warning, cyan data.
 MAGI = {"bg": "#000000", "fg": "#ff9900", "accent": "#ff9900", "line": "#00ff00", "focus": "#ff9900", "bad": "#ff0000", "ok": "#00ff00", "warn": "#ffaa00",
@@ -130,7 +129,7 @@ def test_nerv_outlines_its_badges():
     late = replace(PR_ONE, created_at=f"{dt.date.today() - dt.timedelta(days=58)}T10:00:00Z", review_decision="CHANGES_REQUESTED",
                    ci="passing")
     found = bare_board(prs=[late])
-    row = entries.cell_row(entries.entries(found, STATED)["prs"][0], app_module.widths("prs"))
+    row = entries.cell_row(entries.entries(found, STATED)["prs"][0], boxes.widths("prs"))
     style = lambda text: row.get_style_at_offset(Console(), row.plain.index(text))
     assert f"▕ {'CHANGES · CONFLICT':<27} ▏    ▲ 58D " in row.plain, \
         "nerv draws what a PR is missing as an outlined badge and a critical age as an alarm, after nerv-ui"
@@ -139,7 +138,7 @@ def test_nerv_outlines_its_badges():
     assert (style("▲").color.triplet.hex, style("58D").bold) == (MAGI["bad"], True), "nerv flags a critical age in bold red"
     calm = replace(PR_ONE, created_at=f"{dt.date.today() - dt.timedelta(days=2)}T10:00:00Z", review_decision="APPROVED", ci="passing",
                    mergeable="MERGEABLE")
-    row = entries.cell_row(entries.entries({**found, "prs": [calm]}, STATED)["prs"][0], app_module.widths("prs"))
+    row = entries.cell_row(entries.entries({**found, "prs": [calm]}, STATED)["prs"][0], boxes.widths("prs"))
     assert f"▕ {'APPROVED':<27} ▏ {'2d':>8} " in row.plain, "nerv leaves a nominal age plain"
     assert (style("APPROVED").color.triplet.hex, style("2d").color.triplet.hex) == (MAGI["ok"], theme.THEMES["nerv"]["dim"]), \
         "nerv outlines a PR ready to merge in green and dims a nominal age"

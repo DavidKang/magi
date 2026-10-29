@@ -1,6 +1,6 @@
 from builders import PR_ONE, SETTINGS, board, settings_file
 from magi.adapters import storage
-from magi.tui.app import REFRESH_COOLDOWN, REFRESH_SECONDS
+from magi.tui.board_files import REFRESH_COOLDOWN, REFRESH_SECONDS
 from magi.tui.web_watch import TUI_FIRST, watch
 
 
