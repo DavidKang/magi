@@ -10,7 +10,7 @@ import pytest
 from builders import EPIC, PR_ONE, PR_TWO, STATED, bare_board, board, magi_app, make_pr, make_ticket, make_ticket_detail, started
 from magi.adapters import storage
 from magi.domain.review import condition
-from magi.tui import frames, web
+from magi.tui import entries, frames, web
 from magi.tui.app import NUMBERS, REFRESH_SECONDS, SECTIONS
 from magi.tui.theme import FRAMES, LCARS, THEMES
 
@@ -185,6 +185,11 @@ def test_each_row_carries_its_details_for_the_side_panel():
 def test_details_only_link_web_addresses():
     found = web.detail_html("[#21cfac underline @click=app.open_link('javascript:alert(1)')]run[/]")
     assert "href" not in found and "run" in found, "a details link that is not http or https shows as plain text"
+
+
+def test_details_link_the_url_the_tui_opens():
+    found = web.detail_html(entries.link("https://ci.example/a\\b", "log"))
+    assert 'href="https://ci.example/a\\b"' in found, "a details link on the page opens the url the tui opens, its backslashes kept single"
 
 
 def test_details_keep_the_tuis_tones_bold_and_links_as_html():

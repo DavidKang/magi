@@ -46,6 +46,8 @@ def escape(value):
 
 
 def link(url, label):
+    # Markup ignores repr's backslash escapes, so a url with both quotes could close the action early: encoded, it opens the same page.
+    url = url.replace("'", "%27").replace('"', "%22")
     return f"[{COLORS['accent']} underline @click=app.open_link({url!r})]{escape(label)}[/]"
 
 

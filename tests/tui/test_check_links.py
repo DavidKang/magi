@@ -65,3 +65,9 @@ async def clicked(cache, url):
                                          ("file:///etc/hosts", CHECKS_PAGE)])
 def test_clicking_a_failed_check_opens_exactly_its_link(cache, url, opened):
     assert asyncio.run(clicked(cache, url)) == [opened], "a click on a failed check hands open exactly the url its link names"
+
+
+def test_a_link_never_lets_its_url_add_an_action():
+    url = "https://x.example/a'b\"c]x[@click=app.quit()]"
+    assert [parse(action) for _, action in clicks(entries.link(url, "x"))] == [("app", "open_link", ("https://x.example/a%27b%22c]x[@click=app.quit()]",))], \
+        "a url with both quotes stays one link that opens it, quotes percent-encoded, and never adds an action of its own"

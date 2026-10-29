@@ -1,5 +1,6 @@
 """The board as a web page the TUI writes after each refresh: built from the cache only, in a theme the page picks for itself."""
 
+import ast
 import datetime as dt
 import json
 import re
@@ -27,7 +28,8 @@ LEVELS = {"green": "ok", "yellow": "warn", "red": "bad"}
 TONE_OF = {THEMES["default"][tone].lower(): tone for tone in TONES}
 # A title's leading ticket key, bracketed or not, and its words: a theme can set the words apart while the key keeps the title's colour.
 KEY = re.compile(r"(\[?[A-Z][A-Z0-9]*-\d+\]?(?= )|)(.*)", re.S)
-LINK = re.compile(r"@click=app\.open_link\((['\"])(.*?)\1\)")
+# A link's url as the tui opens it: the quoted literal read back, so repr's escapes never reach the href.
+LINK = re.compile(r"@click=app\.open_link\(('.*?'|\".*?\")\)")
 # Each box's colour, in turn: its LCARS bracket and its sidebar button share it.
 COLORS = ("accent", "line", "blue", "warn", "bad", "ok")
 # Every pr and ticket opens in a tab of its own, so the board stays put.
@@ -129,7 +131,8 @@ def piece(content, start, end):
     text = esc(content.plain[start:end])
     text = f'<span class="{" ".join(classes)}">{text}</span>' if classes else text
     link = LINK.search(style)
-    return f'<a href="{esc(link.group(2))}" {NEW_TAB} class="underline">{text}</a>' if link and link.group(2).startswith(("https://", "http://")) else text
+    url = ast.literal_eval(link.group(1)) if link else ""
+    return f'<a href="{esc(url)}" {NEW_TAB} class="underline">{text}</a>' if url.startswith(("https://", "http://")) else text
 
 
 def cell(value, tone, width, progress):
