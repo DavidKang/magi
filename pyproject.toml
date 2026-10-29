@@ -1,6 +1,6 @@
 [project]
 name = "magi"
-version = "0.8.0"
+version = "0.9.0"
 description = "Team board of Jira epics and GitHub PRs, in the terminal."
 requires-python = ">=3.12"
 dependencies = ["textual>=8.2", "textual-image>=0.14", "pillow>=10"]
