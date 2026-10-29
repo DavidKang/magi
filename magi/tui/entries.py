@@ -248,10 +248,10 @@ def epic_entry(epic, tickets, settings):
     bar = Text()
     if theme.frame():
         segments = round(10 * done / len(tickets)) if tickets else 0
-        bar.append("█ " * segments, COLORS["ok"])
+        bar.append("█ " * segments, COLORS["progress"])
         bar.append("█ " * (10 - segments), COLORS[EPIC_REST[theme.frame()]])
     else:
-        bar.append("█" * filled, COLORS["ok"])
+        bar.append("█" * filled, COLORS["progress"])
         bar.append("░" * (20 - filled), COLORS["dim"])
     return Entry([(epic.key, ""), (bar, ""), (f"{done}/{len(tickets)}", "dim-right"), (epic.summary, "")],
                  "\n".join(lines), settings.jira_browse + epic.key, epic.key, f'{epic.key} {epic.summary}', progress=(done, len(tickets)))

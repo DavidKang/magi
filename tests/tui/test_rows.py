@@ -3,6 +3,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from textual.color import Color
 from textual.content import Content
 
 from builders import EPIC, PR_ONE, PR_TWO, STATED, TICKETS, bare_board, make_pr
@@ -109,7 +110,15 @@ def test_epic_bars(name, done, rest, tone, rule):
     theme.use_theme(name)
     bar = entries.epic_entry(EPIC, TICKETS, STATED).cells[1][0]
     colours = theme.THEMES[name]
-    assert [(bar.plain[s.start:s.end], str(s.style)) for s in bar.spans] == [(done, colours["ok"]), (rest, colours[tone])], rule
+    assert [(bar.plain[s.start:s.end], str(s.style)) for s in bar.spans] == [(done, colours["progress"]), (rest, colours[tone])], rule
+
+
+def test_default_epic_bars_are_a_duller_green():
+    colours = theme.THEMES["default"]
+    assert Color.parse(colours["progress"]).brightness < Color.parse(colours["ok"]).brightness, \
+        "the default theme's epic bars are a duller green than its ok green"
+    assert all(colours["progress"] == colours["ok"] for name, colours in theme.THEMES.items() if name != "default"), \
+        "the framed themes keep their epic bars in their own ok green"
 
 
 @pytest.mark.usefixtures("default_theme")
