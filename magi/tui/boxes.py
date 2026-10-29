@@ -21,8 +21,9 @@ SECTIONS = {"kanban": ("kanban", "no tickets on the board", [10, 11, 16, 22, 4, 
             "mine_tickets": ("my tickets", "no open tickets", [10, None])}
 # The factory's box is the TUI's alone: magi web never reads the factory's stage files or herdr.
 BOXES = {**SECTIONS, "factory": ("factory", "no factory tickets", [10, 18, 4, 8, None])}
-# The factory's box has no tab: it stays under the details on every tab.
-TABS = {"overview": ["kanban", "prs", "changes", "epics"], "mine": ["mine_prs", "mine_tickets"]}
+# The boxes under the details: they have no tab, so they stay on every tab.
+ASIDE = ["factory", "epics"]
+TABS = {"overview": ["kanban", "prs", "changes"], "mine": ["mine_prs", "mine_tickets"]}
 # The tabs take the first digits and the boxes the next ones.
 NUMBERS = {key: n for n, key in enumerate(BOXES, len(TABS) + 1)}
 TAB_NUMBERS = {tab: n for n, tab in enumerate(TABS, 1)}

@@ -13,6 +13,9 @@ Screen { background: $tk-bg; color: $tk-fg; }
 #panel-details { height: 2fr; }
 #panel-epics { height: auto; max-height: 12; }
 #list-epics { height: auto; }
+/* Changes is a bit shorter than kanban and team prs: three parts to their four. */
+#panel-kanban, #panel-prs { height: 4fr; }
+#panel-changes { height: 3fr; }
 .pbody { height: 1fr; }
 #panel-epics .pbody { height: auto; max-height: 10; }
 .framed #panel-epics .pbody { max-height: 11; }

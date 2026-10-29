@@ -23,7 +23,7 @@ from ..domain.snoozes import asleep, awake, change_marks
 from . import frames, notifiers, screens, theme
 from .board_files import (CACHE, KEPT_UPGRADES, REFRESH_COOLDOWN, REFRESH_SECONDS, SNOOZABLE, last_started, mark_start, page,
                           read_snoozed, refresh_mark, save_board, snoozes, write_page)
-from .boxes import BOXES, LCARS_PR_WIDTHS, MIN_TITLE, NUMBERS, TAB_NUMBERS, TAB_OF, TABS, panel_title, section_name, widths
+from .boxes import ASIDE, BOXES, LCARS_PR_WIDTHS, MIN_TITLE, NUMBERS, TAB_NUMBERS, TAB_OF, TABS, panel_title, section_name, widths
 from .entries import cell_row, entries, escape, factory_entry, ticket_entry
 from .screens import LOGO_BLACK, LOGO_WHITE, ConfigScreen, ReviewScreen, ThemeScreen, TicketScreen, logo
 from .system import error_message, leave, off_loop, open_in_browser, pbcopy
@@ -125,7 +125,8 @@ class MagiApp(App):
                     yield PanelTitle()
                     with VerticalScroll(classes="pbody"):
                         yield Static(id="detail")
-                yield from self.box("factory")
+                for key in ASIDE:
+                    yield from self.box(key)
         with Horizontal(id="foot"):
             yield Static(id="footcap")
             yield Static(LEFT_CAP, id="foot-cap")
@@ -469,7 +470,8 @@ class MagiApp(App):
         return self.entry(self.current_board())
 
     def show_detail(self, board):
-        if self.current_section != board.section:
+        # A highlight posted while the app quits can arrive after the details are gone.
+        if self.current_section != board.section or not self.is_running:
             return
         entry = self.entry(board)
         self.pass_by(entry.url if entry else None)

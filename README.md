@@ -139,7 +139,8 @@ Epics are not configured: the board shows every epic of the project in Developin
 | Key | Action |
 |-----|--------|
 | `1` / `2` | Switch to the `Overview` tab or the `Mine` tab |
-| `3`-`6` | Jump to the `Overview` tab's boxes: kanban, team PRs, changes, epics |
+| `3`-`5` | Jump to the `Overview` tab's boxes: kanban, team PRs, changes |
+| `6` | Jump to the epics box under the factory, on every tab |
 | `7`-`8` | Jump to the `Mine` tab's boxes: your open PRs, your Jira tickets not done, grouped by status |
 | `9` | Jump to the factory box under the details: the software factory's tickets (see [Factory](#factory)) |
 | `j` / `k` | Move down / up |

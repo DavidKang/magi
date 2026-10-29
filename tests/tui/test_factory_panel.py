@@ -45,6 +45,9 @@ async def factory_under_the_details(cache):
             box, details = app.query_one("#panel-factory").region, app.query_one("#panel-details").region
             assert box.height and (box.x, box.width) == (details.x, details.width) and box.y >= details.bottom, \
                 f"the factory box sits under the details, as wide, on tab {tab}"
+            epics = app.query_one("#panel-epics").region
+            assert epics.height and (epics.x, epics.width) == (box.x, box.width) and epics.y >= box.bottom, \
+                f"the epics box sits under the factory, as wide, on tab {tab}"
         assert [tab.id for tab in app.query_one(Tabs).query("Tab")] == ["tab-overview", "tab-mine"], "the factory has no tab of its own"
 
 

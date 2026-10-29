@@ -45,14 +45,10 @@ async def main(cache):
         assert not app.query("#panel-desk"), "there is no my desk or worktrees box"
         assert not app.query("#panel-worktrees"), "there is no my desk or worktrees box"
         titles = [str(panel.border_title) for panel in app.query(".panel")]
-        assert titles == ["[3] kanban 1", "[4] team prs 2", "[5] changes 1", "[6] epics 1", "[7] my prs 1", "[8] my tickets 2", "details", "[9] factory 0"], \
-            "overview numbers its boxes next to details"
+        assert titles == ["[3] kanban 1", "[4] team prs 2", "[5] changes 1", "[7] my prs 1", "[8] my tickets 2", "details", "[9] factory 0", "[6] epics 1"], \
+            "overview numbers its boxes next to details, and epics sits under the factory"
         assert "Ticket one" in detail(), "overview starts on the kanban box"
-        heights = {key: app.query_one(f"#panel-{key}").outer_size.height for key in ("kanban", "prs", "changes", "epics")}
-        assert heights["epics"] == 5, "epics box fits its items"
-        assert max(heights["kanban"], heights["prs"], heights["changes"]) - min(heights["kanban"], heights["prs"], heights["changes"]) <= 1, \
-            "kanban, team prs and changes share the rest"
-        assert heights["prs"] > 5, "kanban, team prs and changes share the rest"
+        assert app.query_one("#panel-epics").outer_size.height == 5, "epics box fits its items"
         prompts = [app.query_one("#list-prs", OptionList).get_option_at_index(i).prompt for i in range(5)]
         assert [p.plain for p in prompts[2:4]] == ["", "── ready to merge (1) ──"], "a blank line separates the groups"
         assert str(prompts[0].style) == f"bold {theme.THEMES['default']['fg']}", "group headers stand out in bold, in the text colour"
@@ -401,3 +397,17 @@ def test_tui_loads_the_board():
 
 def test_refresh_policy():
     assert app_module.REFRESH_SECONDS == 5 * 60, "the board refreshes itself every 5 minutes"
+
+
+async def overview_heights(cache):
+    app = magi_app(cache, load=lambda: board([PR_ONE, PR_TWO]))
+    async with started(app, size=(160, 60)):
+        shared = [app.query_one(f"#panel-{key}").outer_size.height for key in ("kanban", "prs", "changes")]
+    return shared
+
+
+def test_changes_is_a_bit_shorter_than_kanban_and_team_prs(cache):
+    kanban, prs, changes = asyncio.run(overview_heights(cache))
+    assert abs(kanban - prs) <= 1, f"kanban and team prs are as tall as each other: {kanban}, {prs}"
+    assert changes < min(kanban, prs), f"changes is shorter than kanban and team prs: {kanban}, {prs}, {changes}"
+    assert changes * 2 > kanban, f"changes is only a bit shorter, over half kanban's height: {kanban}, {changes}"
