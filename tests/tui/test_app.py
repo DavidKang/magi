@@ -225,6 +225,26 @@ def test_reopen(cache):
     asyncio.run(reopen(cache))
 
 
+async def refresh_keeps_the_row(cache):
+    boards = [board([PR_ONE, PR_TWO]), board([PR_THREE, PR_ONE, PR_TWO])]
+    now = [1000.0]
+    app = magi_app(cache, load=lambda: boards.pop(0), clock=lambda: now[0])
+    async with started(app) as pilot:
+        await pilot.click("#list-prs", offset=(2, 4))
+        assert app.current().url == PR_TWO.url, "the click lands on the second pr"
+        now[0] += 31
+        await pilot.press("r")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 3", "refresh reloads the board"
+        assert app.current().url == PR_TWO.url, "refresh keeps the highlighted row when its item is still on the board"
+        assert "Second change" in str(app.query_one("#detail", Static).render()), "refresh keeps the details of the highlighted row"
+
+
+def test_refresh_keeps_the_row(cache):
+    asyncio.run(refresh_keeps_the_row(cache))
+
+
 async def throttle_across_runs(cache):
     calls = []
     def load():

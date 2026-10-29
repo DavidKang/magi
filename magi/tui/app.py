@@ -198,15 +198,7 @@ class MagiApp(App):
         self.sections["factory"] = self.factory_drawn = rows
         self.counted.add("factory")
         self.title_panels()
-        self.fill("factory")
-        # The factory is read every few seconds: the row you are on stays highlighted.
-        same = [i for i in range(board.option_count) if kept and board.get_option_at_index(i).id
-                and self.sections["factory"][int(board.get_option_at_index(i).id)].copy == kept.copy]
-        if same:
-            board.highlighted = same[0]
-            # Back on the row you were on: the first row, drawn for a moment, was not passed by.
-            if self.current_section == "factory":
-                self.passing = kept.url
+        self.fill("factory", kept)
 
     def factory_rows(self):
         now = dt.datetime.fromtimestamp(self.clock(), dt.timezone.utc)
@@ -293,6 +285,7 @@ class MagiApp(App):
         details.query_one(PanelTitle).show("", section_name("details").upper(), "")
 
     def fill_sections(self, board):
+        kept = {key: self.entry(self.query_one(f"#list-{key}", Board)) for key in BOXES}
         self.board = board
         self.sections = {**entries(board, self.settings), "factory": self.factory_rows()}
         self.factory_drawn = self.sections["factory"]
@@ -310,7 +303,7 @@ class MagiApp(App):
         self.paint_frame()
         self.title_panels()
         for key in BOXES:
-            self.fill(key)
+            self.fill(key, kept[key])
 
     def find_news(self, found):
         """The changes not seen yet, by item; the first run takes every change as seen."""
@@ -438,7 +431,7 @@ class MagiApp(App):
             button.set_class(button.key == board.section, "-on")
         self.show_detail(board)
 
-    def fill(self, key):
+    def fill(self, key, kept=None):
         board = self.query_one(f"#list-{key}", Board)
         query = self.query_one(f"#filter-{key}", Input).value.lower()
         empty = BOXES[key][1]
@@ -456,10 +449,13 @@ class MagiApp(App):
         if not self.sections[key]:
             board.add_option(Option(Text(empty, COLORS["dim"]), disabled=True))
         first = next((i for i in range(board.option_count) if not board.get_option_at_index(i).disabled), None)
-        # A rebuild moves the cursor to the first row: that is not the reader passing by.
+        # A refresh keeps the row you were on while its item is still on the board.
+        same = next((i for i in range(board.option_count) if kept and board.get_option_at_index(i).id
+                     and self.sections[key][int(board.get_option_at_index(i).id)].copy == kept.copy), first)
+        # A rebuild moves the cursor: that is not the reader passing by.
         if key == self.current_section:
             self.passing = None
-        board.highlighted = first
+        board.highlighted = same
         self.show_detail(board)
 
     def entry(self, board):
