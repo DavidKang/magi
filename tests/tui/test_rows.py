@@ -31,8 +31,12 @@ def test_rows_view_model():
     assert linked["status"] == "In Progress", "a ticket row is plain data with its linked prs"
     assert [pr["ref"] for pr in linked["prs"]] == ["app#1"], "a ticket row is plain data with its linked prs"
     assert linked["prs"][0]["review"] == "Awaiting review", "a ticket row is plain data with its linked prs"
+    two_days = replace(PR_ONE, created_at=(dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=2)).isoformat())
+    found = rows.ticket_row(ticket, [two_days], STATED)["prs"][0]
+    assert {key: found[key] for key in ("tone", "author", "age")} == {"tone": "warn", "author": "alice", "age": 2}, \
+        "a ticket row's prs carry their review tone, who opened them and their age"
     tui = Content.from_markup(entries.ticket_entry(ticket, [PR_ONE], STATED).detail).plain
-    assert "app#1 Awaiting review" in tui, "the TUI shows the row data"
+    assert "app#1  Awaiting review" in tui, "the TUI shows the row data"
 
 
 def test_styles_live_in_a_tcss_file():

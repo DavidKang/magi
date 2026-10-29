@@ -5,7 +5,7 @@ from builders import ROOT, imported, outside
 DOMAIN = ROOT / "magi" / "domain"
 STDLIB = {"dataclasses", "datetime", "math", "re"}
 NAMES = {"entities": ["Epic", "FoundPr", "PullRequest", "Ticket", "TicketDetail", "ticket_from"],
-         "status": ["ACTIVE_COLUMNS", "COLUMNS", "DISCARDED", "EPIC_STATUSES", "KANBAN_COLUMNS", "KANBAN_RANK", "STATUS_LABELS", "STATUS_RANK", "UnmappedStatus",
+         "status": ["ACTIVE_COLUMNS", "COLUMNS", "DISCARDED", "EPIC_STATUSES", "KANBAN_COLUMNS", "KANBAN_RANK", "STATUS_COLUMNS", "STATUS_LABELS", "STATUS_RANK", "UnmappedStatus",
                     "column_for", "kanban_order", "status_label", "ticket_order"],
          "labels": ["BLOCKED_LABEL", "blocked"],
          "keys": ["TICKET_KEY", "ticket_keys_in", "title_keys_in", "title_parts"],

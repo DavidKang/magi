@@ -8,17 +8,69 @@ from magi.domain import review
 from magi.domain.ages import days_since
 from magi.domain.entities import Ticket
 from magi.domain.factory import FactoryTicket
-from magi.tui import entries
+from magi.domain.status import status_label
+from magi.tui import entries, theme
 
 
 def test_ticket_detail():
     ticket = Ticket(key="ACME-1", summary="Ticket one", status="En proceso", detail=TICKET_DETAIL)
     detail = Content.from_markup(entries.ticket_entry(ticket, [], STATED).detail).plain
     assert "In Progress" in detail and "En proceso" not in detail, "my ticket detail names the status in English"
-    assert all(text in detail for text in ["Story", "Low", "ACME-100", "Epic one", "creator", "Bob", "Oct 08", "updated", "blocked"]), \
-        "my ticket detail shows type, priority, epic, creator, dates and labels"
+    assert all(text in detail for text in ["Story", "Low", "ACME-100", "Epic one", "Bob", "updated", "blocked"]), \
+        "my ticket detail shows type, priority, epic, creator, last update and labels"
+    assert "Oct 08" not in detail, "my ticket detail leaves out when the ticket was created"
     assert "Use the new reason column." in detail, "my ticket detail previews the description and counts the comments"
     assert "comments 1 · c to open" in detail, "my ticket detail previews the description and counts the comments"
+
+
+def test_ticket_detail_lists_its_prs_with_their_review_in_colour():
+    days = lambda n: (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=n)).isoformat()
+    first, other = replace(PR_ONE, created_at=days(3)), replace(PR_TWO, title="[ACME-1] Second change", created_at=days(1))
+    ticket = Ticket(key="ACME-1", summary="Ticket one", status="En proceso", detail=TICKET_DETAIL)
+    detail = entries.ticket_entry(ticket, [first, other], STATED).detail
+    lines = Content.from_markup(detail).plain.splitlines()
+    start = lines.index("── prs (2) ──")
+    refs = ["app#1".ljust(32), "billing-reconciliation-service#2"]
+    assert lines[start + 1:start + 3] == [f"• {refs[0]}  Awaiting review  alice · 3d", f"• {refs[1]}  {'Approved'.ljust(15)}  bob · 1d"], \
+        "a ticket's prs are a list, one per line, with their review state and who opened them"
+    assert entries.colored("ok", "Approved") in detail and entries.colored("warn", "Awaiting review") in detail, \
+        "each pr's review state reads in its colour"
+
+
+def test_ticket_detail_without_prs_has_no_prs_section():
+    lines = Content.from_markup(entries.ticket_entry(Ticket(key="ACME-1", summary="One", status="En proceso", detail=TICKET_DETAIL),
+                                                     [], STATED).detail).plain.splitlines()
+    assert not any(line.startswith("── prs") for line in lines), "a ticket without prs shows no prs section"
+
+
+LABELLED = replace(TICKET_DETAIL, labels=["blocked", "fraud"])
+
+
+def test_ticket_detail_colours_its_status_as_the_changes_feed_does():
+    for status, tone in (("Tareas por hacer", "dim"), ("En proceso", "warn"), ("En revisión", "blue"), ("Ready To Deploy", "ok"),
+                         ("Finalizado", "ok"), ("Rejected / Cancelled", "fg")):
+        detail = entries.ticket_entry(Ticket(key="ACME-1", summary="One", status=status, detail=TICKET_DETAIL), [], STATED).detail
+        assert entries.colored(tone, status_label(status)) in detail, \
+            f"a ticket {status!r} reads in its column's colour, as in the changes feed, and plain in no column"
+
+
+def test_ticket_detail_colours_its_labels():
+    detail = entries.ticket_entry(Ticket(key="ACME-1", summary="One", status="En proceso", detail=LABELLED), [], STATED).detail
+    assert f"[b]{entries.colored('bad', 'blocked')}[/b]" in detail and entries.colored("warn", "fraud") in detail, \
+        "the blocked label reads in bold red, the others as amber tags"
+
+
+def test_ticket_detail_shows_its_labels_under_its_status():
+    lines = Content.from_markup(entries.ticket_entry(Ticket(key="ACME-1", summary="One", status="En revisión", detail=LABELLED),
+                                                     [], STATED).detail).plain.splitlines()
+    status = lines.index("status   In review")
+    assert lines[status - 1:status + 2] == ["ticket   ACME-1 · Story · Low", "status   In review", "labels   blocked · fraud"], \
+        "a ticket's labels have their own line, under its status"
+
+
+def test_detail_field_names_and_section_headers_stand_out():
+    assert entries.field("ticket", "x").startswith(f"[{theme.COLORS['blue']}]"), "a detail's field names read in blue, not dimmed"
+    assert entries.separator("links") == f"[b]{entries.colored('accent', '── links ──')}[/b]", "a detail's section headers read bold in the accent colour"
 
 
 def test_ticket_detail_edges():
@@ -26,9 +78,13 @@ def test_ticket_detail_edges():
         TICKET_DETAIL, epic=None, comments=[], description="\n".join(f"line {n}" for n in range(1, 15))))
     lines = Content.from_markup(entries.ticket_entry(ticket, [], STATED).detail).plain.splitlines()
     assert "epic     —" in lines, "a ticket without an epic shows a dash"
+    assert "labels   —" in Content.from_markup(entries.ticket_entry(Ticket(key="ACME-1", summary="One", status="En proceso", detail=replace(
+        TICKET_DETAIL, labels=[])), [], STATED).detail).plain.splitlines(), "a ticket without labels shows a dash"
     assert "line 12" in lines, "a long description is cut with a hint to open it"
     assert "line 13" not in lines, "a long description is cut with a hint to open it"
     assert "… c to read it all" in lines, "a long description is cut with a hint to open it"
+    assert entries.colored("accent", entries.MORE_HINT) in entries.ticket_entry(ticket, [], STATED).detail, \
+        "the hint to read the whole description reads in the accent colour of the section headers"
     assert not any(line.startswith("comments") for line in lines), "a ticket without comments shows no comments line"
     cached = entries.ticket_entry(Ticket(key="OPS-7", summary="Ticket seven", status="Tareas por hacer"), [], STATED)
     assert cached.popup[1] == [], "a ticket cached before the detail fetch has nothing to open"

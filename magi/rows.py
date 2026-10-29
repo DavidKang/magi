@@ -47,7 +47,13 @@ def pr_row(pr, by_key, settings):
 
 def ticket_row(ticket, prs, settings):
     return {"key": ticket.key, "url": settings.jira_browse + ticket.key, "summary": ticket.summary, "status": status_label(ticket.status),
-            "prs": [{"ref": f"{tui_repo(pr)}#{pr.number}", "url": pr.url, "review": review_state(pr)[1]} for pr in prs_naming(ticket.key, prs, settings)]}
+            "prs": [ticket_pr(pr) for pr in prs_naming(ticket.key, prs, settings)]}
+
+
+def ticket_pr(pr):
+    key, label = review_state(pr)
+    return {"ref": f"{tui_repo(pr)}#{pr.number}", "url": pr.url, "review": label, "tone": TUI_REVIEW[key], "author": pr.author["login"],
+            "age": days_since(pr.created_at)}
 
 
 def prs_naming(key, prs, settings):

@@ -9,9 +9,9 @@ from rich.text import Text
 from .. import rows
 from ..domain import changes
 from ..domain.ages import ago, days_since
-from ..domain.labels import blocked
+from ..domain.labels import BLOCKED_LABEL, blocked
 from ..domain.review import CI_LABELS, STALE_PR_DAYS, TURNS, review_state, turn
-from ..domain.status import COLUMNS, kanban_order, status_label, ticket_order
+from ..domain.status import COLUMNS, STATUS_COLUMNS, kanban_order, status_label, ticket_order
 from . import theme
 from .theme import COLORS
 
@@ -56,7 +56,7 @@ def colored(tone, value):
 
 
 def field(name, value):
-    return f"{colored('dim', name.ljust(9))}{value}"
+    return f"{colored('blue', name.ljust(9))}{value}"
 
 
 def heading(value):
@@ -64,7 +64,7 @@ def heading(value):
 
 
 def separator(label=""):
-    return colored("dim", f"── {label} ──" if label else "──")
+    return f'[b]{colored("accent", f"── {label} ──" if label else "──")}[/b]'
 
 
 def pr_entry(pr, by_key, settings, asked=False):
@@ -273,16 +273,15 @@ def ticket_entry(ticket, prs, settings):
     detail = ticket.detail
     kind = " · ".join(escape(value) for value in ((detail.type, detail.priority) if detail else ()) if value)
     lines = [heading(ticket.summary), "", field("ticket", link(url, ticket.key) + (f" {colored('dim', '·')} {kind}" if kind else "")),
-             field("status", escape(status))]
+             field("status", colored(status_tone(ticket.status), status))]
     if detail:
         epic = detail.epic
-        lines += [field("epic", f'{link(settings.jira_browse + epic["key"], epic["key"])} {escape(epic["summary"])}' if epic else "—"),
-                  field("creator", escape(detail.creator)),
-                  field("created", f'{rows.local_time(detail.created)} {colored("dim", "updated")} {days_since(detail.updated)}d ago'),
-                  field("labels", escape(", ".join(detail.labels)) or "—")]
-    lines += [field("pr", f'{link(pr["url"], pr["ref"])} {escape(pr["review"])}') for pr in row["prs"]] or [field("pr", "—")]
+        lines += [field("labels", f' {colored("dim", "·")} '.join(label_tag(label) for label in detail.labels) or "—"),
+                  field("epic", f'{link(settings.jira_browse + epic["key"], epic["key"])} {escape(epic["summary"])}' if epic else "—"),
+                  field("creator", f'{escape(detail.creator)} {colored("dim", "· updated")} {days_since(detail.updated)}d ago')]
     items = ticket_items(ticket, settings)
     lines += comments_field(len(detail.comments)) if detail and detail.comments else []
+    lines += pr_list(row["prs"])
     if detail and detail.links:
         lines += ["", separator("links")]
         for other in detail.links:
@@ -291,9 +290,29 @@ def ticket_entry(ticket, prs, settings):
     if detail and detail.description:
         shown = detail.description.splitlines()
         lines += ["", separator("description"), *(escape(line) for line in shown[:DESCRIPTION_LINES])]
-        lines += [colored("dim", "…") + colored("dim", MORE_HINT)] if len(shown) > DESCRIPTION_LINES else []
+        lines += [colored("accent", "…") + colored("accent", MORE_HINT)] if len(shown) > DESCRIPTION_LINES else []
     return Entry([(ticket.key, ""), (ticket.summary, "")], "\n".join(lines), url, ticket.key,
                  f'{ticket.key} {ticket.summary} {status}', (f'{ticket.key} · {ticket.summary}', items), group=status)
+
+
+def status_tone(status):
+    """A status reads in its column's colour, as the changes feed tells a move to it; a status no column holds reads plain."""
+    column = STATUS_COLUMNS.get(status)
+    return rows.TUI_REVIEW[changes.STATUS_TONES[column]] if column else "fg"
+
+
+def label_tag(label):
+    return f"[b]{colored('bad', label)}[/b]" if label == BLOCKED_LABEL else colored("warn", label)
+
+
+def pr_list(prs):
+    """A ticket's PRs, one per line in aligned columns: each one's link, its review in its colour, who opened it and how long ago."""
+    if not prs:
+        return []
+    refs, states = (max(len(pr[key]) for pr in prs) for key in ("ref", "review"))
+    return ["", separator(f"prs ({len(prs)})")] + [
+        f'• {link(pr["url"], pr["ref"])}{" " * (refs - len(pr["ref"]))}  {colored(pr["tone"], pr["review"])}{" " * (states - len(pr["review"]))}  '
+        f'{escape(pr["author"])} {colored("dim", "·")} {pr["age"]}d' for pr in prs]
 
 
 def kanban_entry(ticket, prs, settings, mine):

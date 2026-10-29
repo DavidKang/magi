@@ -9,6 +9,7 @@ COLUMNS = [
 ]
 DISCARDED = {"Rejected / Cancelled"}
 STATUS_RANK = {status: i for i, (_, _, statuses) in enumerate(COLUMNS) for status in statuses}
+STATUS_COLUMNS = {status: key for key, _, statuses in COLUMNS for status in statuses}
 STATUS_LABELS = {"Tareas por hacer": "Todo", "En proceso": "In Progress", "En revisión": "In review", "Finalizado": "Done"}
 EPIC_STATUSES = ["Developing", "Rollout"]
 ACTIVE_COLUMNS = {"doing", "review", "deploy"}

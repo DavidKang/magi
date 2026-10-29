@@ -186,7 +186,7 @@ def test_each_row_carries_its_details_for_the_side_panel():
     detail = re.search(rf'<template data-detail="prs {re.escape(PR_TWO.url)} [^"]*">(.*?)</template>', found, re.S)
     assert detail, "each row carries its details, keyed by box and url, for the panel to show on click"
     assert f'<a href="{PR_TWO.url}" target="_blank" rel="noopener" class="underline">' in detail.group(1), "the details' links open github or jira"
-    assert '<span class="text-dim">status' in detail.group(1), "the details keep the tui's tones"
+    assert '<span class="text-blue">status' in detail.group(1), "the details keep the tui's tones"
     assert found.count('id="details"') == 1 and '<div id="detail"' in found, "the page has one details panel beside the boxes, waiting for a click"
 
 
