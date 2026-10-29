@@ -14,9 +14,12 @@ def missing_tools():
     return [f"{tool} not found. Install it with: {how}" for tool, how in TOOLS.items() if shutil.which(tool) is None]
 
 
+def run(cmd, timeout=None):
+    return subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=timeout).stdout
+
+
 def run_json(cmd, timeout=None):
-    out = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=timeout).stdout
-    return json.loads(out)
+    return json.loads(run(cmd, timeout))
 
 
 def parallel(fn, items):

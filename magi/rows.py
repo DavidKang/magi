@@ -47,5 +47,8 @@ def pr_row(pr, by_key, settings):
 
 def ticket_row(ticket, prs, settings):
     return {"key": ticket.key, "url": settings.jira_browse + ticket.key, "summary": ticket.summary, "status": status_label(ticket.status),
-            "prs": [{"ref": f"{tui_repo(pr)}#{pr.number}", "url": pr.url, "review": review_state(pr)[1]}
-                    for pr in prs if ticket.key in title_keys_in(pr, settings.jira_project)]}
+            "prs": [{"ref": f"{tui_repo(pr)}#{pr.number}", "url": pr.url, "review": review_state(pr)[1]} for pr in prs_naming(ticket.key, prs, settings)]}
+
+
+def prs_naming(key, prs, settings):
+    return [pr for pr in prs if key in title_keys_in(pr, settings.jira_project)]

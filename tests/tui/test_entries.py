@@ -193,7 +193,7 @@ def test_change_timeline_shows_the_ten_newest():
 def test_factory_rows_flag_the_tickets_needing_you():
     now = dt.datetime(2026, 10, 29, 12, 0, tzinfo=dt.timezone.utc)
     since = now - dt.timedelta(minutes=95)
-    tone = {stage: entries.factory_entry(FactoryTicket("ACME-1", stage, "", since, None), now, STATED).cells[1][1].partition("-")[0]
+    tone = {stage: entries.factory_entry(FactoryTicket("ACME-1", stage, "", since, None), now, STATED, None).cells[1][1].partition("-")[0]
             for stage in ("waiting-you", "review-blocked", "building", "ready")}
     assert tone["waiting-you"] in ("warn", "bad") and tone["review-blocked"] in ("warn", "bad"), \
         "a ticket waiting for you or blocked in review stands out in a warning or alarm color"
@@ -202,12 +202,66 @@ def test_factory_rows_flag_the_tickets_needing_you():
 
 def test_factory_row_shows_the_key_stage_age_and_session():
     now = dt.datetime(2026, 10, 29, 12, 0, tzinfo=dt.timezone.utc)
-    working = entries.factory_entry(FactoryTicket("ACME-1", "waiting-you", "which repo?", now - dt.timedelta(minutes=95), "working"), now, STATED)
+    working = entries.factory_entry(FactoryTicket("ACME-1", "waiting-you", "which repo?", now - dt.timedelta(minutes=95), "working"), now, STATED, None)
     assert [value for value, _ in working.cells] == ["ACME-1", "waiting-you", "1h", "working", "which repo?"], \
         "a factory row shows the key, the stage, how long ago it changed, the herdr session and the detail"
     assert working.url == STATED.jira_browse + "ACME-1" and working.copy == "ACME-1", "a factory row opens its jira ticket and copies its key"
     detail = Content.from_markup(working.detail).plain
     assert all(text in detail for text in ["ACME-1", "waiting-you", "1h ago", "working", "which repo?"]), \
         "a factory row's details repeat its stage, age, session and detail"
-    absent = entries.factory_entry(FactoryTicket("ACME-2", "building", "", None, None), now, STATED)
+    absent = entries.factory_entry(FactoryTicket("ACME-2", "building", "", None, None), now, STATED, None)
     assert [value for value, _ in absent.cells][2:4] == ["", "absent"], "a ticket with no herdr session reads absent, and an undated stage has no age"
+
+
+FACTORY_NOW = dt.datetime(2026, 10, 29, 12, 0, tzinfo=dt.timezone.utc)
+
+
+def factory_detail(ticket, found_board):
+    return Content.from_markup(entries.factory_entry(ticket, FACTORY_NOW, STATED, found_board).detail).plain
+
+
+def test_factory_detail_tells_the_ticket_and_its_epic():
+    detail = factory_detail(FactoryTicket("ACME-1", "ready", "", FACTORY_NOW, None), board([PR_ONE]))
+    assert detail.startswith("Ticket one"), "a factory ticket on the board heads its details with its summary"
+    assert "(In Progress)" in detail and "ACME-100 Epic one" in detail, "a factory ticket's details tell its jira status and epic"
+
+
+def test_factory_detail_finds_an_epics_ticket_without_its_epic():
+    found = {**board([PR_ONE]), "my_tickets": []}
+    detail = factory_detail(FactoryTicket("ACME-2", "ready", "", FACTORY_NOW, None), found)
+    assert detail.startswith("Ticket two") and "(Done)" in detail and "epic" not in detail, \
+        "a factory ticket only an epic lists still tells its summary and status, without an epic line it has no details for"
+
+
+def test_factory_detail_lists_the_prs_naming_the_ticket():
+    pr = replace(PR_ONE, failed_checks=[{"name": "lint", "url": "https://ci.example/1"}])
+    detail = factory_detail(FactoryTicket("ACME-1", "ready", "", FACTORY_NOW, None), board([pr, PR_TWO]))
+    assert "app#1 Awaiting review · CI red" in detail and "failing  lint" in detail and "#2" not in detail, \
+        "a factory ticket's details list the prs that name it, with their review, ci and failing checks, and no other pr"
+
+
+def test_factory_detail_ends_with_what_the_agent_wrote():
+    ticket = FactoryTicket("ACME-1", "ready", "", FACTORY_NOW, "idle", "w1:p1", ("⏺ PR ready for review", "  - CI green"))
+    detail = factory_detail(ticket, board([PR_ONE]))
+    assert detail.index("── agent ──") < detail.index("⏺ PR ready for review") < detail.index("  - CI green"), \
+        "a factory ticket's details end with what its agent last wrote, in order"
+
+
+def test_factory_detail_offers_g_only_with_a_session():
+    with_pane = factory_detail(FactoryTicket("ACME-1", "ready", "", FACTORY_NOW, "idle", "w1:p1"), None)
+    without = factory_detail(FactoryTicket("ACME-1", "ready", "", FACTORY_NOW, None), None)
+    assert "g jumps to it" in with_pane and "g jumps to it" not in without, "the details offer g only for a ticket whose herdr session runs"
+
+
+def test_factory_row_shows_the_summary_when_the_stage_has_no_detail():
+    entry = entries.factory_entry(FactoryTicket("ACME-1", "ready", "", FACTORY_NOW, None), FACTORY_NOW, STATED, board([PR_ONE]))
+    assert entry.cells[-1][0] == "Ticket one" and "Ticket one" in entry.search, \
+        "a factory row without a stage detail shows the ticket's summary, and the filter finds it by it"
+
+
+def test_factory_detail_without_a_board_keeps_the_stage():
+    now = dt.datetime(2026, 10, 29, 12, 0, tzinfo=dt.timezone.utc)
+    entry = entries.factory_entry(FactoryTicket("ACME-9", "building", "", now, None), now, STATED, None)
+    detail = Content.from_markup(entry.detail).plain
+    assert detail.startswith("ACME-9") and "building" in detail and "agent" not in detail, \
+        "a factory ticket the board does not know heads its details with its key, and one without a session shows no agent output"

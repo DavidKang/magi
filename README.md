@@ -148,6 +148,7 @@ Epics are not configured: the board shows every epic of the project in Developin
 | `v` | Open the Jira ticket of the selected PR in a popup, fetched from Jira the first time after each refresh (`c` opens its description and comments, `enter` opens it in the browser, `esc` closes) |
 | `/` | Filter the current box (`escape` clears it) |
 | `y` | Copy the selected link (the key, for an epic) |
+| `g` | Jump to the herdr session of the selected factory ticket (see [Factory](#factory)) |
 | `s` | Snooze the selected attention item or team PR until it changes (see [Snoozed](#snoozed)) |
 | `S` | Bring back every snoozed item of the current box |
 | `r` | Refresh (once every 30 seconds at most; it also refreshes every 5 minutes) |
@@ -183,11 +184,12 @@ Run inside a [herdr](https://herdr.dev) pane, Magi tells herdr when a refresh br
 
 ### Factory
 
-The `Factory` tab, in the TUI only, lists one row per ticket of the local software factory: its key, its stage, how long ago the stage changed, the status of its herdr session and the stage's detail. Tickets waiting for you come first, then blocked reviews, then building, then ready.
+The `Factory` tab, in the TUI only, lists one row per ticket of the local software factory: its key, its stage, how long ago the stage changed, the status of its herdr session and the stage's detail, or the ticket's summary when the stage has none. Tickets waiting for you come first, then blocked reviews, then building, then ready.
 
 - Stages come from the `<KEY>.json` files the factory writes in `~/.local/state/factory`; a ticket's session is the herdr agent working in a folder named after its key, alone or followed by `-` and a slug. A ticket without one reads `absent`.
 - It is read every 10 seconds, apart from the board's refresh, and never calls Jira or GitHub. A missing or failing herdr shows every session absent; Magi starts without it.
-- `enter` opens the ticket in Jira and `y` copies its key.
+- Its details add what the board already knows of the ticket: its summary, Jira status and epic, and each PR that names it with its review, CI and failing checks. They end with the last lines its agent wrote, read with `herdr agent read` above Claude's prompt box.
+- `enter` opens the ticket in Jira, `y` copies its key and `g` jumps to its herdr session.
 
 ### Snoozed
 

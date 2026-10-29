@@ -2,15 +2,17 @@ import asyncio
 import datetime as dt
 import re
 import threading
+from types import SimpleNamespace
 
 from textual.widgets import OptionList, Static, Tabs
 
 from builders import failing_load, magi_app, pick_theme, started
 from magi.domain.factory import FactoryTicket
+from magi.tui import app as app_module
 
 NOW = dt.datetime(2026, 10, 29, 12, 0, tzinfo=dt.timezone.utc)
 TICKETS = [FactoryTicket("ACME-77", "waiting-you", "which repo?", NOW - dt.timedelta(minutes=5), None),
-           FactoryTicket("ACME-78", "ready", "", NOW - dt.timedelta(hours=2), "done")]
+           FactoryTicket("ACME-78", "ready", "", NOW - dt.timedelta(hours=2), "done", "w2H:p2")]
 BOARD_BOXES = ["attention", "prs", "changes", "epics", "mine_prs", "mine_tickets"]
 
 
@@ -257,3 +259,49 @@ async def lcars_factory_pill(cache):
 
 def test_lcars_factory_pill(cache):
     asyncio.run(lcars_factory_pill(cache))
+
+
+class InlineThread:
+    """Runs its target on start, so a test reads what a key did without waiting on a thread."""
+
+    def __init__(self, target, args=(), daemon=None):
+        self.target, self.args = target, args
+
+    def start(self):
+        self.target(*self.args)
+
+
+async def g_presses(cache, monkeypatch, *keys, tickets=TICKETS):
+    monkeypatch.setattr(app_module, "threading", SimpleNamespace(Thread=InlineThread))
+    focused = []
+    app = magi_app(cache, factory=lambda: tickets, clock=NOW.timestamp, focus_session=focused.append)
+    async with started(app) as pilot:
+        await pilot.press(*keys)
+        await pilot.pause()
+    return focused
+
+
+def test_g_jumps_to_the_session(cache, monkeypatch):
+    assert asyncio.run(g_presses(cache, monkeypatch, "9", "j", "g")) == ["w2H:p2"], "g on a factory row jumps to its herdr session"
+
+
+def test_g_without_a_session_does_nothing(cache, monkeypatch):
+    assert asyncio.run(g_presses(cache, monkeypatch, "9", "g")) == [], "g on a factory row without a session does nothing"
+
+
+def test_g_outside_the_factory_does_nothing(cache, monkeypatch):
+    # The epics box's first row is ACME-100: a factory ticket with that key must not make g jump from there.
+    tickets = [FactoryTicket("ACME-100", "building", "", NOW, "working", "w1:p1")]
+    assert asyncio.run(g_presses(cache, monkeypatch, "9", "6", "g", tickets=tickets)) == [], "g outside the factory does nothing"
+
+
+async def g_waits_behind_a_popup(cache):
+    app = factory_app(cache)
+    async with started(app) as pilot:
+        await pilot.press("9", "j", "t")
+        await pilot.pause()
+        assert not app.check_action("focus_session", ()), "a popup blocks g, as it blocks every board key"
+
+
+def test_g_waits_behind_a_popup(cache):
+    asyncio.run(g_waits_behind_a_popup(cache))

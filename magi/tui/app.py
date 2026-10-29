@@ -157,7 +157,7 @@ class Board(OptionList):
         self.app.redraw(self.section)
 
 BOARD_ACTIONS = {"focus_tab", "focus_box", "focus_filter", "clear_filter", "copy_current", "refresh", "open_review", "view_ticket", "pick_theme",
-                 "snooze", "wake_snoozed"}
+                 "snooze", "wake_snoozed", "focus_session"}
 
 
 class MagiApp(App):
@@ -171,13 +171,14 @@ class MagiApp(App):
                 Binding("c", "open_review", "comments"),
                 Binding("v", "view_ticket", "ticket"),
                 Binding("y", "copy_current", "copy"),
+                Binding("g", "focus_session", "session", show=False),
                 Binding("s", "snooze", "snooze"),
                 Binding("S", "wake_snoozed", "wake", show=False),
                 Binding("r", "refresh", "refresh"),
                 Binding("t", "pick_theme", "theme"),
                 Binding("q", "quit", "quit")]
 
-    def __init__(self, collect=None, load=None, fetch_ticket=None, factory=list, opener=open_in_browser, copier=pbcopy, clock=time.time, cache=CACHE,
+    def __init__(self, collect=None, load=None, fetch_ticket=None, factory=list, focus_session=None, opener=open_in_browser, copier=pbcopy, clock=time.time, cache=CACHE,
                  config_path=config.PATH, edit_config=False, notifier=notifiers.Silent()):
         super().__init__()
         self.notifier, self.watching = notifier, False
@@ -185,6 +186,7 @@ class MagiApp(App):
         self.load = load or (lambda: collect(self.settings))
         self.fetch_ticket, self.loading_ticket = fetch_ticket, None
         self.factory, self.factory_tickets, self.reading_factory = factory, [], False
+        self.focus_session = focus_session
         # The factory rows last drawn: None until the box is first drawn, so an empty factory still says so.
         self.factory_drawn = None
         self.opener, self.copier, self.clock, self.cache = opener, copier, clock, cache
@@ -324,7 +326,7 @@ class MagiApp(App):
 
     def factory_rows(self):
         now = dt.datetime.fromtimestamp(self.clock(), dt.timezone.utc)
-        return [factory_entry(ticket, now, self.settings) for ticket in self.factory_tickets]
+        return [factory_entry(ticket, now, self.settings, self.board) for ticket in self.factory_tickets]
 
     def action_refresh(self):
         if self.refreshing:
@@ -648,6 +650,15 @@ class MagiApp(App):
             return
         self.push_screen(ReviewScreen(heading, items, index))
 
+    def action_focus_session(self):
+        entry = self.current()
+        if self.current_section != "factory" or not entry:
+            return
+        pane = next((ticket.pane for ticket in self.factory_tickets if ticket.key == entry.copy), None)
+        if pane:
+            # A daemon thread, as for the refresh: a herdr that hangs must not hold the board.
+            threading.Thread(target=self.focus_session, args=(pane,), daemon=True).start()
+
     def action_view_ticket(self):
         entry = self.current()
         key = entry and entry.ticket
@@ -721,7 +732,8 @@ async def off_loop(call):
     return await outcome
 
 
-def main(collect, fetch_ticket, factory=list, edit_config=False):
-    app = MagiApp(collect, fetch_ticket=fetch_ticket, factory=factory, edit_config=edit_config, notifier=notifiers.notifier(os.environ))
+def main(collect, fetch_ticket, factory=list, focus_session=None, edit_config=False):
+    app = MagiApp(collect, fetch_ticket=fetch_ticket, factory=factory, focus_session=focus_session, edit_config=edit_config,
+                  notifier=notifiers.notifier(os.environ))
     app.run()
     leave(app)

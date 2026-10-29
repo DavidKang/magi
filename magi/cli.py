@@ -40,4 +40,5 @@ def main():
         sys.exit(watch(wired.collect))
     from .tui.app import main as run
 
-    run(wired.collect, wired.ticket, Factory(factory).collect, edit_config=args == ["config"])
+    box = Factory(factory)
+    run(wired.collect, wired.ticket, box.collect, box.focus, edit_config=args == ["config"])

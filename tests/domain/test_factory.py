@@ -12,19 +12,24 @@ def stage(key, name="building", detail="", since=AT):
 
 def test_a_ticket_finds_its_session_by_the_worktree_it_runs_in():
     agents = [Agent("storefront", "idle"), Agent("ACME-12", "working"), Agent("ACME-7-fix-the-rounding", "done")]
-    assert session_of("ACME-12", agents) == "working", "a ticket's session is the agent whose worktree folder is named after the key"
-    assert session_of("ACME-7", agents) == "done", "a worktree named after the key and a slug is the ticket's session too"
+    assert session_of("ACME-12", agents) == agents[1], "a ticket's session is the agent whose worktree folder is named after the key"
+    assert session_of("ACME-7", agents) == agents[2], "a worktree named after the key and a slug is the ticket's session too"
     assert session_of("ACME-1", agents) is None, "ACME-1 is not ACME-12: a key matches the whole folder name or the key and a dash"
 
 
 def test_two_agents_in_one_worktree_give_the_first_listed():
     agents = [Agent("ACME-12", "idle"), Agent("ACME-12-retry", "working")]
-    assert session_of("ACME-12", agents) == "idle", "when two herdr agents work on one ticket, its session is the first herdr lists"
+    assert session_of("ACME-12", agents) == agents[0], "when two herdr agents work on one ticket, its session is the first herdr lists"
+
+
+def test_a_ticket_knows_the_pane_of_its_session():
+    [ticket] = factory_tickets([stage("ACME-3")], [Agent("ACME-3", "working", "w2H:p2")])
+    assert (ticket.agent, ticket.pane) == ("working", "w2H:p2"), "a ticket carries its session's status and the herdr pane it runs in"
 
 
 def test_a_ticket_without_a_session_shows_it_absent():
     found = factory_tickets([stage("ACME-3")], [Agent("ACME-4", "working")])
-    assert [(ticket.key, ticket.agent) for ticket in found] == [("ACME-3", None)], "a ticket no herdr agent works on has no session"
+    assert [(ticket.key, ticket.agent, ticket.pane) for ticket in found] == [("ACME-3", None, None)], "a ticket no herdr agent works on has no session"
 
 
 def test_a_ticket_carries_its_stage_detail_and_when_it_changed():

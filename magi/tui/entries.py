@@ -10,7 +10,7 @@ from .. import rows
 from ..domain import changes
 from ..domain.attention import STALE_PR_DAYS
 from ..domain.ages import ago, days_since
-from ..domain.review import TURNS, turn
+from ..domain.review import CI_LABELS, TURNS, review_state, turn
 from ..domain.status import COLUMNS, status_label, ticket_order
 from . import theme
 from .theme import COLORS
@@ -307,15 +307,35 @@ def ticket_entry(ticket, prs, settings):
 STAGE_TONES = {"waiting-you": "warn-pill", "review-blocked": "bad-alarm", "building": "dim-pill", "ready": "ok-pill"}
 
 
-def factory_entry(ticket, now, settings):
-    """A factory ticket as a row, from its stage file and herdr; now dates how long ago its stage changed."""
+def factory_entry(ticket, now, settings, board):
+    """A factory ticket as a row, from its stage file and herdr beside what the board knows of it; now dates how long ago its stage changed."""
     tone = STAGE_TONES[ticket.stage]
     age, session, url = ago(ticket.since, now) if ticket.since else "", ticket.agent or "absent", settings.jira_browse + ticket.key
-    lines = [heading(ticket.key), "", field("stage", colored(tone.rpartition("-")[0], ticket.stage) + (colored("dim", f" · {age} ago") if age else "")),
-             field("session", escape(session))]
+    known = board_ticket(ticket.key, board)
+    summary = known.summary if known else ""
+    epic = known.detail.epic if known and known.detail else None
+    lines = [heading(summary or ticket.key), "",
+             field("ticket", link(url, ticket.key) + (f' {colored("dim", f"({status_label(known.status)})")}' if known else ""))]
+    lines += [field("epic", f'{link(settings.jira_browse + epic["key"], epic["key"])} {escape(epic["summary"])}')] if epic else []
+    lines += [field("stage", colored(tone.rpartition("-")[0], ticket.stage) + (colored("dim", f" · {age} ago") if age else "")),
+              field("session", escape(session) + (colored("dim", " · g jumps to it") if ticket.pane else ""))]
+    for pr in rows.prs_naming(ticket.key, board["prs"], settings) if board else []:
+        ci_tone, ci = CI_LABELS[pr.ci]
+        lines += [field("pr", f'{link(pr.url, f"{rows.tui_repo(pr)}#{pr.number}")} {escape(review_state(pr)[1])} '
+                              f'{colored("dim", "·")} {colored(rows.TUI_REVIEW[ci_tone], ci)}')]
+        lines += [field("failing", " · ".join(link(c["url"], c["name"]) for c in pr.failed_checks))] if pr.failed_checks else []
     lines += ["", escape(ticket.detail)] if ticket.detail else []
-    return Entry([(ticket.key, ""), (ticket.stage, tone), (age, "dim-right"), (session, "dim"), (ticket.detail, "")],
-                 "\n".join([*lines, "", separator(), link(url, url)]), url, ticket.key, f"{ticket.key} {ticket.stage} {session} {ticket.detail}")
+    lines += ["", separator("agent"), *(escape(line) for line in ticket.output)] if ticket.output else []
+    return Entry([(ticket.key, ""), (ticket.stage, tone), (age, "dim-right"), (session, "dim"), (ticket.detail or summary, "")],
+                 "\n".join([*lines, "", separator(), link(url, url)]), url, ticket.key,
+                 f"{ticket.key} {ticket.stage} {session} {ticket.detail} {summary}")
+
+
+def board_ticket(key, board):
+    """The board's own ticket for key: one of mine, with its details, else one of the epics'; None when the board has none."""
+    if not board:
+        return None
+    return next((t for t in board["my_tickets"] if t.key == key), None) or board["by_key"].get(key)
 
 
 TURN_TONES = {"needs review": "blue", "on the author": "bad", "ready to merge": "ok", "drafts": "dim"}

@@ -102,8 +102,8 @@ def test_no_factory_folder_means_no_stages(tmp_path, monkeypatch):
 
 def test_agents_are_herdrs_agent_list(tmp_path, monkeypatch):
     herdr(tmp_path, monkeypatch, f"[ \"$*\" = 'agent list' ] && echo '{json.dumps(HERDR_LIST)}'")
-    assert factory.agents() == [Agent("ACME-12", "working"), Agent("ACME-7-fix-the-rounding", "done")], \
-        "the agents are what herdr agent list reports, each by the folder it works in and its status"
+    assert factory.agents() == [Agent("ACME-12", "working", "w9:p1"), Agent("ACME-7-fix-the-rounding", "done", "w9:p2")], \
+        "the agents are what herdr agent list reports, each by the folder it works in, its status and its pane"
 
 
 @pytest.mark.parametrize("script", [None, "exit 1", "echo not json", "echo '{\"error\": \"no server\"}'"],
@@ -117,7 +117,7 @@ def test_agents_herdr_cannot_place_are_left_out(tmp_path, monkeypatch):
     listed = {"result": {"agents": ["claude", {"agent_status": "idle"}, {"cwd": None, "agent_status": "idle"},
                                     {"cwd": "/Users/me/projects/storefront-worktrees/ACME-12", "agent_status": 3}]}}
     herdr(tmp_path, monkeypatch, f"echo '{json.dumps(listed)}'")
-    assert factory.agents() == [Agent("ACME-12", None)], \
+    assert factory.agents() == [Agent("ACME-12", None, None)], \
         "an agent without a working folder is left out and a status that is not text reads as none, instead of freezing the factory"
 
 
@@ -125,3 +125,51 @@ def test_herdr_that_hangs_means_no_agents(tmp_path, monkeypatch):
     herdr(tmp_path, monkeypatch, "exec /bin/sleep 5")
     monkeypatch.setattr(factory, "HERDR_TIMEOUT", 0.2)
     assert factory.agents() == [], "a herdr that hangs past its timeout reads as no sessions instead of holding the factory box"
+
+
+CLAUDE_SCREEN = """⏺ Hecho: la PR está lista.
+
+  - CI verde.
+
+✻ Cogitated for 38s · done 11:27 AM
+
+──────────────────────────────
+❯ anuncia la PR
+──────────────────────────────
+  [Opus 5.5] │ ACME-1929 git:(ACME-1929)
+  ⏵⏵ auto mode on (shift+tab to cycle)
+"""
+
+
+def test_output_is_what_the_agent_wrote_above_its_prompt(tmp_path, monkeypatch):
+    herdr(tmp_path, monkeypatch, f"[ \"$1 $2 $3\" = 'agent read w2H:p2' ] && /bin/cat <<'SCREEN'\n{CLAUDE_SCREEN}SCREEN")
+    assert factory.output("w2H:p2") == ["⏺ Hecho: la PR está lista.", "", "  - CI verde.", "", "✻ Cogitated for 38s · done 11:27 AM"], \
+        "an agent's output is its terminal above the prompt box, without claude's status bar or the blank lines around it"
+
+
+def test_output_keeps_the_last_lines(tmp_path, monkeypatch):
+    lines = "\n".join(f"line {n}" for n in range(30))
+    herdr(tmp_path, monkeypatch, f"/bin/cat <<'SCREEN'\n{lines}\nSCREEN")
+    assert factory.output("w1:p1") == [f"line {n}" for n in range(30 - factory.OUTPUT_LINES, 30)], \
+        "an agent's output keeps its last lines, and a terminal without a prompt box is read whole"
+
+
+@pytest.mark.parametrize("script", [None, "exit 1", "exec /bin/sleep 5"], ids=["missing", "failing", "hanging"])
+def test_herdr_that_cannot_read_means_no_output(tmp_path, monkeypatch, script):
+    herdr(tmp_path, monkeypatch, script)
+    monkeypatch.setattr(factory, "HERDR_TIMEOUT", 0.2)
+    assert factory.output("w1:p1") == [], "a herdr that cannot read the pane leaves the agent's output empty"
+
+
+def test_focus_asks_herdr_to_focus_the_pane(tmp_path, monkeypatch):
+    called = tmp_path / "called"
+    herdr(tmp_path, monkeypatch, f"echo \"$@\" > {called}")
+    factory.focus("w2H:p2")
+    assert called.read_text() == "agent focus w2H:p2\n", "jumping to a session asks herdr to focus its pane"
+
+
+@pytest.mark.parametrize("script", [None, "exit 1", "exec /bin/sleep 5"], ids=["missing", "failing", "hanging"])
+def test_herdr_that_cannot_focus_does_nothing(tmp_path, monkeypatch, script):
+    herdr(tmp_path, monkeypatch, script)
+    monkeypatch.setattr(factory, "HERDR_TIMEOUT", 0.2)
+    assert factory.focus("w2H:p2") is None, "a herdr that cannot focus the pane leaves magi as it was, without raising"

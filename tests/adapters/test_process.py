@@ -30,3 +30,7 @@ def test_missing_tools(tmp_path):
 
 def test_run_json_reads_a_commands_json():
     assert process.run_json([sys.executable, "-c", "print('{\"ok\": 1}')"]) == {"ok": 1}, "run_json returns the command's output read as json"
+
+
+def test_run_reads_a_commands_output():
+    assert process.run([sys.executable, "-c", "print('one\\ntwo')"]) == "one\ntwo\n", "run returns the command's output as text"
