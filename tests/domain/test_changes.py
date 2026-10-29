@@ -191,6 +191,26 @@ def test_a_ticket_joins_the_group_of_its_newest_change():
     assert [c["label"] for c in changes.latest(found, "group")] == ["In review"], "a ticket shows once, at its newest status"
 
 
+def test_a_ticket_joins_the_pr_that_names_it_after_its_moves():
+    one = Ticket(key="ACME-1", summary="Ticket one", status="En proceso")
+    alone = {"at": "2026-10-25T07:00", **changes.change(changes.ticket_subject("ACME-1", STATED.jira_browse, "Ticket one"), "waiting", "In progress")}
+    before = changes.snapshot([EPIC], {EPIC.key: [one]}, [], STATED)
+    now = changes.snapshot([EPIC], {EPIC.key: [one]}, [PR_ONE], STATED)
+    found = changes.recent_changes({"snapshot": before, "changes": [alone]}, now, {"ACME-1": "Ticket one"}, dt.datetime(2026, 10, 25, 9, 0), {}, STATED)
+    assert [(c["label"], c["group"]) for c in found] == [(changes.NEW_PR, PR_ONE.url), ("In progress", PR_ONE.url)], \
+        "a ticket's moves from before its pr opened join the pr that names it"
+    assert [c["label"] for c in changes.latest(found, "group")] == [changes.NEW_PR], "the ticket and its pr show as one row"
+
+
+def test_an_epic_never_joins_a_pr_that_names_it():
+    epic_two = replace(EPIC, key="ACME-200", summary="Epic two")
+    before = changes.snapshot([EPIC], {EPIC.key: []}, [], STATED)
+    now = changes.snapshot([EPIC, epic_two], {EPIC.key: [], epic_two.key: []}, [replace(PR_ONE, title="[ACME-200] Set the epic up")], STATED)
+    found = changes.recent_changes({"snapshot": before, "changes": []}, now, {}, dt.datetime(2026, 10, 25, 9, 0), {}, STATED)
+    assert {c["label"]: c["group"] for c in found}["New epic"] == STATED.jira_browse + "ACME-200", \
+        "an epic's change keeps its own row: only a ticket's moves join the pr that names it"
+
+
 def test_change_mark():
     change = {"at": "2026-10-24T02:04", "label": "New PR", "item": PR_ONE.url}
     assert changes.change_mark(change) == "2026-10-24T02:04 New PR", "a change is remembered by when it happened and what it was"

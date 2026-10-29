@@ -143,12 +143,18 @@ def recent_changes(state, now, summaries, stamp, ended, settings):
         return None
     cutoff = stamp - dt.timedelta(hours=CHANGES_HOURS)
     fresh = [{"at": stamp.isoformat(timespec="minutes"), **c} for c in changes_between(state["snapshot"], now, summaries, ended, settings)]
-    return regrouped(fresh + [c for c in state["changes"] if dt.datetime.fromisoformat(c["at"]) >= cutoff])
+    # Only tickets join: a PR may name an epic too, whose changes keep their own row.
+    tickets = state["snapshot"]["tickets"].keys() | now["tickets"].keys()
+    named = {settings.jira_browse + key: url for key, url in ticket_groups(state["snapshot"], now).items() if key in tickets}
+    return regrouped(fresh + [c for c in state["changes"] if dt.datetime.fromisoformat(c["at"]) >= cutoff], named)
 
 
-def regrouped(changes):
-    """Changes newest first, each item's joined to the group its newest change joined, so a ticket shows once."""
-    groups = {}
+def regrouped(changes, named):
+    """Changes newest first, each item's joined to the PR that names it, else to the group its newest change joined, so a ticket shows once.
+
+    named maps a ticket's url to the only PR on the board naming it, which its moves from before that PR opened join too.
+    """
+    groups = dict(named)
     for c in changes:
         groups.setdefault(c["item"], c["group"])
     return [{**c, "group": groups[c["item"]]} for c in changes]
