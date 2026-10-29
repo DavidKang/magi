@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from dataclasses import replace
 from pathlib import Path
 
 # A throwaway home, so the run never touches your settings or caches; the tools it calls keep the real one.
@@ -19,7 +20,7 @@ REAL_ENV = dict(os.environ)
 HOME = Path(tempfile.mkdtemp())
 os.environ["HOME"] = str(HOME)
 
-from magi.domain.entities import Epic, PullRequest, Ticket  # noqa: E402
+from magi.domain.entities import Epic, PullRequest, Ticket, TicketDetail  # noqa: E402
 from magi.domain.review import pr_events  # noqa: E402
 from magi.tui import theme  # noqa: E402
 from magi.tui.app import MagiApp  # noqa: E402
@@ -90,6 +91,16 @@ ALL_TICKETS = [t for tickets in TICKETS.values() for t in tickets] + [ticket("AC
                                                                       ticket("ACME-35", "Export the monthly report as CSV", "En proceso", "doing")]
 
 
+
+def on_board(item, days):
+    """A ticket as the kanban board lists it: with its detail, which dates its last update."""
+    return replace(item, detail=TicketDetail(type="Story", priority="Medium", labels=[], creator="Ana", created=ago(days + 5), updated=ago(days),
+                                             epic=None, links=[], description="", comments=[]))
+
+
+KANBAN = [on_board(t, days) for t, days in zip([t for t in ALL_TICKETS if t.column != "done"], (1, 4, 0, 2, 6, 3, 1, 2, 5))]
+
+
 def subject(item):
     return {"kind": "pr", "url": item.url, "ref": f"{item.repo}#{item.number}", "title": item.title}
 
@@ -104,8 +115,7 @@ def board():
             "my_prs": MINE, "my_tickets": [ticket("ACME-29", "Reconcile payouts every hour", "En revisión", "review"),
                                            ticket("ACME-36", "Translate the cart into French", "En revisión", "review"),
                                            ticket("ACME-41", "Document the refund retries", "Tareas por hacer", "todo")],
-            "attention": [{"subject": subject(MINE[0]), "reason": "Approved, but it has red CI."},
-                          {"subject": subject(PRS[2]), "reason": "Open for review, but the ticket is still In progress. Move it to In review?"}],
+            "kanban": KANBAN,
             "changes": [change(PRS[0], 3, "approved", "Approved", aside="was: waiting"),
                         change(PRS[3], 6, "commented", "New PR"),
                         change(PRS[1], 9, "waiting", "New commits", aside="awaiting review"),

@@ -4,11 +4,11 @@ import dataclasses
 import math
 from concurrent.futures import ThreadPoolExecutor
 
-from ..domain.attention import ACTIVE_COLUMNS, attention_items
-from ..domain.changes import pr_subject, recent_changes, snapshot, snapshot_epics, vanished_prs
+from ..domain.changes import recent_changes, snapshot, snapshot_epics, vanished_prs
 from ..domain.entities import Epic, PullRequest, TicketDetail, ticket_from
 from ..domain.histories import kept_histories, pr_histories
 from ..domain.keys import ticket_keys_in
+from ..domain.status import ACTIVE_COLUMNS
 
 # Minutes added to the time since the last refresh when asking Jira what changed, for clock skew and slow refreshes.
 JIRA_MARGIN_MINUTES = 5
@@ -87,10 +87,11 @@ class Refresh:
         team_prs = pool.submit(parallel, pull_requests.search_prs,
                                [f"{OPEN_PRS} {org} " + " ".join(f"author:{a}" for a in chunk) for chunk in authors])
         review_requested = pool.submit(pull_requests.search_prs, f"{OPEN_PRS} {org} user-review-requested:@me")
-        my_tickets = pool.submit(tickets.fetch_my_tickets,
-                                 lambda keys: self.refetch_changed("my_tickets", keys, tickets.fetch_ticket_detail, started,
-                                                                   lambda detail: [link["key"] for link in detail.links],
-                                                                   lambda value: TicketDetail(**value)))
+        def details(name):
+            return lambda keys: self.refetch_changed(name, keys, tickets.fetch_ticket_detail, started,
+                                                     lambda detail: [link["key"] for link in detail.links], lambda value: TicketDetail(**value))
+        my_tickets = pool.submit(tickets.fetch_my_tickets, details("my_tickets"))
+        kanban = pool.submit(tickets.fetch_kanban, settings, details("kanban"))
         # Asked before Jira lists the epics: the epics and tickets of the last refresh are rarely different.
         state = self.store.read("state")
         known_epics = snapshot_epics(state["snapshot"]) if state else []
@@ -108,9 +109,6 @@ class Refresh:
         updated = pool.submit(lambda: self.refetch_changed("updated", [t.key for t in active], tickets.fetch_updated, started,
                                                            cached=updated_changes.result()))
         search_keys = epic_keys + [k for k, t in by_key.items() if t.column != "done"]
-        active_keys = [k for k, t in by_key.items() if t.column in {"doing", "review"}]
-        merged_prs = pool.submit(parallel, pull_requests.search_prs,
-                                 [f"is:pr is:merged {org} {' '.join(terms)}" for terms in pull_requests.search_terms(active_keys)])
         open_prs = parallel(pull_requests.search_prs,
                             [f"{OPEN_PRS} {org} {' '.join(terms)}" for terms in pull_requests.search_terms(search_keys)])
         candidates = {pr.url: pr for found in open_prs + team_prs.result() for pr in found}
@@ -125,12 +123,6 @@ class Refresh:
                     by_key[k].prs.append(pr)
         review_prs = [detailed[pr.url] for pr in requested]
 
-        merged_by_ticket = {}
-        for merged in (pr for found in merged_prs.result() for pr in found):
-            subject = pr_subject(merged.url, f"{merged.repo}#{merged.number}", merged.title)
-            for k in ticket_keys_in(dataclasses.replace(merged, head_ref_name=""), settings.jira_project):
-                if k in active_keys:
-                    merged_by_ticket.setdefault(k, []).append(subject)
         my_tickets = my_tickets.result()
         found_updated = updated.result()
         for ticket in active:
@@ -146,9 +138,7 @@ class Refresh:
         pool.shutdown()
         return {"epics": epics, "tickets_by_epic": tickets_by_epic, "by_key": by_key, "prs": prs, "review_prs": review_prs,
                 "my_prs": [pr for pr in prs if pr.author["login"] == settings.github_user], "my_tickets": my_tickets,
-                "attention": attention_items(list(by_key.values()), prs, merged_by_ticket, settings), "changes": changes or [],
-                "histories": histories,
-                "merged_by_ticket": merged_by_ticket, "now": now}
+                "kanban": kanban.result(), "changes": changes or [], "histories": histories, "now": now}
 
 
 def saved_board(data):
@@ -157,4 +147,6 @@ def saved_board(data):
     return {**data, "epics": [Epic(**e) for e in data["epics"]], "tickets_by_epic": tickets_by_epic,
             "by_key": {t.key: t for tickets in tickets_by_epic.values() for t in tickets},
             "prs": [PullRequest(**pr) for pr in data["prs"]], "review_prs": [PullRequest(**pr) for pr in data["review_prs"]],
-            "my_prs": [PullRequest(**pr) for pr in data["my_prs"]], "my_tickets": [ticket_from(t) for t in data["my_tickets"]]}
+            "my_prs": [PullRequest(**pr) for pr in data["my_prs"]], "my_tickets": [ticket_from(t) for t in data["my_tickets"]],
+            # A board saved before the kanban box has no kanban: it shows empty until the next refresh.
+            "kanban": [ticket_from(t) for t in data.get("kanban", [])]}

@@ -7,7 +7,7 @@ from textual.widgets import OptionList, Tab
 from builders import PR_ONE, PR_TWO, SUBJECT, board, magi_app, started
 from magi.adapters import storage
 
-BOXES = ("attention", "prs", "changes", "mine_prs")
+BOXES = ("prs", "changes", "mine_prs")
 
 
 def two_prs():
@@ -27,7 +27,7 @@ async def unseen(cache):
     storage.write(cache.with_name("seen.json"), {"seen": {"https://github.com/acme/app/pull/99": "2026-10-20T10:00 Merged"}})
     app = magi_app(cache, load=two_prs)
     async with started(app) as pilot:
-        assert marked(app) == {"attention": [True], "prs": [True, False], "changes": [True], "mine_prs": [True]}, \
+        assert marked(app) == {"prs": [True, False], "changes": [True], "mine_prs": [True]}, \
             "every row of an item with an unseen change carries a dot, in every box"
         assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 2 · 1 new", "a box counts its unseen rows"
         assert str(app.query_one("#panel-epics").border_title) == "[6] epics 1", "a box with nothing new shows no count"
@@ -39,7 +39,7 @@ async def unseen(cache):
         assert marked(app)["prs"] == [True, False], "the dot stays while the cursor is on the row"
         await pilot.press("j")
         await pilot.pause()
-        assert marked(app) == {"attention": [False], "prs": [False, False], "changes": [False], "mine_prs": [False]}, \
+        assert marked(app) == {"prs": [False, False], "changes": [False], "mine_prs": [False]}, \
             "leaving the row clears its dot in every box"
         assert str(app.query_one("#panel-prs").border_title) == "[4] team prs 2", "leaving the row drops the box's new count"
         assert [str(app.query_one(f"#tab-{tab}", Tab).label) for tab in ("overview", "mine")] == ["[1] Overview", "[2] Mine"], \

@@ -1,3 +1,5 @@
+import types
+
 from builders import TICKET_DETAIL, ticket_view
 from magi import config
 from magi.adapters import jira, process
@@ -68,6 +70,25 @@ def test_my_tickets_fetch():
     assert [t.key for t in tickets] == ["ACME-3", "ACME-6", "ACME-1", "ACME-4", "ACME-5", "OPS-7"], \
         "my tickets come in board order, each status together, unknown statuses last, latest update first within a status"
     assert tickets[0] == Ticket(key="ACME-3", summary="Later", status="Backlog", detail=TICKET_DETAIL), "my tickets carry their detail"
+
+
+def test_kanban_fetch():
+    items = [{"key": "ACME-6", "fields": {"summary": "Next", "status": {"name": "Tareas por hacer"}, "assignee": None}},
+             {"key": "ACME-5", "fields": {"summary": "Review me", "status": {"name": "En revisión"}, "assignee": {"displayName": "Ana"}}}]
+    seen, run_json = [], process.run_json
+    process.run_json = lambda cmd: seen.append(cmd) or (items if cmd[3] == "search" else ticket_view(cmd[4]))
+    try:
+        tickets = jira.fetch_kanban(types.SimpleNamespace(jira_project="ACME"),
+                                    lambda keys: dict(zip(keys, process.parallel(jira.fetch_ticket_detail, keys))))
+    finally:
+        process.run_json = run_json
+    assert [cmd[3] for cmd in seen].count("search") == 1, "the kanban board's tickets come from one search"
+    assert "project = ACME AND issuetype != Epic AND statusCategory != Done AND status != Backlog ORDER BY Rank ASC" in seen[0], \
+        "the kanban board holds the project's tickets past the backlog and not done, epics aside, in the board's rank"
+    assert [t.key for t in tickets] == ["ACME-6", "ACME-5"], "the kanban board's tickets keep the board's rank"
+    assert tickets[1] == Ticket(key="ACME-5", summary="Review me", status="En revisión", assignee="Ana", detail=TICKET_DETAIL), \
+        "a kanban ticket carries its assignee and its detail"
+    assert tickets[0].assignee == "Unassigned", "a kanban ticket nobody has reads as unassigned"
 
 
 def test_fetch_ticket():

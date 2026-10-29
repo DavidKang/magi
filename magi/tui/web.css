@@ -5,7 +5,7 @@
 .box { min-width: 0; }
 .box-body { overflow-x: auto; }
 /* On a wide screen the page is the window's height and the boxes share it, each scrolling its own rows without a scrollbar:
-   attention, the shortest, takes half a share, the changes end level with the epics, and my prs level with my tickets. */
+   the changes end level with the epics, and my prs level with my tickets. */
 @media (min-width: 80rem) {
   body { height: 100vh; }
   .layout, main, main > div, aside { min-height: 0; }
@@ -14,8 +14,8 @@
   .box { display: flex; flex-direction: column; min-height: 0; }
   .box-body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; }
   .box-body::-webkit-scrollbar { display: none; }
-  #attention { grid-area: 1 / 1 / 2; }
-  #changes { grid-area: 2 / 1 / 5; }
+  #kanban { grid-area: 1 / 1 / 3; }
+  #changes { grid-area: 3 / 1 / 5; }
   #mine_prs { grid-area: 5 / 1 / 7; }
   #prs { grid-area: 1 / 2 / 3; }
   #epics { grid-area: 3 / 2 / 5; }

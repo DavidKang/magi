@@ -11,11 +11,11 @@ Screen { background: $tk-bg; color: $tk-fg; }
 #panes > Vertical { height: 1fr; }
 #aside { width: 1fr; height: 1fr; }
 #panel-details { height: 2fr; }
-#panel-attention, #panel-epics { height: auto; max-height: 12; }
-#list-attention, #list-epics { height: auto; }
+#panel-epics { height: auto; max-height: 12; }
+#list-epics { height: auto; }
 .pbody { height: 1fr; }
-#panel-attention .pbody, #panel-epics .pbody { height: auto; max-height: 10; }
-.framed #panel-attention .pbody, .framed #panel-epics .pbody { max-height: 11; }
+#panel-epics .pbody { height: auto; max-height: 10; }
+.framed #panel-epics .pbody { max-height: 11; }
 .panel { border: round $tk-line; border-title-color: $tk-accent; padding: 0 1; height: 1fr; width: 1fr; background: $tk-bg; }
 .panel:focus-within { border: round $tk-focus; }
 .filter { border: none; height: 1; padding: 0; background: $tk-bg; color: $tk-fg; margin-bottom: 1; }

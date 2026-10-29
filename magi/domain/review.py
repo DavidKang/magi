@@ -2,6 +2,7 @@
 
 CI_LABELS = {"failing": ("changes", "CI red"), "running": ("commented", "CI running"),
              "passing": ("approved", "CI green"), "none": ("draft", "No CI")}
+STALE_PR_DAYS = 3
 
 CONDITIONS = {"green": "CONDITION GREEN", "yellow": "YELLOW ALERT", "red": "RED ALERT"}
 

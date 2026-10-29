@@ -90,7 +90,6 @@ def section(key, name, empty, widths, number, color, items):
             group = entry.group
             size = sum(1 for other in items if other.group == group)
             lines.append(f'<div class="col-span-full mt-2 px-2 font-bold">── {esc(group)} ({size}) ──</div>')
-        # The same item can sit in a box twice, as two attention reasons on one pr: what the row searches by tells them apart.
         lines.append(row(f"{key} {entry.url} {entry.search}", entry, widths))
     body = "\n".join(lines) or f'<div class="col-span-full px-2 text-dim">{esc(empty)}</div>'
     # The cell the TUI gives the room the others leave takes it here too; the others take their widest row, so columns line up.

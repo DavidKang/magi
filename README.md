@@ -139,7 +139,7 @@ Epics are not configured: the board shows every epic of the project in Developin
 | Key | Action |
 |-----|--------|
 | `1` / `2` | Switch to the `Overview` tab or the `Mine` tab |
-| `3`-`6` | Jump to the `Overview` tab's boxes: attention, team PRs, changes, epics |
+| `3`-`6` | Jump to the `Overview` tab's boxes: kanban, team PRs, changes, epics |
 | `7`-`8` | Jump to the `Mine` tab's boxes: your open PRs, your Jira tickets not done, grouped by status |
 | `9` | Jump to the factory box under the details: the software factory's tickets (see [Factory](#factory)) |
 | `j` / `k` | Move down / up |
@@ -149,11 +149,17 @@ Epics are not configured: the board shows every epic of the project in Developin
 | `/` | Filter the current box (`escape` clears it) |
 | `y` | Copy the selected link (the key, for an epic) |
 | `g` | Jump to the herdr session of the selected factory ticket (see [Factory](#factory)) |
-| `s` | Snooze the selected attention item or team PR until it changes (see [Snoozed](#snoozed)) |
+| `s` | Snooze the selected team PR until it changes (see [Snoozed](#snoozed)) |
 | `S` | Bring back every snoozed item of the current box |
 | `r` | Refresh (once every 30 seconds at most; it also refreshes every 5 minutes) |
 | `t` | Pick a theme (see [Themes](#themes)) |
 | `q` | Quit |
+
+### Kanban
+
+The kanban box lists the tickets on your project's Jira board: every ticket of the **Jira project** that is not an epic, not in `Backlog` and not done. They are grouped by status, in this order: in review, in progress, ready to deploy, then to do, and keep Jira's rank within a status.
+
+Each row shows the ticket's key, a red `blocked` when the ticket has the `blocked` label, who has it (yours in the accent colour), what its oldest PR is missing, as a team PR's row does, and the days since the ticket last changed, then its summary. Its detail is the ticket's own, as in **my tickets**.
 
 ### Team PRs
 
@@ -193,7 +199,7 @@ The factory box, in the TUI only, sits under the details on every tab and lists 
 
 ### Snoozed
 
-`s` takes the selected attention item or team PR off its box until Magi sees a change on it newer than the one it had: a push, a review, a ticket move. CI turning red or a conflict alone does not wake it. It then comes back, marked new. A snooze holds in its own box only, survives a restart, and is dropped once the item leaves the box. The box title counts the rows it hides, as `N snoozed`, and `S` brings it all back.
+`s` takes the selected team PR off its box until Magi sees a change on it newer than the one it had: a push, a review, a ticket move. CI turning red or a conflict alone does not wake it. It then comes back, marked new. A snooze holds in its own box only, survives a restart, and is dropped once the item leaves the box. The box title counts the rows it hides, as `N snoozed`, and `S` brings it all back.
 
 ### Web page
 
@@ -234,7 +240,7 @@ The LCARS, NERV and Cyberpunk themes show how the board is doing in the header:
 
 | Box | Default | LCARS | NERV | Cyberpunk |
 |-----|---------|-------|------|-----------|
-| What needs you | attention | BRIDGE ALERTS | EMERGENCY | NCPD SCANNER |
+| Kanban board | kanban | DUTY ROSTER | COMMAND BOARD | JOB BOARD |
 | Team PRs | team prs | CREW REPORTS | SORTIES | FIXER GIGS |
 | Last 24 hours | changes | CAPTAIN'S LOG | OPERATIONS LOG | DATASHARDS |
 | Epics | epics | MISSIONS | PROJECTS | MAIN JOBS |
@@ -292,6 +298,7 @@ The LCARS, NERV and Cyberpunk themes show how the board is doing in the header:
 | `~/.cache/magi/prs.json` | Comments, reviews and threads of the PRs on the board, reused until a PR changes |
 | `~/.cache/magi/updated.json` | When each in-progress ticket last changed, refetched only for tickets Jira reports as changed |
 | `~/.cache/magi/my-tickets.json` | Details of your own tickets, refetched only for tickets Jira reports as changed |
+| `~/.cache/magi/kanban.json` | Details of the kanban board's tickets, refetched only for tickets Jira reports as changed |
 | `~/.cache/magi/seen.json` | The last change you saw on each PR or ticket, so new ones stay marked until you pass them |
 | `~/.cache/magi/snoozed.json` | What you snoozed in each box, with the change each item had then |
 | `~/.cache/magi/board.html` | The board as a web page, rewritten after each refresh and snooze (see [Web page](#web-page)) |
@@ -320,7 +327,7 @@ python3.12 -m venv .venv
 
 | Path | What it does |
 |------|--------------|
-| `magi/domain/` | The board's rules: entities, status columns, review state, what needs attention, what changed, what stays snoozed |
+| `magi/domain/` | The board's rules: entities, status columns, review state, what changed, what stays snoozed |
 | `magi/application/` | One refresh: fetches through the interfaces in `ports.py` and builds the board as data; the factory's tickets (`factory.py`) |
 | `magi/adapters/` | Talks to the outside: `gh`, `acli`, `herdr`, JSON files, the factory's stage files, data paths, the clock |
 | `magi/cli.py` | Entry point: wires the adapters into the refresh and starts the app |

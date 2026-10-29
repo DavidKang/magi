@@ -4,6 +4,7 @@ from dataclasses import replace
 from textual.content import Content
 
 from builders import CHANGES, NOTE, OUTDATED, PR_ONE, PR_TWO, REPLY, STATED, THREAD, TICKET_DETAIL, board
+from magi.domain import review
 from magi.domain.ages import days_since
 from magi.domain.entities import Ticket
 from magi.domain.factory import FactoryTicket
@@ -36,6 +37,45 @@ def test_ticket_detail_edges():
                                             Ticket(key="A-3", summary="c", status="En proceso")]}
     assert [e.group for e in entries.entries(shuffled, STATED)["mine_tickets"]] == ["Todo", "In Progress", "In Progress"], \
         "my tickets from an older cache are regrouped by status"
+
+
+CLEAR = replace(TICKET_DETAIL, labels=[])
+
+
+ONE = Ticket(key="ACME-1", summary="Ticket one", status="En revisión", assignee="Ana", detail=CLEAR)
+
+
+def test_a_kanban_row_tells_who_has_the_ticket_and_what_its_pr_misses():
+    found = entries.entries({**board([PR_ONE]), "kanban": [ONE]}, STATED)["kanban"]
+    group, missing = review.turn(PR_ONE)
+    assert found[0].cells == [("ACME-1", ""), ("", ""), ("Ana", "accent"), (missing, f"{entries.TURN_TONES[group]}-pill"),
+                              (f"{days_since(CLEAR.updated)}d", "dim-right"), ("Ticket one", "")], \
+        "a kanban row tells the ticket, who has it, mine in the accent colour, what its pr misses and the days since it last changed"
+
+
+def test_a_kanban_ticket_without_a_pr_leaves_its_pr_cell_empty():
+    seven = Ticket(key="ACME-7", summary="Ticket seven", status="Tareas por hacer", assignee="Luis", detail=CLEAR)
+    found = entries.entries({**board([PR_ONE]), "kanban": [seven]}, STATED)["kanban"]
+    assert found[0].cells[2:4] == [("Luis", "dim"), ("", "")], "a kanban ticket without a pr leaves its pr cell empty"
+
+
+def test_a_kanban_ticket_shows_its_own_details():
+    found = entries.entries({**board([PR_ONE]), "kanban": [ONE]}, STATED)["kanban"]
+    assert found[0].detail == entries.ticket_entry(ONE, [PR_ONE], STATED).detail, "a kanban ticket's details are the ticket's own"
+
+
+def test_a_kanban_row_tells_what_its_oldest_pr_misses():
+    newer = replace(PR_TWO, title="[ACME-1] Follow-up")
+    older = replace(PR_ONE, created_at="2026-10-19T10:00:00Z")
+    found = entries.entries({**board([newer, older]), "kanban": [ONE]}, STATED)["kanban"]
+    group, missing = review.turn(older)
+    assert found[0].cells[3] == (missing, f"{entries.TURN_TONES[group]}-pill"), "a kanban ticket with several prs tells what its oldest one misses"
+
+
+def test_a_kanban_row_flags_a_ticket_labelled_blocked():
+    kanban = [Ticket(key="ACME-1", summary="Ticket one", status="En proceso", assignee="Ana", detail=TICKET_DETAIL)]
+    found = entries.entries({**board([]), "kanban": kanban}, STATED)["kanban"]
+    assert found[0].cells[1] == ("blocked", "bad-pill"), "a kanban ticket with the blocked label says so in red"
 
 
 def test_ticket_links():

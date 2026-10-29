@@ -8,7 +8,7 @@ CACHE_DIR = Path.home() / ".cache" / "magi"
 FACTORY_DIR = Path.home() / ".local" / "state" / "factory"
 # The files the refresh reads and writes, by the name it uses for them.
 REFRESH_FILES = {"state": STATE_DIR / "state.json", "prs": CACHE_DIR / "prs.json", "updated": CACHE_DIR / "updated.json",
-                 "my_tickets": CACHE_DIR / "my-tickets.json"}
+                 "my_tickets": CACHE_DIR / "my-tickets.json", "kanban": CACHE_DIR / "kanban.json"}
 # Magi was called Tarkon; its folders move once so the rename keeps settings, state and caches.
 OLD_DIRS = [Path.home() / parent / "tarkon" for parent in (".config", ".local/state", ".cache")]
 

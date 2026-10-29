@@ -39,7 +39,7 @@ EGGS = {9: FORTY_SEVEN, 26: "1701"}
 MAGI = ("MELCHIOR-1", "BALTHASAR-2", "CASPER-3")
 VOTES = {"green": ("承認", "承認", "承認"), "yellow": ("承認", "承認", "否決"), "red": ("否決", "否決", "否決")}
 # NERV's screens are bilingual: each box's name in Japanese beside its English one.
-JAPANESE = {"attention": "緊急事態", "prs": "出撃", "changes": "作戦記録", "epics": "計画", "mine_prs": "個人出撃", "mine_tickets": "個人命令",
+JAPANESE = {"kanban": "看板", "prs": "出撃", "changes": "作戦記録", "epics": "計画", "mine_prs": "個人出撃", "mine_tickets": "個人命令",
             "details": "MAGI解析"}
 # The title card a theme opens on. NERV's: its motto while the board holds, the first Angel's episode at pattern blue.
 # EVA 01's: Shinji's line as he climbs into Unit-01. Cyberpunk's: Johnny Silverhand's, from the game's 2019 trailer.

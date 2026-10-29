@@ -34,7 +34,7 @@ async def nerv(cache):
         assert app.query_one("#nerv-logo").display and not app.query_one("#top .brand").display, "nerv shows the white logo, not a name"
         assert not app.query_one("#top #logo").display, "nerv shows the white logo, not the coloured one"
         overview, status = app.query_one("#pill-overview").region, app.query_one("#status").content_region
-        boxes = [app.query_one(f"#panel-{key}").region for key in ("attention", "details")]
+        boxes = [app.query_one(f"#panel-{key}").region for key in ("kanban", "details")]
         assert (boxes[0].x, boxes[1].right) == (overview.x, status.right), "nerv lines the boxes up with the overview tab and the status"
         key = app.query_one("FooterKey")
         assert key.region.x == boxes[0].x, "nerv lines its footer up with the boxes"
@@ -44,8 +44,8 @@ async def nerv(cache):
         assert str(bar.render()).startswith("◢◤◢◤"), "a hazard stripe tops the screen"
         assert str(app.query_one("#status").render()) == f"MAGI · MELCHIOR BALTHASAR CASPER · SYNC {dt.datetime.fromtimestamp(1000.0):%H:%M}", \
             "nerv times the last refresh by the MAGI"
-        titles = {key: str(app.query_one(f"#panel-{key}").border_title) for key in ("attention", "prs", "changes", "epics", "mine_prs", "mine_tickets")}
-        assert titles == {"attention": "03-EMERGENCY 1", "prs": "04-SORTIES 1", "changes": "05-OPERATIONS LOG 1", "epics": "06-PROJECTS 1",
+        titles = {key: str(app.query_one(f"#panel-{key}").border_title) for key in ("kanban", "prs", "changes", "epics", "mine_prs", "mine_tickets")}
+        assert titles == {"kanban": "03-COMMAND BOARD 1", "prs": "04-SORTIES 1", "changes": "05-OPERATIONS LOG 1", "epics": "06-PROJECTS 1",
                           "mine_prs": "07-MY SORTIES 1", "mine_tickets": "08-MY ORDERS 2"}, "nerv names the boxes in NERV's words"
         assert str(app.query_one("#panel-details").border_title) == "MAGI ANALYSIS", "nerv calls the details the MAGI analysis"
         title = app.query_one("#panel-prs .ptitle")
@@ -55,7 +55,7 @@ async def nerv(cache):
         assert title.query_one(".name").styles.color == Color.parse(MAGI["accent"]), "nerv titles are orange text, after nerv-ui's labels"
         assert title.query_one(".code").styles.background == Color.parse(MAGI["bg"]), "nerv titles are text, not filled blocks"
         assert app.query_one("#panel-prs .pbody").styles.border_left[0] == "heavy", "nerv draws heavy box lines"
-        for key, tone in (("attention", "focus"), ("prs", "line")):
+        for key, tone in (("kanban", "focus"), ("prs", "line")):
             box = app.query_one(f"#panel-{key}")
             colours = [box.query_one(".pbody").styles.border_left[1], box.query_one(".ptitle .fill").styles.color,
                        *[edge.styles.color for edge in box.query(".ptitle .edge")]]
@@ -149,13 +149,13 @@ async def eva01(cache):
     async with started(app) as pilot:
         assert app.has_class("nerv") and app.query_one("#nerv-logo").display, "EVA 01 draws the NERV frame"
         assert str(app.query_one("#panel-prs").border_title) == "04-SORTIES 1", "EVA 01 names the boxes in NERV's words"
-        for key, tone in (("attention", "focus"), ("prs", "line")):
+        for key, tone in (("kanban", "focus"), ("prs", "line")):
             box = app.query_one(f"#panel-{key}")
             colours = [box.query_one(".pbody").styles.border_left[1], *[edge.styles.color for edge in box.query(".ptitle .edge")]]
             assert colours == [Color.parse(EVA01[tone])] * 3, f"EVA 01 draws the {key} box {tone == 'focus' and 'green, focused' or 'purple'}"
         assert app.query_one("#panel-prs .ptitle .name").styles.color == Color.parse(EVA01["accent"]), "EVA 01 titles its boxes in green"
         key = app.query_one("FooterKey")
-        assert key.region.x == app.query_one("#panel-attention").region.x, "EVA 01 lines its footer up with the boxes"
+        assert key.region.x == app.query_one("#panel-kanban").region.x, "EVA 01 lines its footer up with the boxes"
         description = key.get_component_rich_style("footer-key--description")
         assert (description.color.triplet.hex, key.styles.background) == (EVA01["accent"], Color.parse(EVA01["bg"])), \
             "EVA 01 writes the footer in green on black, since no text reads well on purple"

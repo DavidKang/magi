@@ -10,7 +10,7 @@ REFRESH_COOLDOWN = 30
 CACHE = paths.CACHE_DIR / "cache.json"
 # Seen marks and snoozes kept their shape through these storage versions, so an upgrade keeps them instead of dropping them.
 KEPT_UPGRADES = {4: lambda saved: saved, 5: lambda saved: saved}
-SNOOZABLE = ("attention", "prs")
+SNOOZABLE = ("prs",)
 
 
 def save_board(cache, at, board):
@@ -37,7 +37,8 @@ def mark_start(stamp, at):
 
 def read_snoozed(path):
     saved = storage.read(path, KEPT_UPGRADES)
-    return saved["snoozed"] if saved else {key: {} for key in SNOOZABLE}
+    # Snoozes saved for a box that is gone are dropped with it.
+    return {key: saved["snoozed"].get(key, {}) if saved else {} for key in SNOOZABLE}
 
 
 def refresh_mark(cache):

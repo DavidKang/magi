@@ -42,14 +42,14 @@ async def cyberpunk(cache):
         assert str(app.query_one("#condition").render()) == "◢ HEAT ★★★★★ ◤", "cyberpunk shows the red alert as a five-star wanted level"
         assert str(app.query_one("#status").render()) == f"NIGHT CITY · NET UPLINK {dt.datetime.fromtimestamp(1000.0):%H:%M}", \
             "cyberpunk times the last refresh by its net uplink"
-        titles = {key: str(app.query_one(f"#panel-{key}").border_title) for key in ("attention", "prs", "changes", "epics", "mine_prs", "mine_tickets")}
-        assert titles == {"attention": "03-NCPD SCANNER 1", "prs": "04-FIXER GIGS 1", "changes": "05-DATASHARDS 1", "epics": "06-MAIN JOBS 1",
+        titles = {key: str(app.query_one(f"#panel-{key}").border_title) for key in ("kanban", "prs", "changes", "epics", "mine_prs", "mine_tickets")}
+        assert titles == {"kanban": "03-JOB BOARD 1", "prs": "04-FIXER GIGS 1", "changes": "05-DATASHARDS 1", "epics": "06-MAIN JOBS 1",
                           "mine_prs": "07-MY GIGS 1", "mine_tickets": "08-SIDE JOBS 2"}, "cyberpunk names the boxes in Night City's words"
         assert str(app.query_one("#panel-details").border_title) == "KIROSHI SCAN", "cyberpunk calls the details a Kiroshi scan"
         pieces = [str(s.render()) for s in app.query_one("#panel-prs .ptitle").query(Static)]
         assert pieces == ["┌─", "◢", "04", "FIXER GIGS", "", "1", "◤", "─┐"], "cyberpunk titles a box with a slanted block on a square line"
         assert app.query_one("#panel-prs .pbody").styles.border_left[0] == "solid", "cyberpunk draws square box lines"
-        for key, tone in (("attention", "focus"), ("prs", "line")):
+        for key, tone in (("kanban", "focus"), ("prs", "line")):
             assert app.query_one(f"#panel-{key} .pbody").styles.border_left[1] == Color.parse(NIGHT_CITY[tone]), \
                 f"cyberpunk draws the {key} box {tone == 'focus' and 'yellow, focused' or 'cyan'}"
         assert str(app.query_one("#pill-overview .cap").render()) == "◢", "cyberpunk slants its tabs"

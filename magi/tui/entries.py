@@ -8,10 +8,10 @@ from rich.text import Text
 
 from .. import rows
 from ..domain import changes
-from ..domain.attention import STALE_PR_DAYS
 from ..domain.ages import ago, days_since
-from ..domain.review import CI_LABELS, TURNS, review_state, turn
-from ..domain.status import COLUMNS, status_label, ticket_order
+from ..domain.labels import blocked
+from ..domain.review import CI_LABELS, STALE_PR_DAYS, TURNS, review_state, turn
+from ..domain.status import COLUMNS, kanban_order, status_label, ticket_order
 from . import theme
 from .theme import COLORS
 
@@ -65,13 +65,6 @@ def heading(value):
 
 def separator(label=""):
     return colored("dim", f"── {label} ──" if label else "──")
-
-
-def attention_entry(item):
-    url, title, reason = item["subject"]["url"], changes.subject_text(item["subject"]), item["reason"]
-    return Entry([("▲", "bad"), (title, "")],
-                 "\n".join([heading(title), "", colored("warn", reason), "", separator(), link(url, url)]),
-                 url, url, f"{title} {reason}")
 
 
 def pr_entry(pr, by_key, settings, asked=False):
@@ -303,6 +296,16 @@ def ticket_entry(ticket, prs, settings):
                  f'{ticket.key} {ticket.summary} {status}', (f'{ticket.key} · {ticket.summary}', items), group=status)
 
 
+def kanban_entry(ticket, prs, settings, mine):
+    """A ticket on the kanban board: whether it is blocked, who has it, mine in the accent colour,
+    what its oldest PR misses and the days since it last changed."""
+    pr = min(rows.prs_naming(ticket.key, prs, settings), key=lambda found: found.created_at, default=None)
+    group, missing = turn(pr) if pr else (None, "")
+    cells = [(ticket.key, ""), ("blocked", "bad-pill") if blocked(ticket) else ("", ""), (ticket.assignee, "accent" if mine else "dim"),
+             (missing, f"{TURN_TONES[group]}-pill" if pr else ""), (f"{days_since(ticket.detail.updated)}d", "dim-right"), (ticket.summary, "")]
+    return replace(ticket_entry(ticket, prs, settings), cells=cells)
+
+
 # A factory ticket waiting for you raises a flag and a blocked review an alarm; a ready one reads calm, a building one neutral.
 STAGE_TONES = {"waiting-you": "warn-pill", "review-blocked": "bad-alarm", "building": "dim-pill", "ready": "ok-pill"}
 
@@ -378,7 +381,8 @@ def turn_entry(entry, group, stale):
 def entries(board, settings):
     prs, by_key = board["prs"], board["by_key"]
     histories = board["histories"]
-    return {"attention": [attention_entry(item) for item in board["attention"]],
+    mine = {t.key for t in board["my_tickets"]}
+    return {"kanban": [kanban_entry(t, prs, settings, t.key in mine) for t in sorted(board["kanban"], key=kanban_order)],
             "prs": team_pr_entries(prs, by_key, settings, {pr.url for pr in board["review_prs"]}),
             "changes": [change_entry(c, changes.group_changes(board["changes"], c["group"], histories), histories.get(c["group"], []))
                         for c in changes.latest(board["changes"], "group")],

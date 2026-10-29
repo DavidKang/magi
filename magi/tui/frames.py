@@ -4,11 +4,11 @@ from .. import rows
 from ..domain.review import CONDITIONS
 from .theme import FRAMES
 
-LCARS_NAMES = {"attention": "bridge alerts", "prs": "crew reports", "changes": "captain's log", "epics": "missions", "mine_prs": "my reports",
+LCARS_NAMES = {"kanban": "duty roster", "prs": "crew reports", "changes": "captain's log", "epics": "missions", "mine_prs": "my reports",
                "mine_tickets": "away missions", "details": "sensor readings"}
-NERV_NAMES = {"attention": "emergency", "prs": "sorties", "changes": "operations log", "epics": "projects", "mine_prs": "my sorties",
+NERV_NAMES = {"kanban": "command board", "prs": "sorties", "changes": "operations log", "epics": "projects", "mine_prs": "my sorties",
               "mine_tickets": "my orders", "details": "magi analysis"}
-CYBERPUNK_NAMES = {"attention": "ncpd scanner", "prs": "fixer gigs", "changes": "datashards", "epics": "main jobs", "mine_prs": "my gigs",
+CYBERPUNK_NAMES = {"kanban": "job board", "prs": "fixer gigs", "changes": "datashards", "epics": "main jobs", "mine_prs": "my gigs",
                    "mine_tickets": "side jobs", "details": "kiroshi scan"}
 FRAME_NAMES = {"lcars": LCARS_NAMES, "nerv": NERV_NAMES, "cyberpunk": CYBERPUNK_NAMES}
 # Evangelion's blood types: orange for an unknown pattern, blue for an Angel.

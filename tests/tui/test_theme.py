@@ -72,8 +72,8 @@ async def lcars_theme(cache):
         assert "CAPTAIN'S" in str(app.query_one("#side-changes").render()), "LCARS calls the changes the Captain's Log"
         assert str(app.query_one("#panel-prs").border_title) == "04-CREW REPORTS 1", "LCARS calls the team PRs crew reports"
         assert "REPORTS" in str(app.query_one("#side-prs").render()), "LCARS calls the team PRs crew reports"
-        titles = {key: str(app.query_one(f"#panel-{key}").border_title) for key in ("attention", "epics", "mine_prs", "mine_tickets", "details")}
-        assert titles == {"attention": "03-BRIDGE ALERTS 1", "epics": "06-MISSIONS 1", "mine_prs": "07-MY REPORTS 1", "mine_tickets": "08-AWAY MISSIONS 2",
+        titles = {key: str(app.query_one(f"#panel-{key}").border_title) for key in ("kanban", "epics", "mine_prs", "mine_tickets", "details")}
+        assert titles == {"kanban": "03-DUTY ROSTER 1", "epics": "06-MISSIONS 1", "mine_prs": "07-MY REPORTS 1", "mine_tickets": "08-AWAY MISSIONS 2",
                           "details": "SENSOR READINGS"}, "LCARS names the boxes in Starfleet's words"
         key = app.query(FooterKey).first()
         assert (app.query_one(Footer).styles.background, key.styles.background) == (Color.parse(lcars["bg"]), Color.parse(lcars["line"])), \
@@ -209,11 +209,11 @@ def test_lcars_condition_colors(cache):
 async def long_boxes(cache):
     epics = [make_epic(key=f"ACME-{n}") for n in range(15)]
     full = {**board([PR_ONE]), "epics": epics, "tickets_by_epic": {e.key: TICKETS for e in epics},
-            "attention": board([PR_ONE])["attention"] * 20}
+            "kanban": board([PR_ONE])["kanban"] * 20}
     async with started(magi_app(cache, load=lambda: full)) as pilot:
         for name in ("default", "okuda"):
             await pick_theme(pilot, name)
-            for box in ("attention", "epics"):
+            for box in ("kanban", "epics"):
                 panel, body, rows = (pilot.app.query_one(f"#panel-{box}{part}") for part in ("", " .pbody", f" #list-{box}"))
                 assert rows.max_scroll_y > 0, f"a full {box} box scrolls in the {name} theme"
                 assert body.region.bottom <= panel.region.bottom, f"a full {box} box keeps its bottom line in the {name} theme"

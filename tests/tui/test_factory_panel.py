@@ -13,7 +13,7 @@ from magi.tui import app as app_module
 NOW = dt.datetime(2026, 10, 29, 12, 0, tzinfo=dt.timezone.utc)
 TICKETS = [FactoryTicket("ACME-77", "waiting-you", "which repo?", NOW - dt.timedelta(minutes=5), None),
            FactoryTicket("ACME-78", "ready", "", NOW - dt.timedelta(hours=2), "done", "w2H:p2")]
-BOARD_BOXES = ["attention", "prs", "changes", "epics", "mine_prs", "mine_tickets"]
+BOARD_BOXES = ["kanban", "prs", "changes", "epics", "mine_prs", "mine_tickets"]
 
 
 def factory_app(cache, factory=lambda: TICKETS):
@@ -33,7 +33,7 @@ async def factory_box(cache):
         assert "which repo?" in str(app.query_one("#detail", Static).render()), "the focused factory row shows its details"
         assert str(app.query_one("#panel-factory").border_title) == "[9] factory 2", "the factory box is numbered 9 and counts its tickets"
         await pilot.press("3")
-        assert app.current_section == "attention", "the board's boxes keep their keys beside the factory"
+        assert app.current_section == "kanban", "the board's boxes keep their keys beside the factory"
 
 
 async def factory_under_the_details(cache):

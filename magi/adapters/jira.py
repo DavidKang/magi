@@ -53,6 +53,16 @@ def fetch_my_tickets(details):
     return sorted(tickets, key=ticket_order)
 
 
+def fetch_kanban(settings, details):
+    """The tickets on the project's kanban board, in its rank: past the backlog and not done, epics aside."""
+    items = process.run_json(["acli", "jira", "workitem", "search", "--jql",
+                            f"project = {settings.jira_project} AND issuetype != Epic AND statusCategory != Done AND status != Backlog "
+                            "ORDER BY Rank ASC", "--fields", "summary,status,assignee", "--limit", "100", "--json"])
+    found = details([i["key"] for i in items])
+    return [Ticket(key=i["key"], summary=i["fields"]["summary"], status=i["fields"]["status"]["name"],
+                   assignee=(i["fields"].get("assignee") or {}).get("displayName", "Unassigned"), detail=found[i["key"]]) for i in items]
+
+
 TICKET_FIELDS = "summary,status,description,creator,comment,parent,issuelinks,priority,labels,issuetype,created,updated"
 
 

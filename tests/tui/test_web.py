@@ -29,7 +29,7 @@ def box(found, key):
 
 
 def render(found):
-    return web.page(found, STATED, {"attention": {}, "prs": {}}, 1000.0, SECTIONS, NUMBERS, REFRESH_SECONDS)
+    return web.page(found, STATED, {"prs": {}}, 1000.0, SECTIONS, NUMBERS, REFRESH_SECONDS)
 
 
 async def write_after_a_refresh(cache):
@@ -84,12 +84,19 @@ def test_a_change_without_a_link_points_nowhere():
     found = box(render(bare_board(changes=[change])), "changes")
     assert "ACME-1 Gone" in found and 'href="None"' not in found, "a change with nothing to open is still read, but links nowhere"
 
+def test_a_blocked_kanban_ticket_shows_its_red_pill_on_the_page():
+    blocked = make_ticket(key="ACME-1", status="En proceso", detail=make_ticket_detail(labels=["blocked"]))
+    found = box(render(bare_board(kanban=[blocked])), "kanban")
+    assert re.search(r'<span class="text-bad pill[^"]*" style="--t: var\(--bad\)">blocked</span>', found), \
+        "a kanban ticket labelled blocked shows a red blocked pill on the page as in the tui"
+
+
 async def snooze_on_the_page(cache):
     async with started(magi_app(cache, load=two_prs)) as pilot:
-        assert PR_ONE.url in box(page(cache), "attention"), "the attention item is on the page before the snooze"
-        await pilot.press("3", "s")
+        assert PR_ONE.url in box(page(cache), "prs"), "the team pr is on the page before the snooze"
+        await pilot.press("4", "s")
         await pilot.pause()
-    assert PR_ONE.url not in box(page(cache), "attention"), "a snoozed item leaves the web page as it leaves the tui"
+    assert PR_ONE.url not in box(page(cache), "prs"), "a snoozed item leaves the web page as it leaves the tui"
 
 
 @pytest.mark.usefixtures("default_theme")
@@ -200,22 +207,6 @@ def test_details_keep_the_tuis_tones_bold_and_links_as_html():
         "details turn bold into bold, colours into their tones and web links into links, and their text into escaped text"
 
 
-def test_two_attention_rows_on_one_pr_keep_their_own_details():
-    reasons = [{"subject": {"kind": "pr", "url": PR_ONE.url, "ref": "app#1", "title": "First"}, "reason": reason} for reason in ("Stale", "Unassigned")]
-    found = render(bare_board(attention=reasons))
-    keys = re.findall(r'<a [^>]*data-detail="([^"]+)"', box(found, "attention"))
-    assert len(set(keys)) == 2, "each attention row on the same pr has its own details key, so a reload reopens the row read, not its twin"
-
-
-def test_a_rows_details_key_survives_its_twin_leaving():
-    def reason(why):
-        return {"subject": {"kind": "pr", "url": PR_ONE.url, "ref": "app#1", "title": "First"}, "reason": why}
-    def key(found):
-        return [key for key, detail in re.findall(r'<template data-detail="([^"]+)">(.*?)</template>', box(found, "attention"), re.S) if "Unassigned" in detail]
-    both, alone = render(bare_board(attention=[reason("Stale"), reason("Unassigned")])), render(bare_board(attention=[reason("Unassigned")]))
-    assert key(both) and key(both) == key(alone), "a row keeps its details key when its twin leaves, so a reload never opens the twin's details"
-
-
 def shown(found, name):
     return {html.unescape(text) for names, text in re.findall(r'<span data-show="([^"]+)">(.*?)</span>', found) if name in names.split()}
 
@@ -265,7 +256,7 @@ def test_nerv_puts_the_board_to_the_magi_vote():
     assert [name for name, vote in cast["yellow"].items() if vote == "否決"] == ["CASPER-3"], "casper is the first to dissent"
     assert "決議 <b>可決</b>" in calm and "決議 <b>可決</b>" in pages["yellow"] and "決議 <b>否決</b>" in pages["red"], \
         "the magi's resolution passes while most of them approve"
-    assert '<span class="box-jp">緊急事態</span>' in box(calm, "attention") and '<span class="box-jp">MAGI解析</span>' in box(calm, "details"), \
+    assert '<span class="box-jp">看板</span>' in box(calm, "kanban") and '<span class="box-jp">MAGI解析</span>' in box(calm, "details"), \
         "nerv names each box in japanese too, as its screens are bilingual"
 
 

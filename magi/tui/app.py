@@ -85,7 +85,7 @@ class MagiApp(App):
         self.settings = None
         self.updated_at = None
         self.refresh_failed = False
-        self.current_section = "attention"
+        self.current_section = next(iter(BOXES))
         self.level = None
 
     def get_css_variables(self):
@@ -335,7 +335,7 @@ class MagiApp(App):
     def action_snooze(self):
         entry = self.current()
         if self.current_section not in SNOOZABLE:
-            self.notify("only attention items and team prs snooze", timeout=2)
+            self.notify("only team prs snooze", timeout=2)
         elif entry:
             self.snoozed[self.current_section][entry.url] = change_marks(self.board["changes"]).get(entry.url)
             self.snoozes_changed()
@@ -494,7 +494,7 @@ class MagiApp(App):
             self.action_focus_box(NUMBERS[TABS[tab][0]])
 
     def action_focus_box(self, number):
-        key = list(BOXES)[number - NUMBERS["attention"]]
+        key = list(BOXES)[number - NUMBERS[next(iter(BOXES))]]
         if key in TAB_OF:
             self.show_tab(TAB_OF[key])
         self.query_one(f"#list-{key}", Board).focus()

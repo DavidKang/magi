@@ -13,7 +13,7 @@ NARROW_TITLE = 10
 CHANGE_WIDTHS = [12, 18, None]
 NO_CHANGES = f"no changes in the last {changes.CHANGES_HOURS} h"
 # The board's boxes: magi web draws these too.
-SECTIONS = {"attention": ("attention", "nothing to flag", [2, None]),
+SECTIONS = {"kanban": ("kanban", "no tickets on the board", [10, 11, 16, 22, 4, None]),
             "prs": ("team prs", "no open prs", PR_WIDTHS),
             "changes": ("changes", NO_CHANGES, CHANGE_WIDTHS),
             "epics": ("epics", "no epics", [9, 20, 6, None]),
@@ -22,7 +22,7 @@ SECTIONS = {"attention": ("attention", "nothing to flag", [2, None]),
 # The factory's box is the TUI's alone: magi web never reads the factory's stage files or herdr.
 BOXES = {**SECTIONS, "factory": ("factory", "no factory tickets", [10, 18, 4, 8, None])}
 # The factory's box has no tab: it stays under the details on every tab.
-TABS = {"overview": ["attention", "prs", "changes", "epics"], "mine": ["mine_prs", "mine_tickets"]}
+TABS = {"overview": ["kanban", "prs", "changes", "epics"], "mine": ["mine_prs", "mine_tickets"]}
 # The tabs take the first digits and the boxes the next ones.
 NUMBERS = {key: n for n, key in enumerate(BOXES, len(TABS) + 1)}
 TAB_NUMBERS = {tab: n for n, tab in enumerate(TABS, 1)}

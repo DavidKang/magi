@@ -1,7 +1,7 @@
 import pytest
 
 from builders import make_ticket
-from magi.domain.status import UnmappedStatus, column_for, status_label, ticket_order
+from magi.domain.status import UnmappedStatus, column_for, kanban_order, status_label, ticket_order
 
 
 def test_status_labels():
@@ -22,3 +22,10 @@ def test_tickets_order_by_column_then_status():
     ordered = [t.status for t in sorted((make_ticket(status=s) for s in statuses), key=ticket_order)]
     assert ordered == ["Backlog", "Developing", "En proceso", "En revisión", "Rollout", "Finalizado", "Alpha", "Zeta"], \
         "tickets follow the board columns, by name within one, and unknown statuses go last"
+
+
+def test_kanban_orders_review_first_and_unknown_statuses_last():
+    statuses = ["Zeta", "Tareas por hacer", "Rejected / Cancelled", "Ready To Deploy", "Paused", "En proceso", "En revisión"]
+    ordered = [t.status for t in sorted((make_ticket(status=s) for s in statuses), key=kanban_order)]
+    assert ordered == ["En revisión", "En proceso", "Paused", "Ready To Deploy", "Tareas por hacer", "Rejected / Cancelled", "Zeta"], \
+        "the kanban reads in review, in progress, ready to deploy, then to do, and a status outside those goes last instead of failing"

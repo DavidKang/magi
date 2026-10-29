@@ -29,7 +29,7 @@ async def main(cache):
             "the tab bar shows Overview and Mine, Overview first"
         assert app.query_one("Tabs").active == "tab-overview", "the tab bar shows Overview and Mine, Overview first"
         assert app.query_one("Tabs").region.width == app.screen.region.width, "the tab bar spans the whole width"
-        assert app.query_one("#panel-details").region.y == app.query_one("#panel-attention").region.y, "details starts level with the first box"
+        assert app.query_one("#panel-details").region.y == app.query_one("#panel-kanban").region.y, "details starts level with the first box"
         assert isinstance(app.query_one("#top #logo"), Image), "the header shows the logo instead of the rocket"
         assert "🚀" not in str(app.query_one("#top .brand").render()), "the header shows the logo instead of the rocket"
         assert app.query_one("#top").outer_size.height == 1, "the header shows the logo instead of the rocket"
@@ -37,7 +37,7 @@ async def main(cache):
         width, height = PILImage.open(screens.LOGO).size
         assert str(app.query_one("#top .brand").render()).strip() == "MAGI", "the title reads MAGI"
         assert app.title == "MAGI", "the title reads MAGI"
-        assert app.query_one("#panel-attention").region.y >= app.query_one("#top").region.bottom + 1, "the boxes start one row below the header"
+        assert app.query_one("#panel-kanban").region.y >= app.query_one("#top").region.bottom + 1, "the boxes start one row below the header"
         assert abs(logo.size.width - logo.size.height * cell.height * width / height / cell.width) <= 1, "the logo keeps its proportions"
         status = app.query_one("#status", Static)
         assert str(status.render()).startswith("updated"), "updated time uses the brand color"
@@ -45,14 +45,14 @@ async def main(cache):
         assert not app.query("#panel-desk"), "there is no my desk or worktrees box"
         assert not app.query("#panel-worktrees"), "there is no my desk or worktrees box"
         titles = [str(panel.border_title) for panel in app.query(".panel")]
-        assert titles == ["[3] attention 1", "[4] team prs 2", "[5] changes 1", "[6] epics 1", "[7] my prs 1", "[8] my tickets 2", "details", "[9] factory 0"], \
+        assert titles == ["[3] kanban 1", "[4] team prs 2", "[5] changes 1", "[6] epics 1", "[7] my prs 1", "[8] my tickets 2", "details", "[9] factory 0"], \
             "overview numbers its boxes next to details"
-        assert "Move it to In review?" in detail(), "overview starts on the attention box"
-        heights = {key: app.query_one(f"#panel-{key}").outer_size.height for key in ("attention", "prs", "changes", "epics")}
-        assert heights["attention"] == 5, "attention box fits its items"
+        assert "Ticket one" in detail(), "overview starts on the kanban box"
+        heights = {key: app.query_one(f"#panel-{key}").outer_size.height for key in ("kanban", "prs", "changes", "epics")}
         assert heights["epics"] == 5, "epics box fits its items"
-        assert abs(heights["prs"] - heights["changes"]) <= 1, "team prs and changes share the rest"
-        assert heights["prs"] > 5, "team prs and changes share the rest"
+        assert max(heights["kanban"], heights["prs"], heights["changes"]) - min(heights["kanban"], heights["prs"], heights["changes"]) <= 1, \
+            "kanban, team prs and changes share the rest"
+        assert heights["prs"] > 5, "kanban, team prs and changes share the rest"
         prompts = [app.query_one("#list-prs", OptionList).get_option_at_index(i).prompt for i in range(5)]
         assert [p.plain for p in prompts[2:4]] == ["", "── ready to merge (1) ──"], "a blank line separates the groups"
         assert str(prompts[0].style) == f"bold {theme.THEMES['default']['fg']}", "group headers stand out in bold, in the text colour"
@@ -87,8 +87,8 @@ async def main(cache):
         assert len(listed()) == 2, "escape clears the filter"
         assert focused("prs"), "escape clears the filter"
         await pilot.press("3")
-        assert focused("attention"), "3 focuses the attention box"
-        assert "Move it to In review?" in detail(), "3 focuses the attention box"
+        assert focused("kanban"), "3 focuses the kanban box"
+        assert "Ticket one" in detail(), "3 focuses the kanban box"
         await pilot.press("6")
         assert focused("epics"), "6 focuses the epics box"
         assert "Epic one" in detail(), "6 focuses the epics box"
@@ -170,7 +170,7 @@ async def main(cache):
         await pilot.press("1")
         await pilot.pause()
         assert tabs.active == "tab-overview", "1 goes back to the overview tab"
-        assert focused("attention"), "1 goes back to the overview tab"
+        assert focused("kanban"), "1 goes back to the overview tab"
         await pilot.press("2")
         await pilot.pause()
         assert tabs.active == "tab-mine", "2 opens the mine tab"

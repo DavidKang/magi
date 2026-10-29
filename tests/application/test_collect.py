@@ -10,7 +10,7 @@ from builders import EPIC, PR_ONE, PR_THREE, PR_TWO, STATED, TICKETS, TICKET_DET
 from magi.adapters import github, paths, storage
 from magi.application.refresh import Refresh, saved_board
 from magi.application.upgrades import UPGRADES
-from magi.domain import attention, changes, review
+from magi.domain import changes, review, status
 from magi.domain.entities import Ticket, TicketDetail
 
 
@@ -54,6 +54,8 @@ def test_cached_board_reads_back(tmp_path):
     storage.write(tmp_path / "cache.json", {"board": found})
     again = saved_board(storage.read(tmp_path / "cache.json")["board"])
     assert again == found, "a cached board reads back as the same board"
+    older = {key: value for key, value in storage.read(tmp_path / "cache.json")["board"].items() if key != "kanban"}
+    assert saved_board(older)["kanban"] == [], "a board cached before the kanban box reads back with an empty kanban"
 
 
 def test_state_write():
@@ -111,7 +113,7 @@ def test_collect_shows_my_prs_outside_the_team():
         queries.append(query)
         return [github.light_pr(light_node(mine))] if "author:carol" in query else []
     tickets = types.SimpleNamespace(
-        fetch_my_tickets=lambda details: [], fetch_updated=lambda key: key,
+        fetch_my_tickets=lambda details: [], fetch_kanban=lambda settings, details: [], fetch_updated=lambda key: key,
         changed_since=lambda keys, minutes, linked_to=(): set(),
         fetch_epics=lambda settings: [EPIC], fetch_children=lambda key: [replace(t, prs=[]) for t in TICKETS])
     pull_requests = types.SimpleNamespace(search_prs=search, fetch_prs=lambda items: [mine for _ in items],
@@ -129,7 +131,8 @@ def test_a_merged_pr_keeps_its_history():
     mine = replace(PR_TWO, title="Bump a gem", head_ref_name="bump-gem", author={"login": "carol"})
     shown = {"prs": [github.light_pr(light_node(mine))]}
     tickets = types.SimpleNamespace(
-        fetch_my_tickets=lambda details: [], fetch_updated=lambda key: key, changed_since=lambda keys, minutes, linked_to=(): set(),
+        fetch_my_tickets=lambda details: [], fetch_kanban=lambda settings, details: [], fetch_updated=lambda key: key,
+        changed_since=lambda keys, minutes, linked_to=(): set(),
         fetch_epics=lambda settings: [EPIC], fetch_children=lambda key: [replace(t, prs=[]) for t in TICKETS])
     pull_requests = types.SimpleNamespace(search_prs=lambda query: shown["prs"] if "author:carol" in query else [],
                                           fetch_prs=lambda items: [mine for _ in items], fetch_failed_checks=lambda items: [[] for _ in items],
@@ -146,7 +149,8 @@ def test_a_merged_pr_keeps_its_history():
 
 def quiet_jira(**overrides):
     return types.SimpleNamespace(**{
-        "fetch_my_tickets": lambda details: [], "fetch_updated": lambda key: key, "changed_since": lambda keys, minutes, linked_to=(): set(),
+        "fetch_my_tickets": lambda details: [], "fetch_kanban": lambda settings, details: [], "fetch_updated": lambda key: key,
+        "changed_since": lambda keys, minutes, linked_to=(): set(),
         "fetch_epics": lambda settings: [EPIC], "fetch_children": lambda key: [replace(t, prs=[]) for t in TICKETS], **overrides})
 
 
@@ -291,6 +295,8 @@ def test_collect():
     tickets = types.SimpleNamespace(
         fetch_ticket=lambda key: viewed.append(key) or Ticket(key=key, summary="Ticket seven", status="En proceso"),
         fetch_my_tickets=lambda details: [Ticket(key="ACME-9", summary="Ticket nine", status="En proceso", detail=details(["ACME-9"])["ACME-9"])],
+        fetch_kanban=lambda settings, details: [Ticket(key="ACME-8", summary="Ticket eight", status="En revisión", assignee="Ana",
+                                                       detail=details(["ACME-8"])["ACME-8"])],
         fetch_ticket_detail=lambda key: replace(TICKET_DETAIL, description=f"{key} detail", links=[{"key": "ACME-50"}]),
         fetch_updated=lambda key: f"{key} updated",
         changed_since=lambda keys, minutes, linked_to=(): asked_jira.append((sorted(keys), sorted(linked_to))) or set(),
@@ -308,7 +314,8 @@ def test_collect():
     assert "is:pr is:open archived:false org:acme author:alice author:bob" in queries, "the team's prs come from one search naming every author"
     assert "is:pr is:open archived:false org:acme user-review-requested:@me" in queries, "review requests and ticket keys are searched too"
     assert "is:pr is:open archived:false org:acme ACME-100 OR ACME-1" in queries, "review requests and ticket keys are searched too"
-    assert "is:pr is:merged org:acme ACME-1" in queries, "review requests and ticket keys are searched too"
+    assert not any("is:merged" in query for query in queries), "merged prs are not searched: nothing on the board reads them"
+    assert "attention" not in found, "the board has no attention box"
     assert len(asked) == 1, "every pr on the board is fetched once, in one go"
     assert sorted(asked[0]) == [("acme/app", 1), ("acme/billing-reconciliation-service", 2), ("acme/renamed", 3)], \
         "every pr on the board is fetched once, in one go"
@@ -316,22 +323,25 @@ def test_collect():
     assert sorted(store.read("state")["histories"]) == sorted([PR_ONE.url, PR_TWO.url, three.url]), \
         "every pr on the board, review requests alone included, has its history saved"
     assert found["histories"] == store.read("state")["histories"], "the board carries every history the refresh saved"
-    active = [t for t in found["by_key"].values() if t.column in attention.ACTIVE_COLUMNS]
+    active = [t for t in found["by_key"].values() if t.column in status.ACTIVE_COLUMNS]
     assert active, "active tickets take their update time from the update cache"
     assert all(t.updated == f"{t.key} updated" for t in active), "active tickets take their update time from the update cache"
     assert sorted(store.read("updated")["found"]) == sorted(t.key for t in active), \
         "active tickets take their update time from the update cache"
     assert found["my_tickets"][0].detail.description == "ACME-9 detail", "my tickets take their details from their own cache"
     assert list(store.read("my_tickets")["found"]) == ["ACME-9"], "my tickets take their details from their own cache"
+    assert found["kanban"][0].detail.description == "ACME-8 detail", "the kanban board's tickets take their details from their own cache"
+    assert list(store.read("kanban")["found"]) == ["ACME-8"], "the kanban board's tickets take their details from their own cache"
     refresh.ticket("ACME-7")
     asked.clear()
     again = refresh.collect(STATED)
     refresh.ticket("ACME-7")
     assert viewed == ["ACME-7", "ACME-7"], "a refresh forgets the tickets v fetched, so the next v shows Jira as it is now"
-    assert sorted(asked_jira) == sorted([(sorted(t.key for t in active), []), (["ACME-9"], ["ACME-9"])]), \
-        "the next refresh asks jira what changed, and about the tickets linked to mine"
+    assert sorted(asked_jira) == sorted([(sorted(t.key for t in active), []), (["ACME-9"], ["ACME-9"]), (["ACME-8"], ["ACME-8"])]), \
+        "the next refresh asks jira what changed, and about the tickets linked to mine and to the kanban board's"
     assert isinstance(again["my_tickets"][0].detail, TicketDetail), "my ticket details read back from the cache are entities"
     assert again["my_tickets"][0].detail.description == "ACME-9 detail", "my ticket details read back from the cache are entities"
+    assert isinstance(again["kanban"][0].detail, TicketDetail), "the kanban board's ticket details read back from the cache are entities"
     assert asked in ([], [[]]), "an unchanged pr is not fetched again"
     lights["open"] = [light_node(PR_ONE, updated="2026-10-25T08:00:00Z")]
     lights["review"] = [light_node(three), light_node(PR_ONE, updated="2026-10-25T08:00:00Z")]
