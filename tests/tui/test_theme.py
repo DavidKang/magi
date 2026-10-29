@@ -44,10 +44,9 @@ async def lcars_theme(cache):
         assert app.query_one("#sidebar").region.y == app.query_one("#elbow").region.bottom + 1, "the LCARS elbow sits one row above the sidebar, like its buttons"
         assert not app.query_one(Tabs).display, "LCARS swaps the tabs for pills"
         pills = list(app.query(".tab-pill"))
-        assert ["".join(str(s.render()) for s in pill.query(Static)) for pill in pills] == ["\ue0b6 01 OVERVIEW \ue0b4", "\ue0b6 02 MINE \ue0b4",
-                                                                                                  "\ue0b6 09 FACTORY \ue0b4"], \
+        assert ["".join(str(s.render()) for s in pill.query(Static)) for pill in pills] == ["\ue0b6 01 OVERVIEW \ue0b4", "\ue0b6 02 MINE \ue0b4"], \
             "LCARS swaps the tabs for pills"
-        assert [pill.has_class("-on") for pill in pills] == [True, False, False], "the pill of the shown tab is lit"
+        assert [pill.has_class("-on") for pill in pills] == [True, False], "the pill of the shown tab is lit"
         title = app.query_one("#panel-prs .ptitle")
         assert title.display, "LCARS titles panels with a pill"
         assert [str(s.render()) for s in title.query(Static)] == ["╭─", "\ue0b6", "04", "CREW REPORTS", "", "1", "\ue0b4", "─╮"], \
@@ -56,7 +55,7 @@ async def lcars_theme(cache):
         assert app.query_one("#top").region.y == app.query_one("#bar").region.y + 2, "the LCARS masthead leaves a row under the bar"
         assert app.query_one("#pills").region.y == app.query_one("#top").region.y + 2, "the LCARS pills leave a row around them"
         assert app.query_one("#sidebar").region.y == app.query_one("#pills").region.y + 2, "the LCARS pills leave a row around them"
-        assert app.query_one("#panel-epics").region.bottom == app.query_one("#panel-details").region.bottom, "the LCARS columns end on the same row"
+        assert app.query_one("#panel-epics").region.bottom == app.query_one("#panel-factory").region.bottom, "the LCARS columns end on the same row"
         foot_cap = app.query_one("#foot-cap")
         assert (str(foot_cap.render()), foot_cap.region.x) == ("\ue0b6", app.query_one("#panes").region.x), "the LCARS footer opens with a round cap on the boxes' line"
         assert app.query(FooterKey).first().region.x == foot_cap.region.right, "the LCARS footer opens with a round cap on the boxes' line"
@@ -103,14 +102,14 @@ async def lcars_theme(cache):
         await pilot.click("#pill-mine")
         await pilot.pause()
         assert (app.current_section, app.query_one(Tabs).active) == ("mine_prs", "tab-mine"), "a tab pill shows its tab"
-        assert app.query_one("#panel-mine_tickets").region.bottom == app.query_one("#panel-details").region.bottom, "the LCARS columns end on the same row"
-        assert [pill.has_class("-on") for pill in app.query(".tab-pill")] == [False, True, False], "the pill of the shown tab is lit"
+        assert app.query_one("#panel-mine_tickets").region.bottom == app.query_one("#panel-factory").region.bottom, "the LCARS columns end on the same row"
+        assert [pill.has_class("-on") for pill in app.query(".tab-pill")] == [False, True], "the pill of the shown tab is lit"
         await pilot.press("1")
         await pilot.pause()
-        assert [pill.has_class("-on") for pill in app.query(".tab-pill")] == [True, False, False], "the pill of the shown tab is lit"
+        assert [pill.has_class("-on") for pill in app.query(".tab-pill")] == [True, False], "the pill of the shown tab is lit"
         await pilot.press("7")
         await pilot.pause()
-        assert [pill.has_class("-on") for pill in app.query(".tab-pill")] == [False, True, False], "the pill of the shown tab is lit"
+        assert [pill.has_class("-on") for pill in app.query(".tab-pill")] == [False, True], "the pill of the shown tab is lit"
         await pilot.press("5")
         await pilot.pause()
         assert app.screen.styles.background == Color.parse(lcars["bg"]), "t switches the TUI to LCARS"

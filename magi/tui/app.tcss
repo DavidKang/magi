@@ -9,6 +9,8 @@ Screen { background: $tk-bg; color: $tk-fg; }
 .pane { height: 1fr; }
 #panes { width: 1fr; height: 1fr; }
 #panes > Vertical { height: 1fr; }
+#aside { width: 1fr; height: 1fr; }
+#panel-details { height: 2fr; }
 #panel-attention, #panel-epics { height: auto; max-height: 12; }
 #list-attention, #list-epics { height: auto; }
 .pbody { height: 1fr; }
@@ -54,7 +56,7 @@ TicketScreen { align: center middle; background: $tk-veil; }
 #review-diff { width: auto; }
 #review-comments-box { height: 1fr; margin-top: 1; }
 .framed .panel { border: none; padding: 0; margin-bottom: 1; }
-.framed #panes .panel:last-child { margin-bottom: 0; }
+.framed #panes .panel:last-child, .framed #aside .panel:last-child { margin-bottom: 0; }
 .framed .panel .filter, .framed Board, .framed #panel-details .pbody { padding: 0 1; }
 .framed #review, .framed #ticket { border: panel $tk-accent; border-title-color: $tk-title; }
 #header, #header-main { height: auto; }

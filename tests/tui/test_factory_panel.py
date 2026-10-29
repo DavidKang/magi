@@ -20,24 +20,40 @@ def factory_app(cache, factory=lambda: TICKETS):
     return magi_app(cache, factory=factory, clock=NOW.timestamp)
 
 
-async def factory_tab(cache):
+async def factory_box(cache):
     app = factory_app(cache)
     async with started(app) as pilot:
-        await pilot.press("9")
+        await pilot.press("2", "9")
         await pilot.pause()
         rows = app.query_one("#list-factory", OptionList)
         shown = [rows.get_option_at_index(i).prompt.plain for i in range(rows.option_count)]
-        assert app.query_one(Tabs).active == "tab-factory", "9 opens the factory tab"
+        assert (app.current_section, app.query_one(Tabs).active) == ("factory", "tab-mine"), "9 focuses the factory box and keeps the tab shown"
         assert len(shown) == 2 and "ACME-77" in shown[0] and "ACME-78" in shown[1], \
-            "the factory tab lists one row per factory ticket, in the order the factory gives"
+            "the factory box lists one row per factory ticket, in the order the factory gives"
         assert "which repo?" in str(app.query_one("#detail", Static).render()), "the focused factory row shows its details"
         assert str(app.query_one("#panel-factory").border_title) == "[9] factory 2", "the factory box is numbered 9 and counts its tickets"
         await pilot.press("3")
-        assert app.query_one(Tabs).active == "tab-overview", "the board's boxes keep their keys beside the factory"
+        assert app.current_section == "attention", "the board's boxes keep their keys beside the factory"
 
 
-def test_factory_tab(cache):
-    asyncio.run(factory_tab(cache))
+async def factory_under_the_details(cache):
+    app = factory_app(cache)
+    async with started(app) as pilot:
+        for tab in ("1", "2"):
+            await pilot.press(tab)
+            await pilot.pause()
+            box, details = app.query_one("#panel-factory").region, app.query_one("#panel-details").region
+            assert box.height and (box.x, box.width) == (details.x, details.width) and box.y >= details.bottom, \
+                f"the factory box sits under the details, as wide, on tab {tab}"
+        assert [tab.id for tab in app.query_one(Tabs).query("Tab")] == ["tab-overview", "tab-mine"], "the factory has no tab of its own"
+
+
+def test_factory_under_the_details(cache):
+    asyncio.run(factory_under_the_details(cache))
+
+
+def test_factory_box(cache):
+    asyncio.run(factory_box(cache))
 
 
 async def factory_reread_keeps_the_row(cache):
@@ -248,17 +264,17 @@ def test_factory_failure_keeps_its_rows(cache):
     asyncio.run(factory_failure_keeps_its_rows(cache))
 
 
-async def lcars_factory_pill(cache):
+async def lcars_factory_button(cache):
     app = magi_app(cache, factory=lambda: TICKETS, clock=NOW.timestamp, theme="okuda")
     async with started(app) as pilot:
-        await pilot.click("#pill-factory")
+        await pilot.click("#side-factory")
         await pilot.pause()
-        assert (app.current_section, app.query_one(Tabs).active) == ("factory", "tab-factory"), "the factory's lcars pill shows its tab"
-        assert [pill.has_class("-on") for pill in app.query(".tab-pill")] == [False, False, True], "the factory's pill lights up once its tab shows"
+        assert (app.current_section, app.query_one(Tabs).active) == ("factory", "tab-overview"), "the factory's lcars button focuses its box"
+        assert [pill.has_class("-on") for pill in app.query(".tab-pill")] == [True, False], "the shown tab's pill stays lit"
 
 
-def test_lcars_factory_pill(cache):
-    asyncio.run(lcars_factory_pill(cache))
+def test_lcars_factory_button(cache):
+    asyncio.run(lcars_factory_button(cache))
 
 
 class InlineThread:

@@ -141,7 +141,7 @@ Epics are not configured: the board shows every epic of the project in Developin
 | `1` / `2` | Switch to the `Overview` tab or the `Mine` tab |
 | `3`-`6` | Jump to the `Overview` tab's boxes: attention, team PRs, changes, epics |
 | `7`-`8` | Jump to the `Mine` tab's boxes: your open PRs, your Jira tickets not done, grouped by status |
-| `9` | Open the `Factory` tab: the software factory's tickets (see [Factory](#factory)) |
+| `9` | Jump to the factory box under the details: the software factory's tickets (see [Factory](#factory)) |
 | `j` / `k` | Move down / up |
 | `enter` | Open the selected item in the browser |
 | `c` | Open the selected PR's comments, reviews and code threads with their diff, or the selected ticket's description and comments (`j`/`k` move, `enter` opens it in the browser, `esc` closes) |
@@ -184,7 +184,7 @@ Run inside a [herdr](https://herdr.dev) pane, Magi tells herdr when a refresh br
 
 ### Factory
 
-The `Factory` tab, in the TUI only, lists one row per ticket of the local software factory: its key, its stage, how long ago the stage changed, the status of its herdr session and the stage's detail, or the ticket's summary when the stage has none. Tickets waiting for you come first, then blocked reviews, then building, then ready.
+The factory box, in the TUI only, sits under the details on every tab and lists one row per ticket of the local software factory: its key, its stage, how long ago the stage changed, the status of its herdr session and the stage's detail, or the ticket's summary when the stage has none. Tickets waiting for you come first, then blocked reviews, then building, then ready.
 
 - Stages come from the `<KEY>.json` files the factory writes in `~/.local/state/factory`; a ticket's session is the herdr agent working in a folder named after its key, alone or followed by `-` and a slug. A ticket without one reads `absent`.
 - It is read every 10 seconds, apart from the board's refresh, and never calls Jira or GitHub. A missing or failing herdr shows every session absent; Magi starts without it.
@@ -295,7 +295,7 @@ The LCARS, NERV and Cyberpunk themes show how the board is doing in the header:
 | `~/.cache/magi/seen.json` | The last change you saw on each PR or ticket, so new ones stay marked until you pass them |
 | `~/.cache/magi/snoozed.json` | What you snoozed in each box, with the change each item had then |
 | `~/.cache/magi/board.html` | The board as a web page, rewritten after each refresh and snooze (see [Web page](#web-page)) |
-| `~/.local/state/factory/<KEY>.json` | The software factory's stage of each ticket, written by the factory and only read by Magi for the `Factory` tab |
+| `~/.local/state/factory/<KEY>.json` | The software factory's stage of each ticket, written by the factory and only read by Magi for the factory box |
 | `~/.cache/magi/last-refresh` | When the last refresh started, so reopening the app or pressing `r` waits 30 seconds |
 
 Magi used to be called Tarkon. On start, it moves any `tarkon` folder in those three places to `magi`, unless a `magi` folder is already there.

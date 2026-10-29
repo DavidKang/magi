@@ -25,8 +25,8 @@ async def main(cache):
         detail = lambda: str(app.query_one("#detail", Static).render())
         title = lambda key: str(app.query_one(f"#panel-{key}").border_title)
         focused = lambda key: app.focused is app.query_one(f"#list-{key}")
-        assert [tab.label.plain for tab in app.query("Tab")] == ["[1] Overview", "[2] Mine", "[9] Factory"], \
-            "the tab bar shows Overview, Mine and the factory, Overview first"
+        assert [tab.label.plain for tab in app.query("Tab")] == ["[1] Overview", "[2] Mine"], \
+            "the tab bar shows Overview and Mine, Overview first"
         assert app.query_one("Tabs").active == "tab-overview", "the tab bar shows Overview and Mine, Overview first"
         assert app.query_one("Tabs").region.width == app.screen.region.width, "the tab bar spans the whole width"
         assert app.query_one("#panel-details").region.y == app.query_one("#panel-attention").region.y, "details starts level with the first box"
@@ -45,7 +45,7 @@ async def main(cache):
         assert not app.query("#panel-desk"), "there is no my desk or worktrees box"
         assert not app.query("#panel-worktrees"), "there is no my desk or worktrees box"
         titles = [str(panel.border_title) for panel in app.query(".panel")]
-        assert titles == ["[3] attention 1", "[4] team prs 2", "[5] changes 1", "[6] epics 1", "[7] my prs 1", "[8] my tickets 2", "[9] factory 0", "details"], \
+        assert titles == ["[3] attention 1", "[4] team prs 2", "[5] changes 1", "[6] epics 1", "[7] my prs 1", "[8] my tickets 2", "details", "[9] factory 0"], \
             "overview numbers its boxes next to details"
         assert "Move it to In review?" in detail(), "overview starts on the attention box"
         heights = {key: app.query_one(f"#panel-{key}").outer_size.height for key in ("attention", "prs", "changes", "epics")}

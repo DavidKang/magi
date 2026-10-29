@@ -51,12 +51,11 @@ BOXES = {**SECTIONS, "factory": ("factory", "no factory tickets", [10, 18, 4, 8,
 FACTORY_SECONDS = 10
 REFRESHING = {"lcars": "ENGAGING WARP DRIVE…", "cyberpunk": "JACKING IN…"}
 CONDITION_TONES = {"green": "ok", "yellow": "warn", "red": "bad"}
-BOARD_TABS = {"overview": ["attention", "prs", "changes", "epics"], "mine": ["mine_prs", "mine_tickets"]}
-TABS = {**BOARD_TABS, "factory": ["factory"]}
-# The board's tabs take the first digits and the boxes the next ones; the factory's tab answers to its one box's digit,
-# so the board keeps its keys.
-NUMBERS = {key: n for n, key in enumerate(BOXES, len(BOARD_TABS) + 1)}
-TAB_NUMBERS = {**{tab: n for n, tab in enumerate(BOARD_TABS, 1)}, "factory": NUMBERS["factory"]}
+# The factory's box has no tab: it stays under the details on every tab.
+TABS = {"overview": ["attention", "prs", "changes", "epics"], "mine": ["mine_prs", "mine_tickets"]}
+# The tabs take the first digits and the boxes the next ones.
+NUMBERS = {key: n for n, key in enumerate(BOXES, len(TABS) + 1)}
+TAB_NUMBERS = {tab: n for n, tab in enumerate(TABS, 1)}
 TAB_OF = {key: tab for tab, keys in TABS.items() for key in keys}
 LEFT_CAP, RIGHT_CAP = "\ue0b6", "\ue0b4"
 # NERV writes titles into the box line and outlines its tabs, after nerv-ui's labels and navigation.
@@ -164,7 +163,7 @@ class MagiApp(App):
     TITLE = "MAGI"
     AUTO_FOCUS = "Board"
     CSS_PATH = "app.tcss"
-    BINDINGS = [*(Binding(str(n), f"focus_tab({n})", "tabs", key_display="1-2", show=n == 1) for n in range(1, len(BOARD_TABS) + 1)),
+    BINDINGS = [*(Binding(str(n), f"focus_tab({n})", "tabs", key_display="1-2", show=n == 1) for n in range(1, len(TABS) + 1)),
                 *(Binding(str(n), f"focus_box({n})", "boxes", key_display="3-9", show=n == 3) for n in NUMBERS.values()),
                 Binding("slash", "focus_filter", "filter", key_display="/"),
                 Binding("escape", "clear_filter", "clear", show=False),
@@ -240,21 +239,26 @@ class MagiApp(App):
                 for tab, keys in TABS.items():
                     with Vertical(id=f"pane-{tab}"):
                         for key in keys:
-                            with Vertical(id=f"panel-{key}", classes="panel") as panel:
-                                panel.border_title = panel_title(key, None)
-                                yield PanelTitle()
-                                with Vertical(classes="pbody"):
-                                    yield Input(placeholder="/ filter", id=f"filter-{key}", classes="filter")
-                                    yield Board(key, id=f"list-{key}")
-            with Vertical(id="panel-details", classes="panel") as panel:
-                panel.border_title = "details"
-                yield PanelTitle()
-                with VerticalScroll(classes="pbody"):
-                    yield Static(id="detail")
+                            yield from self.box(key)
+            with Vertical(id="aside"):
+                with Vertical(id="panel-details", classes="panel") as panel:
+                    panel.border_title = "details"
+                    yield PanelTitle()
+                    with VerticalScroll(classes="pbody"):
+                        yield Static(id="detail")
+                yield from self.box("factory")
         with Horizontal(id="foot"):
             yield Static(id="footcap")
             yield Static(LEFT_CAP, id="foot-cap")
             yield Footer()
+
+    def box(self, key):
+        with Vertical(id=f"panel-{key}", classes="panel") as panel:
+            panel.border_title = panel_title(key, None)
+            yield PanelTitle()
+            with Vertical(classes="pbody"):
+                yield Input(placeholder="/ filter", id=f"filter-{key}", classes="filter")
+                yield Board(key, id=f"list-{key}")
 
     def check_action(self, action, parameters):
         return not isinstance(self.screen, (ConfigScreen, ReviewScreen, ThemeScreen, TicketScreen)) or action not in BOARD_ACTIONS
@@ -607,12 +611,13 @@ class MagiApp(App):
 
     def action_focus_tab(self, number):
         tab = next(tab for tab, n in TAB_NUMBERS.items() if n == number)
-        if TAB_OF[self.current_section] != tab:
+        if TAB_OF.get(self.current_section) != tab:
             self.action_focus_box(NUMBERS[TABS[tab][0]])
 
     def action_focus_box(self, number):
         key = list(BOXES)[number - NUMBERS["attention"]]
-        self.show_tab(TAB_OF[key])
+        if key in TAB_OF:
+            self.show_tab(TAB_OF[key])
         self.query_one(f"#list-{key}", Board).focus()
 
     def show_tab(self, tab):
@@ -625,7 +630,7 @@ class MagiApp(App):
         self.query_one(ContentSwitcher).current = f"pane-{tab}"
         for pill in self.query(TabPill):
             pill.set_class(pill.id == f"pill-{tab}", "-on")
-        if TAB_OF[self.current_section] != tab:
+        if TAB_OF.get(self.current_section) != tab:
             self.query_one(f"#list-{TABS[tab][0]}", Board).focus()
 
     def action_focus_filter(self):
