@@ -187,32 +187,45 @@ def test_lcars_condition_colors(cache):
     asyncio.run(lcars_condition(cache))
 
 
-async def long_boxes(cache):
+def full_board():
     epics = [make_epic(key=f"ACME-{n}") for n in range(15)]
-    full = {**board([PR_ONE]), "epics": epics, "tickets_by_epic": {e.key: TICKETS for e in epics},
-            "kanban": board([PR_ONE])["kanban"] * 20}
-    async with started(magi_app(cache, load=lambda: full)) as pilot:
+    return {**board([PR_ONE]), "epics": epics, "tickets_by_epic": {e.key: TICKETS for e in epics}, "kanban": board([PR_ONE])["kanban"] * 20}
+
+
+async def long_boxes(cache):
+    async with started(magi_app(cache, load=full_board)) as pilot:
         for name in ("default", "okuda"):
             await pick_theme(pilot, name)
             for box in ("kanban", "epics"):
                 panel, body, rows = (pilot.app.query_one(f"#panel-{box}{part}") for part in ("", " .pbody", f" #list-{box}"))
                 assert rows.max_scroll_y > 0, f"a full {box} box scrolls in the {name} theme"
                 assert body.region.bottom <= panel.region.bottom, f"a full {box} box keeps its bottom line in the {name} theme"
-                bar = rows.vertical_scrollbar
-                drawn = pilot.app.console.render(bar.render(), pilot.app.console.options.update(width=1, height=bar.size.height))
-                assert {segment.text for segment in drawn} - {"\n"} == {" ", "▐"}, f"a full {box} box draws its scrollbar as a thin line"
-                assert (rows.styles.scrollbar_size_vertical, rows.styles.scrollbar_color) == (1, Color.parse(theme.THEMES[name]["progress"])), \
-                    f"a full {box} box scrolls with a one-cell bar in the {name} theme's dull green"
-                styles = rows.styles
-                assert {styles.scrollbar_color_hover, styles.scrollbar_color_active} == {Color.parse(theme.THEMES[name]["progress"])}, \
-                    f"a full {box} box keeps its bar's dull green under the mouse in the {name} theme"
-                assert {styles.scrollbar_background, styles.scrollbar_background_hover, styles.scrollbar_background_active} == \
-                    {Color.parse(theme.THEMES[name]["bg"])}, f"a full {box} box draws its bar on the {name} theme's background"
 
 
 @pytest.mark.usefixtures("default_theme")
 def test_full_boxes_scroll(cache):
     asyncio.run(long_boxes(cache))
+
+
+async def thin_scrollbars(cache):
+    async with started(magi_app(cache, load=full_board)) as pilot:
+        for name in ("default", "okuda"):
+            await pick_theme(pilot, name)
+            for box in ("kanban", "epics"):
+                rows = pilot.app.query_one(f"#list-{box}")
+                bar, styles = rows.vertical_scrollbar, rows.styles
+                drawn = pilot.app.console.render(bar.render(), pilot.app.console.options.update(width=1, height=bar.size.height))
+                assert {segment.text for segment in drawn} - {"\n"} == {" ", "▐"}, f"a full {box} box draws its scrollbar as a thin line in the {name} theme"
+                assert styles.scrollbar_size_vertical == 1, f"a full {box} box's scrollbar takes one cell in the {name} theme"
+                assert {styles.scrollbar_color, styles.scrollbar_color_hover, styles.scrollbar_color_active} == \
+                    {Color.parse(theme.THEMES[name]["progress"])}, f"a full {box} box's scrollbar stays dull green, under the mouse too, in the {name} theme"
+                assert {styles.scrollbar_background, styles.scrollbar_background_hover, styles.scrollbar_background_active} == \
+                    {Color.parse(theme.THEMES[name]["bg"])}, f"a full {box} box's scrollbar sits on the {name} theme's background, under the mouse too"
+
+
+@pytest.mark.usefixtures("default_theme")
+def test_scrollbars_are_a_thin_dull_green_line(cache):
+    asyncio.run(thin_scrollbars(cache))
 
 
 async def top_lines(cache):
@@ -402,3 +415,8 @@ def test_thin_scrollbar_thumb_spans_the_window_from_top_to_bottom():
 
 def test_thin_scrollbar_draws_no_thumb_for_a_list_that_fits():
     assert thumb_rows(10, 10, 10) == [], "a list that fits draws no thumb"
+
+
+def test_thin_scrollbar_leaves_horizontal_bars_to_textual():
+    drawn = ThinScrollBar.render_bar(size=12, virtual_size=48, window_size=12, vertical=False, back_color=None, bar_color=None)
+    assert "▐" not in "".join(segment.text for segment in drawn.segments), "a horizontal bar is drawn as Textual draws it, not as the thin line"
