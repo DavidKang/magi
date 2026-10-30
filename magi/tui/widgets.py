@@ -84,7 +84,7 @@ ScrollBar.renderer = ThinScrollBar
 class DetailBody(VerticalScroll):
     """The details box's body: an entry's detail, its description cut to what the box holds whenever the box changes size."""
 
-    detail, fold = "", 0
+    detail, fold, shown = "", 0, None
 
     def compose(self):
         yield Static(id="detail")
@@ -100,7 +100,11 @@ class DetailBody(VerticalScroll):
         # A fitted description leaves no scrollbar, so it wraps at the full width, not the one the last detail's scrollbar left.
         width, height = self.content_region.size
         # Before its first layout the box has no width to wrap at; the resize that lays it out fits it.
-        self.query_one("#detail", Static).update(fitted(self.detail, self.fold, width, height) if width else self.detail)
+        shown = fitted(self.detail, self.fold, width, height) if width else self.detail
+        # A refresh, a filter keystroke or a resize often fits the same text again; laying it out again would change nothing.
+        if shown != self.shown:
+            self.shown = shown
+            self.query_one("#detail", Static).update(shown)
 
 
 class Board(OptionList):

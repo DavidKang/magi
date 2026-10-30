@@ -82,10 +82,10 @@ def test_ticket_detail_edges():
         TICKET_DETAIL, labels=[])), [], STATED).detail).plain.splitlines(), "a ticket without labels shows a dash"
     assert "line 14" in lines, "a ticket's detail holds its whole description, for the details box to fit"
     long = entries.ticket_entry(ticket, [], STATED)
-    folded = Content.from_markup(entries.folded(long.detail, long.fold, 12)).plain.splitlines()
-    assert "line 12" in folded and "line 13" not in folded, "a folded description keeps the lines asked for"
+    folded = Content.from_markup(entries.folded(long.detail, long.fold, 5)).plain.splitlines()
+    assert "line 5" in folded and "line 6" not in folded, "a folded description keeps the lines asked for"
     assert folded[-1] == "… c to read it all", "a folded description ends with a hint to open it"
-    assert entries.colored("accent", entries.MORE_HINT) in entries.folded(long.detail, long.fold, 12), \
+    assert entries.colored("accent", entries.MORE_HINT) in entries.folded(long.detail, long.fold, 5), \
         "the hint to read the whole description reads in the accent colour of the section headers"
     assert entries.folded(long.detail, long.fold, 14) == long.detail, "a description that is kept whole has no hint"
     assert not any(line.startswith("comments") for line in lines), "a ticket without comments shows no comments line"
@@ -392,9 +392,29 @@ def test_ticket_description_fits_the_space_it_has():
     assert fitted[-1].plain == "… c to read it all", "a description that does not fit ends on the hint to read it all"
 
 
+def test_ticket_description_one_row_short_trades_its_last_lines_for_the_hint():
+    ticket = Ticket(key="ACME-1", summary="Ticket one", status="En proceso", detail=replace(
+        TICKET_DETAIL, description="\n".join(f"line {n}" for n in range(1, 31))))
+    entry = entries.ticket_entry(ticket, [], STATED)
+    whole = len(Content.from_markup(entry.detail).wrap(60))
+    fitted = entries.fitted(entry.detail, entry.fold, 60, whole - 1)
+    assert "line 28\n" in fitted and "line 29" not in fitted, "a box one row short drops the last two lines for the hint"
+    assert entries.fitted(entry.detail, entry.fold, 60, 3) == entries.folded(entry.detail, entry.fold, 0), \
+        "a box shorter than the heading keeps no description line"
+
+
 def test_ticket_description_fits_by_the_rows_its_lines_wrap_to():
     ticket = Ticket(key="ACME-1", summary="Ticket one", status="En proceso", detail=replace(
         TICKET_DETAIL, description="\n".join(f"line {n} " + "word " * 20 for n in range(1, 31))))
     entry = entries.ticket_entry(ticket, [], STATED)
     rows = Content.from_markup(entries.fitted(entry.detail, entry.fold, 60, 40)).wrap(60)
     assert len(rows) <= 40 and rows[-1].plain == "… c to read it all", "a description whose lines wrap is cut by the rows they take, not by its lines"
+
+
+def test_ticket_description_in_a_narrow_box_shows_whole_when_it_fits():
+    detail = "KEY-1\n\n── description\na\nb"
+    assert entries.fitted(detail, 2, 17, 5) == detail, "a description that fits a box too narrow for the hint on one row shows whole"
+
+
+def test_a_detail_without_description_is_never_cut():
+    assert entries.fitted("KEY-1\n" * 10, 0, 60, 3) == "KEY-1\n" * 10, "a detail without a description shows whole, whatever the box"

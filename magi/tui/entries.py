@@ -1,5 +1,4 @@
 import re
-from bisect import bisect_left
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -301,15 +300,29 @@ def folded(detail, fold, kept):
     if kept >= fold:
         return detail
     lines = detail.split("\n")
-    return "\n".join(lines[:len(lines) - fold + kept] + [colored("accent", "…") + colored("accent", MORE_HINT)])
+    return "\n".join(lines[:len(lines) - fold + kept] + [read_all_hint()])
+
+
+def read_all_hint():
+    """The line that ends a cut description, telling `c` reads it all."""
+    return colored("accent", "…") + colored("accent", MORE_HINT)
 
 
 def fitted(detail, fold, width, height):
     """A detail folded to the most description lines that fit a box of this size, the whole of it when it all fits."""
-    def overflows(kept):
-        return len(Content.from_markup(folded(detail, fold, kept)).wrap(width)) > height
-    # Keeping more lines never takes fewer rows, so the first count that overflows is found by halving.
-    return folded(detail, fold, max(0, bisect_left(range(fold + 1), True, key=overflows) - 1))
+    if not fold:
+        return detail
+    def rows(text):
+        return len(Content.from_markup(text).wrap(width))
+    lines = detail.split("\n")
+    used, hint, cut = rows("\n".join(lines[:len(lines) - fold])), rows(read_all_hint()), 0
+    # The description's lines are escaped, so each wraps alone and counting stops at the first that no longer fits.
+    for kept, line in enumerate(lines[len(lines) - fold:]):
+        cut = kept if used + hint <= height else cut
+        used += rows(line)
+        if used > height:
+            return folded(detail, fold, cut)
+    return detail
 
 
 def status_tone(status):

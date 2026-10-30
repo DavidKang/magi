@@ -471,8 +471,9 @@ def test_details_show_a_short_description_whole(cache):
 
 def snug_ticket(width, height):
     two = Ticket(key="ACME-2", summary="Ticket two", status="En proceso", detail=make_ticket_detail(links=[], comments=[], description="x"))
-    rows = len(Content.from_markup(entries.ticket_entry(two, [], STATED).detail).wrap(width)) - 1
-    description = "\n".join([*(f"line {n}" for n in range(height - rows - 1)), "w" * width])
+    # The heading is the detail without its one-row placeholder description; short lines, then one as wide as the box, fill the rest to its last row.
+    heading = len(Content.from_markup(entries.ticket_entry(two, [], STATED).detail).wrap(width)) - 1
+    description = "\n".join([*(f"line {n}" for n in range(height - heading - 1)), "w" * width])
     return entries.ticket_entry(replace(two, detail=replace(two.detail, description=description)), [], STATED)
 
 
