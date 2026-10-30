@@ -60,25 +60,26 @@ def fetch_failed_checks(candidates):
     return in_batches(fetch_checks_batch, candidates)
 
 
-# A compare on a long-lived branch can take GitHub a while; past this, each of a PR's two compares gives up and the PR lists no files.
+# A compare on a long-lived branch can take GitHub a while; past this, the compare gives up and its PR lists no files.
 COMPARE_TIMEOUT = 20
 
 
 def fetch_conflicts(candidates):
     """Each PR's files that its branch and its base both changed since they parted, in the order asked: GitHub names no conflicting file.
     A compare lists at most 300 files a side, so a bigger one may miss some."""
-    return process.parallel(conflicts, list(candidates))
+    sides = iter(process.parallel(changed_files, [(repo, a, b) for repo, base, head in candidates for a, b in ((base, head), (head, base))]))
+    return [sorted(ours & theirs) for ours, theirs in zip(sides, sides)]
 
 
-def conflicts(candidate):
-    """A PR's files in conflict; none when GitHub refuses a compare, as it does for a diff too big to build, so one PR never fails the refresh."""
-    repo, base, head = candidate
+def changed_files(compare):
+    """The files b changed since a and b parted; none when GitHub refuses the compare, as it does for a diff too big to build,
+    so one PR never fails the refresh."""
+    repo, a, b = compare
     try:
-        ours = process.run_json(["gh", "api", f"repos/{repo}/compare/{base}...{head}"], COMPARE_TIMEOUT)
-        theirs = process.run_json(["gh", "api", f"repos/{repo}/compare/{ours['merge_base_commit']['sha']}...{base}"], COMPARE_TIMEOUT)
+        found = process.run_json(["gh", "api", f"repos/{repo}/compare/{a}...{b}"], COMPARE_TIMEOUT)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        return []
-    return sorted({file["filename"] for file in ours["files"]} & {file["filename"] for file in theirs["files"]})
+        return set()
+    return {file["filename"] for file in found["files"]}
 
 
 def in_batches(fetch_batch, candidates):

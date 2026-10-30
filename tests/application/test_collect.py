@@ -1,12 +1,13 @@
 import datetime as dt
 import json
+import re
 import threading
 import types
 from dataclasses import replace
 
 import pytest
 
-from builders import EPIC, PR_ONE, PR_THREE, PR_TWO, STATED, TICKETS, TICKET_DETAIL, board, light_node, make_epic, make_settings
+from builders import EPIC, PR_ONE, PR_THREE, PR_TWO, STATED, TICKETS, TICKET_DETAIL, board, light_node, make_epic, make_settings, make_ticket
 from magi.adapters import github, paths, storage
 from magi.application.refresh import Refresh, saved_board
 from magi.application.upgrades import UPGRADES
@@ -270,6 +271,75 @@ def test_jira_is_asked_what_changed_while_the_tickets_load():
     assert overlapped == [False, True], "a refresh asks jira which tickets changed while the epics' tickets load"
     assert changed == [["ACME-1"]], "jira is asked once per refresh which tickets changed"
     assert updated == ["ACME-1", "ACME-1"], "a ticket jira names as changed has its update time asked again"
+
+
+def key_search(found):
+    """A search_prs that answers found(query) to the searches by ticket key and nothing to the team's and the review's."""
+    return lambda query: [] if "author:" in query or "user-review-requested" in query else found(query)
+
+
+def test_known_keys_search_their_prs_while_jira_lists_the_epics():
+    asked = threading.Event()
+    overlapped, searched = [], []
+    children = [replace(t, prs=[]) for t in TICKETS]
+
+    def fetch_epics(settings):
+        overlapped.append(asked.wait(1))
+        return [EPIC]
+
+    def search(query):
+        searched.append(re.findall(r"ACME-\d+", query))
+        asked.set()
+        return []
+    prs = types.SimpleNamespace(**{**vars(NO_PRS), "search_prs": key_search(search)})
+    refresh, _, _ = refresh_with(quiet_jira(fetch_epics=fetch_epics, fetch_children=lambda key: children), prs)
+    asked.set()
+    refresh.collect(STATED)
+    asked.clear()
+    overlapped.clear()
+    searched.clear()
+    children.append(make_ticket(key="ACME-3", summary="Ticket three"))
+    refresh.collect(STATED)
+    assert overlapped == [True], "a refresh searches the prs of the keys it knew while jira lists the epics"
+    assert searched == [["ACME-100", "ACME-1"], ["ACME-3"]], \
+        "a key new to the board has its prs searched once jira lists it, a done ticket's never, and no key twice"
+
+
+def found_by(key, pr):
+    """GitHub that finds pr, from outside the team, when a key search asks key."""
+    pr = replace(pr, author={"login": "zoe"})
+    return types.SimpleNamespace(**{**vars(NO_PRS), "fetch_prs": lambda items: [pr for _ in items],
+                                    "fetch_pr_states": lambda urls: {url: "OPEN" for url in urls},
+                                    "search_prs": key_search(lambda query: [github.light_pr(light_node(pr))]
+                                                             if key in re.findall(r"ACME-\d+", query) else [])})
+
+
+def test_a_pr_naming_only_a_ticket_done_since_leaves_the_board():
+    children = [make_ticket()]
+    refresh, _, _ = refresh_with(quiet_jira(fetch_children=lambda key: children), found_by("ACME-1", PR_ONE))
+    assert [pr.url for pr in refresh.collect(STATED)["prs"]] == [PR_ONE.url], "a pr naming an open ticket is on the board"
+    children[:] = [make_ticket(status="Finalizado", column="done")]
+    assert refresh.collect(STATED)["prs"] == [], \
+        "a pr naming only a ticket done since the last refresh leaves the board, though the last refresh's keys found it"
+
+
+def test_a_status_no_longer_mapped_in_the_saved_state_cannot_break_the_refresh():
+    refresh, store, _ = refresh_with(quiet_jira(), NO_PRS)
+    refresh.collect(STATED)
+    state = json.loads(store.files["state"])
+    state["snapshot"]["tickets"]["ACME-1"]["status"] = "Renamed in Jira"
+    store.files["state"] = json.dumps(state)
+    assert list(refresh.collect(STATED)["by_key"]) == ["ACME-1", "ACME-2"], \
+        "a status the last refresh saved and magi no longer maps only hints which keys to search early, it never stops the refresh"
+
+
+def test_a_pr_counts_alike_whichever_key_search_found_it():
+    children = [make_ticket(), make_ticket(key="ACME-2", summary="Ticket two", status="Finalizado", column="done")]
+    elsewhere = replace(PR_ONE, title="[ACME-2] Follow-up", head_ref_name="follow-up")
+    refresh, _, _ = refresh_with(quiet_jira(fetch_children=lambda key: children), found_by("ACME-1", elsewhere))
+    assert refresh.collect(STATED)["prs"] == [], "a pr whose title and branch name only a done ticket stays off the board when the search of a new key finds it"
+    assert refresh.collect(STATED)["prs"] == [], \
+        "a pr whose title and branch name only a done ticket stays off the board when the search of a known key finds it"
 
 
 def test_an_epic_jira_no_longer_lists_cannot_break_the_refresh():

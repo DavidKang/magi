@@ -4,7 +4,7 @@ from ..adapters import paths, storage
 from . import web
 from .boxes import NUMBERS, SECTIONS
 
-# A refresh costs about 7-8 s, 2-8 of GitHub's 5000 GraphQL points an hour and two REST calls per PR in conflict, after scripts/profile_refresh.py.
+# A refresh costs about 4-5 s, 2-8 of GitHub's 5000 GraphQL points an hour and two REST calls per PR in conflict, after scripts/profile_refresh.py.
 REFRESH_SECONDS = 5 * 60
 REFRESH_COOLDOWN = 30
 CACHE = paths.CACHE_DIR / "cache.json"

@@ -7,9 +7,9 @@ from concurrent.futures import ThreadPoolExecutor
 from ..domain.changes import recent_changes, snapshot, snapshot_epics, vanished_prs
 from ..domain.entities import Epic, PullRequest, TicketDetail, ticket_from
 from ..domain.histories import kept_histories, pr_histories
-from ..domain.keys import ticket_keys_in
+from ..domain.keys import searched_keys, ticket_keys_in
 from ..domain.mine import authored
-from ..domain.status import ACTIVE_COLUMNS
+from ..domain.status import ACTIVE_COLUMNS, STATUS_COLUMNS
 
 # Minutes added to the time since the last refresh when asking Jira what changed, for clock skew and slow refreshes.
 JIRA_MARGIN_MINUTES = 5
@@ -49,6 +49,11 @@ class Refresh:
         # CI, its failed checks, mergeability and the files in conflict change without touching updatedAt, so they are asked on every refresh.
         return {pr.url: dataclasses.replace(details[pr.url], ci=pr.ci, failed_checks=failed.get(pr.url, []), mergeable=pr.mergeable,
                                             conflicts=conflicts.get(pr.url, [])) for pr in found}
+
+    def open_prs(self, org, keys):
+        """The open PRs that name any of keys, light."""
+        queries = [f"{OPEN_PRS} {org} {' '.join(terms)}" for terms in self.pull_requests.search_terms(keys)]
+        return [pr for found in self.parallel(self.pull_requests.search_prs, queries) for pr in found]
 
     def known_children(self, epic_key):
         """An epic's tickets, asked before Jira lists the epics; None when Jira refuses, as it does for an epic since deleted."""
@@ -100,6 +105,10 @@ class Refresh:
         state = self.store.read("state")
         known_epics = snapshot_epics(state["snapshot"]) if state else []
         known_children = pool.submit(parallel, self.known_children, known_epics)
+        known_tickets = state["snapshot"]["tickets"] if state else {}
+        # Only a hint: a status magi no longer maps is searched too, and the PRs are filtered by the keys Jira gives now.
+        known_keys = searched_keys(known_epics, {key: STATUS_COLUMNS.get(t["status"]) for key, t in known_tickets.items()})
+        known_prs = pool.submit(self.open_prs, org, known_keys)
         updated_changes = pool.submit(self.cached_changes, "updated")
         epics = tickets.fetch_epics(settings)
         epic_keys = [epic.key for epic in epics]
@@ -112,10 +121,13 @@ class Refresh:
         active = [t for t in by_key.values() if t.column in ACTIVE_COLUMNS]
         updated = pool.submit(lambda: self.refetch_changed("updated", [t.key for t in active], tickets.fetch_updated, started,
                                                            cached=updated_changes.result()))
-        search_keys = epic_keys + [k for k, t in by_key.items() if t.column != "done"]
-        open_prs = parallel(pull_requests.search_prs,
-                            [f"{OPEN_PRS} {org} {' '.join(terms)}" for terms in pull_requests.search_terms(search_keys)])
-        candidates = {pr.url: pr for found in open_prs + team_prs.result() for pr in found}
+        search_keys = searched_keys(epic_keys, {k: t.column for k, t in by_key.items()})
+        wanted, searched = set(search_keys), set(known_keys)
+        found_by_keys = known_prs.result() + self.open_prs(org, [key for key in search_keys if key not in searched])
+        # GitHub matches a key anywhere, and the last refresh's keys may be done by now: a PR counts when its title or branch
+        # names a key searched now, whichever search found it.
+        open_prs = [pr for pr in found_by_keys if not wanted.isdisjoint(ticket_keys_in(pr, settings.jira_project))]
+        candidates = {pr.url: pr for pr in open_prs + [pr for found in team_prs.result() for pr in found]}
         shown = [pr for pr in candidates.values()
                  if any(k in by_key for k in ticket_keys_in(pr, settings.jira_project)) or pr.author["login"] in people]
         requested = review_requested.result()

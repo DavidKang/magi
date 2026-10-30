@@ -1,5 +1,6 @@
 import re
 import subprocess
+import threading
 from dataclasses import replace
 
 import pytest
@@ -29,26 +30,35 @@ def test_search_prs(monkeypatch):
 
 
 def test_conflicts_are_the_files_both_sides_changed(monkeypatch):
-    answers = {"repos/acme/app/compare/main...a1": {"merge_base_commit": {"sha": "b0"}, "files": [{"filename": "app.py"}, {"filename": "README.md"}]},
-               "repos/acme/app/compare/b0...main": {"files": [{"filename": "setup.py"}, {"filename": "README.md"}, {"filename": "app.py"}]},
-               "repos/acme/web/compare/main...c2": {"merge_base_commit": {"sha": "d0"}, "files": [{"filename": "web.py"}]},
-               "repos/acme/web/compare/d0...main": {"files": [{"filename": "setup.py"}]}}
-    timeouts = []
-    monkeypatch.setattr(process, "run_json", lambda cmd, timeout=None: timeouts.append(timeout) or answers[cmd[2]])
+    answers = {"repos/acme/app/compare/main...a1": {"files": [{"filename": "app.py"}, {"filename": "README.md"}]},
+               "repos/acme/app/compare/a1...main": {"files": [{"filename": "setup.py"}, {"filename": "README.md"}, {"filename": "app.py"}]},
+               "repos/acme/web/compare/main...c2": {"files": [{"filename": "web.py"}]},
+               "repos/acme/web/compare/c2...main": {"files": [{"filename": "setup.py"}]}}
+    timeouts, alone, both = [], [], threading.Barrier(2, timeout=1)
+
+    def answer(cmd, timeout=None):
+        if cmd[2].startswith("repos/acme/app/"):
+            try:
+                both.wait()
+            except threading.BrokenBarrierError:
+                alone.append(cmd[2])
+        return timeouts.append(timeout) or answers[cmd[2]]
+    monkeypatch.setattr(process, "run_json", answer)
     assert github.fetch_conflicts([("acme/app", "main", "a1"), ("acme/web", "main", "c2")]) == [["README.md", "app.py"], []], \
         "a PR's conflicts are the files its branch and its base both changed since they parted, each PR in the order asked"
+    assert not alone, "a PR's two compares are asked at once: neither waits for the other's answer"
     assert timeouts == [github.COMPARE_TIMEOUT] * 4, "every compare gives up after COMPARE_TIMEOUT, so a hung one cannot hold up the refresh"
 
 
 @pytest.mark.parametrize("error", [subprocess.CalledProcessError(1, "gh"), subprocess.TimeoutExpired("gh", github.COMPARE_TIMEOUT)])
 def test_conflicts_a_failed_compare_lists_no_files(monkeypatch, error):
     def answer(cmd, timeout=None):
-        if "acme/huge" in cmd[2]:
+        if cmd[2] == "repos/acme/huge/compare/a1...main":
             raise error
-        return {"merge_base_commit": {"sha": "b0"}, "files": [{"filename": "app.py"}]}
+        return {"files": [{"filename": "app.py"}]}
     monkeypatch.setattr(process, "run_json", answer)
     assert github.fetch_conflicts([("acme/huge", "main", "a1"), ("acme/app", "main", "c2")]) == [[], ["app.py"]], \
-        "a compare GitHub refuses or never answers lists no files for that PR instead of failing the refresh"
+        "a compare GitHub refuses or never answers, even on one side only, lists no files for that PR instead of failing the refresh"
 
 
 def failed_checks_of(monkeypatch, node):
