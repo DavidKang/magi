@@ -1,4 +1,4 @@
-"""Profile two real refreshes, cold and warm: time per call, calls per tool, REST searches and GraphQL points.
+"""Profile two real refreshes, cold and warm: time per call, calls per tool, REST searches and calls, and GraphQL points.
 
 Reads the real Jira and GitHub, but never writes the user's files: state.json is copied to a scratch dir and the PR and ticket caches live there.
 Run: .venv/bin/python scripts/profile_refresh.py
@@ -33,13 +33,13 @@ def label(cmd):
         return f"gh graphql search {kind}"
     if "graphql" in cmd:
         return "gh graphql pr details" if "reviewThreads" in query else "gh graphql failed checks" if "contexts(" in query else "gh graphql pr states"
-    return " ".join(cmd[:3])
+    return "gh rest compare" if "/compare/" in cmd[2] else " ".join(cmd[:3])
 
 
-def timed_run_json(cmd):
+def timed_run_json(cmd, timeout=None):
     start = time.perf_counter()
     try:
-        return original_run_json(cmd)
+        return original_run_json(cmd, timeout)
     finally:
         with lock:
             calls.append((label(cmd), start, time.perf_counter()))
@@ -47,19 +47,20 @@ def timed_run_json(cmd):
 
 def rate_used():
     resources = original_run_json(["gh", "api", "rate_limit"])["resources"]
-    return resources["graphql"]["used"], resources["search"]["used"]
+    return resources["graphql"]["used"], resources["search"]["used"], resources["core"]["used"]
 
 
 def profile(title, refresh, settings):
     calls.clear()
-    graphql_before, search_before = rate_used()
+    graphql_before, search_before, core_before = rate_used()
     started = time.perf_counter()
     collect = refresh.collect(settings)
     total = time.perf_counter() - started
-    graphql_after, search_after = rate_used()
+    graphql_after, search_after, core_after = rate_used()
     print(f"\n== {title}: {total:.2f}s | epics {len(collect['epics'])}, tickets {len(collect['by_key'])}, prs {len(collect['prs'])}")
     tools = {tool: sum(1 for name, *_ in calls if name.startswith(tool)) for tool in ("acli", "gh")}
     print(f"calls: acli {tools['acli']}, gh {tools['gh']} | rest searches {search_after - search_before}, "
+          f"rest calls {core_after - core_before}, "
           f"graphql points {graphql_after - graphql_before} (from gh api rate_limit; other gh use in the window adds to it)")
     print("stage                          calls  from    to   busiest")
     stages = {}
