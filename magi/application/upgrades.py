@@ -34,5 +34,5 @@ def state_with_pr_authors(state):
 
 
 # Per file, the step that brings it from the version it is keyed by to the next one.
-# Version 6 changed only the saved PRs, so a state from version 5 reads as it was.
-UPGRADES = {"state": {3: state_with_groups, 4: state_with_ticket_summaries, 5: lambda state: state, 6: state_with_pr_authors}}
+# Versions 6 and 8 changed only the saved PRs, so a state from version 5 or 7 reads as it was.
+UPGRADES = {"state": {3: state_with_groups, 4: state_with_ticket_summaries, 5: lambda state: state, 6: state_with_pr_authors, 7: lambda state: state}}

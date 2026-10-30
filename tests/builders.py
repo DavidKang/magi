@@ -48,7 +48,8 @@ def make_pr(**overrides):
         "author": {"login": "alice"}, "is_draft": False, "review_decision": "", "reviews": [], "review_requests": [{}],
         "created_at": "2026-10-20T10:00:00Z", "ci": "failing", "mergeable": "CONFLICTING", "head_ref_name": "ACME-1-x",
         "commits": [{"committedDate": "2026-10-21T10:00:00Z"}], "threads": [], "conversation": [],
-        "updated_at": "2026-10-21T10:00:00Z", "head_ref_oid": "a1", "failed_checks": [], **overrides})
+        "updated_at": "2026-10-21T10:00:00Z", "head_ref_oid": "a1", "failed_checks": [], "conflicts": [],
+        **overrides})
 
 
 def make_ticket(**overrides):
@@ -156,7 +157,8 @@ CHANGES = {"submittedAt": "2026-10-22T09:00:00Z", "state": "CHANGES_REQUESTED", 
 def light_node(pr, updated="2026-10-24T10:00:00Z", ci="SUCCESS", checks=(), after=None):
     owner_repo = pr.url.split("/")[3] + "/" + pr.url.split("/")[4]
     return {"url": pr.url, "number": pr.number, "updatedAt": updated, "title": pr.title, "headRefName": pr.head_ref_name,
-            "mergeable": pr.mergeable, "author": pr.author, "repository": {"nameWithOwner": owner_repo},
+            "baseRefName": "main", "headRefOid": pr.head_ref_oid, "mergeable": pr.mergeable, "author": pr.author,
+            "repository": {"nameWithOwner": owner_repo},
             "head": {"nodes": [{"commit": {"statusCheckRollup": {"state": ci, "contexts": checks_page(checks, after)} if ci else None}}]}}
 
 

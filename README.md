@@ -26,7 +26,7 @@ The first run opens the settings panel. Fill in every field and save with `ctrl+
 |-------------|-----|
 | macOS | Opening links and copying use `open` and `pbcopy` |
 | Python 3.12 or newer | `requires-python = ">=3.12"` |
-| [`gh`](https://cli.github.com), logged in | Every GitHub call is `gh api graphql` |
+| [`gh`](https://cli.github.com), logged in | Every GitHub call goes through `gh api` |
 | [`acli`](https://developer.atlassian.com/cloud/acli/), logged in to Jira | Every Jira call is `acli jira workitem search` or `view` |
 | [Homebrew](https://brew.sh) or [pipx](https://pipx.pypa.io) | Installs `magi` in its own environment |
 
@@ -176,7 +176,7 @@ Team PRs are grouped by whose turn it is, oldest first in each group:
 
 Each row starts with the PR's title, which stretches with the box up to 60 columns, then the author, what the PR is missing and its age, red after three days; the repo, without the PR number, sits at the right edge. A green CI shows nothing.
 
-The detail of a PR says in one status line what it is missing, as its row does, lists each failed check on its own line with a link to its log, says when it opened and when it was last pushed, and lists its activity newest first, with a day's commits in one line. `v` opens its Jira ticket in a popup.
+The detail of a PR says in one status line what it is missing, as its row does, lists each failed check on its own line with a link to its log and each file it may conflict in (GitHub names none, so these are the files its branch and its base both changed since they parted), says when it opened and when it was last pushed, and lists its activity newest first, with a day's commits in one line. `v` opens its Jira ticket in a popup.
 
 ### Changes
 
@@ -313,7 +313,7 @@ Magi used to be called Tarkon. On start, it moves any `tarkon` folder in those t
 
 - macOS only: opening links and copying use `open` and `pbcopy`.
 - Jira statuses are mapped to columns by name: `Backlog`, `Tareas por hacer`, `En proceso`, `Developing`, `Paused`, `En revisión`, `Ready To Deploy`, `Rollout` and `Finalizado`. `Rejected / Cancelled` tickets are left out, and any other status stops the refresh with `Unmapped Jira status: <name>`.
-- PR searches use GitHub's GraphQL API at 1 point each, out of 5000 points an hour: one per 6 team members, one for your review requests, and one per 6 ticket keys for open and for merged PRs, about 15 per refresh on a board of 9 epics and 200 tickets. A PR's comments, reviews and threads are fetched again only when the PR changed. The failed checks of PRs whose CI failed are asked on every refresh, one query per 3 PRs, at the same time.
+- PR searches use GitHub's GraphQL API at 1 point each, out of 5000 points an hour: one per 6 team members, one for your review requests, and one per 6 ticket keys for open and for merged PRs, about 15 per refresh on a board of 9 epics and 200 tickets. A PR's comments, reviews and threads are fetched again only when the PR changed. The failed checks of PRs whose CI failed are asked on every refresh, one query per 3 PRs, at the same time. So are the files of PRs in conflict, through two calls to GitHub's REST compare API per PR, which do not count against those points.
 
 ## Development
 

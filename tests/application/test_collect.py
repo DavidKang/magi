@@ -116,6 +116,7 @@ def test_collect_shows_my_prs_outside_the_team():
         fetch_epics=lambda settings: [EPIC], fetch_children=lambda key: [replace(t, prs=[]) for t in TICKETS])
     pull_requests = types.SimpleNamespace(search_prs=search, fetch_prs=lambda items: [mine for _ in items],
                                           fetch_failed_checks=lambda items: [[] for _ in items],
+                                          fetch_conflicts=lambda items: [[] for _ in items],
                                           fetch_pr_states=lambda urls: {}, search_terms=github.search_terms)
     refresh, _, _ = refresh_with(tickets, pull_requests)
     found = refresh.collect(make_settings(github_user="carol"))
@@ -134,6 +135,7 @@ def test_a_merged_pr_keeps_its_history():
         fetch_epics=lambda settings: [EPIC], fetch_children=lambda key: [replace(t, prs=[]) for t in TICKETS])
     pull_requests = types.SimpleNamespace(search_prs=lambda query: shown["prs"] if "author:carol" in query else [],
                                           fetch_prs=lambda items: [mine for _ in items], fetch_failed_checks=lambda items: [[] for _ in items],
+                                          fetch_conflicts=lambda items: [[] for _ in items],
                                           fetch_pr_states=lambda urls: {url: "MERGED" for url in urls}, search_terms=github.search_terms)
     refresh, store, _ = refresh_with(tickets, pull_requests)
     settings = make_settings(github_user="carol")
@@ -153,7 +155,7 @@ def quiet_jira(**overrides):
 
 
 NO_PRS = types.SimpleNamespace(search_prs=lambda query: [], fetch_prs=lambda items: [], fetch_pr_states=lambda urls: {},
-                               fetch_failed_checks=lambda items: [[] for _ in items],
+                               fetch_failed_checks=lambda items: [[] for _ in items], fetch_conflicts=lambda items: [[] for _ in items],
                                search_terms=github.search_terms)
 
 
@@ -319,8 +321,14 @@ def test_collect():
         items = list(items)
         checked.append(items)
         return [[{"name": "rspec", "url": "https://ci/rspec"}] for _ in items]
+    conflicted = []
+
+    def conflicts_of(items):
+        items = list(items)
+        conflicted.append(items)
+        return [["app.py"] for _ in items]
     pull_requests = types.SimpleNamespace(search_prs=search, fetch_prs=details_of, fetch_pr_states=lambda urls: {},
-                                          fetch_failed_checks=failed_checks_of, search_terms=github.search_terms)
+                                          fetch_failed_checks=failed_checks_of, fetch_conflicts=conflicts_of, search_terms=github.search_terms)
     refresh, store, _ = refresh_with(tickets, pull_requests)
     found = refresh.collect(STATED)
     assert "is:pr is:open archived:false org:acme author:alice author:bob" in queries, "the team's prs come from one search naming every author"
@@ -366,6 +374,9 @@ def test_collect():
     assert {pr.number: pr.failed_checks for pr in found["prs"]} == {1: [], 2: [{"name": "rspec", "url": "https://ci/rspec"}]}, \
         "the failed checks are asked on every refresh, even when the detail is reused"
     assert checked[-1] == [("acme/billing-reconciliation-service", 2)], "only the prs whose ci failed are asked for their failed checks"
+    assert {pr.number: pr.conflicts for pr in found["prs"]} == {1: ["app.py"], 2: []}, "the files a pr conflicts in are asked on every refresh"
+    assert sorted(conflicted[-1]) == [("acme/app", "main", PR_ONE.head_ref_oid), ("acme/renamed", "main", three.head_ref_oid)], \
+        "only the prs in conflict are asked for their conflicting files"
 
 
 def test_ticket():

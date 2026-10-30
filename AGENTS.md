@@ -6,7 +6,7 @@ Magi is a terminal board of a team's Jira epics and GitHub PRs. The README cover
 
 - Python 3.12+, packaged with setuptools (`pyproject.toml`), entry point `magi = "magi.cli:main"`.
 - [Textual](https://textual.textualize.io) for the TUI, `textual-image` and Pillow for the logo. No other runtime dependencies.
-- GitHub through the `gh` CLI (`gh api graphql`), Jira through the Atlassian `acli` CLI. No HTTP clients, no tokens in the code.
+- GitHub through the `gh` CLI (`gh api graphql`, and `gh api` for REST's compare), Jira through the Atlassian `acli` CLI. No HTTP clients, no tokens in the code.
 - macOS only: links open with `open`, copies go through `pbcopy`.
 - pytest for tests (extra `dev`).
 

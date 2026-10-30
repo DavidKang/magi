@@ -46,6 +46,7 @@ class PullRequest:
     repo: str
     ci: str
     failed_checks: list
+    conflicts: list
 
 
 @dataclass
@@ -68,6 +69,8 @@ class FoundPr:
     updated_at: str
     title: str
     head_ref_name: str
+    base_ref_name: str
+    head_ref_oid: str
     mergeable: str
     author: dict
     name_with_owner: str

@@ -37,15 +37,18 @@ class Refresh:
         cached = {url: PullRequest(**pr) for url, pr in (self.store.read("prs") or {}).get("prs", {}).items()}
         stale = [pr for pr in found if pr.url not in cached or cached[pr.url].updated_at != pr.updated_at]
         failing = [pr for pr in found if pr.ci == "failing"]
-        with ThreadPoolExecutor(max_workers=1) as pool:
+        conflicting = [pr for pr in found if pr.mergeable == "CONFLICTING"]
+        with ThreadPoolExecutor(max_workers=2) as pool:
             checks = pool.submit(self.pull_requests.fetch_failed_checks, [(pr.name_with_owner, pr.number) for pr in failing])
+            files = pool.submit(self.pull_requests.fetch_conflicts, [(pr.name_with_owner, pr.base_ref_name, pr.head_ref_oid) for pr in conflicting])
             fresh = dict(zip((pr.url for pr in stale), self.pull_requests.fetch_prs((pr.name_with_owner, pr.number) for pr in stale)))
         failed = dict(zip((pr.url for pr in failing), checks.result()))
+        conflicts = dict(zip((pr.url for pr in conflicting), files.result()))
         details = {pr.url: fresh.get(pr.url) or cached[pr.url] for pr in found}
         self.store.write("prs", {"prs": details})
-        # CI, its failed checks and mergeability change without touching updatedAt, so they are asked on every refresh.
-        return {pr.url: dataclasses.replace(details[pr.url], ci=pr.ci, failed_checks=failed.get(pr.url, []), mergeable=pr.mergeable)
-                for pr in found}
+        # CI, its failed checks, mergeability and the files in conflict change without touching updatedAt, so they are asked on every refresh.
+        return {pr.url: dataclasses.replace(details[pr.url], ci=pr.ci, failed_checks=failed.get(pr.url, []), mergeable=pr.mergeable,
+                                            conflicts=conflicts.get(pr.url, [])) for pr in found}
 
     def known_children(self, epic_key):
         """An epic's tickets, asked before Jira lists the epics; None when Jira refuses, as it does for an epic since deleted."""

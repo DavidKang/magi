@@ -1,4 +1,5 @@
 import re
+import subprocess
 from dataclasses import replace
 
 import pytest
@@ -19,11 +20,35 @@ def test_search_prs(monkeypatch):
         "pr searches go through graphql, not the rest search api"
     assert (found == [FoundPr(
           url=PR_TWO.url, number=2, updated_at="2026-10-24T10:00:00Z", title=PR_TWO.title, head_ref_name="ACME-2-y",
-          mergeable="MERGEABLE", author={"login": "ghost"}, name_with_owner="acme/billing-reconciliation-service",
+          base_ref_name="main", head_ref_oid=PR_TWO.head_ref_oid, mergeable="MERGEABLE", author={"login": "ghost"},
+          name_with_owner="acme/billing-reconciliation-service",
           repo="billing-reconciliation-service", ci="failing")]), "a search returns light prs with their ci, repo and update time"
     assert "contexts" not in query, "a search asks only for the ci state, leaving the failed checks to the prs whose ci failed"
     assert not any(hasattr(module, name) for module in (process, github) for name in
                    ("search_team_prs", "search_open_prs", "search_merged_prs", "search_review_requested_from_me")), "the rest pr searches are gone"
+
+
+def test_conflicts_are_the_files_both_sides_changed(monkeypatch):
+    answers = {"repos/acme/app/compare/main...a1": {"merge_base_commit": {"sha": "b0"}, "files": [{"filename": "app.py"}, {"filename": "README.md"}]},
+               "repos/acme/app/compare/b0...main": {"files": [{"filename": "setup.py"}, {"filename": "README.md"}, {"filename": "app.py"}]},
+               "repos/acme/web/compare/main...c2": {"merge_base_commit": {"sha": "d0"}, "files": [{"filename": "web.py"}]},
+               "repos/acme/web/compare/d0...main": {"files": [{"filename": "setup.py"}]}}
+    timeouts = []
+    monkeypatch.setattr(process, "run_json", lambda cmd, timeout=None: timeouts.append(timeout) or answers[cmd[2]])
+    assert github.fetch_conflicts([("acme/app", "main", "a1"), ("acme/web", "main", "c2")]) == [["README.md", "app.py"], []], \
+        "a PR's conflicts are the files its branch and its base both changed since they parted, each PR in the order asked"
+    assert timeouts == [github.COMPARE_TIMEOUT] * 4, "every compare gives up after COMPARE_TIMEOUT, so a hung one cannot hold up the refresh"
+
+
+@pytest.mark.parametrize("error", [subprocess.CalledProcessError(1, "gh"), subprocess.TimeoutExpired("gh", github.COMPARE_TIMEOUT)])
+def test_conflicts_a_failed_compare_lists_no_files(monkeypatch, error):
+    def answer(cmd, timeout=None):
+        if "acme/huge" in cmd[2]:
+            raise error
+        return {"merge_base_commit": {"sha": "b0"}, "files": [{"filename": "app.py"}]}
+    monkeypatch.setattr(process, "run_json", answer)
+    assert github.fetch_conflicts([("acme/huge", "main", "a1"), ("acme/app", "main", "c2")]) == [[], ["app.py"]], \
+        "a compare GitHub refuses or never answers lists no files for that PR instead of failing the refresh"
 
 
 def failed_checks_of(monkeypatch, node):

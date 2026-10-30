@@ -92,7 +92,7 @@ async def upgraded(cache, version):
 
 
 @pytest.mark.usefixtures("default_theme")
-@pytest.mark.parametrize("version", [4, 5])
+@pytest.mark.parametrize("version", [4, 5, 7])
 def test_seen_marks_saved_by_an_older_format_survive_the_upgrade(cache, version):
     asyncio.run(upgraded(cache, version))
 

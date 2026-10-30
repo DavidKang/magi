@@ -80,9 +80,9 @@ def field(name, value):
     return f"{colored('blue', name.ljust(9))}{value}"
 
 
-def failing(checks):
-    """Each failed check on its own line, under one field name."""
-    return [field("" if n else "failing", f"• {link(check['url'], check['name'])}") for n, check in enumerate(checks)]
+def listed(name, values):
+    """Each value on its own line, under one field name."""
+    return [field("" if n else name, f"• {value}") for n, value in enumerate(values)]
 
 
 def heading(value):
@@ -104,7 +104,8 @@ def pr_entry(pr, by_key, settings, asked=False):
              field("pr", f'{link(row["url"], row["ref"])} {colored("dim", "by")} {escape(row["author"])} '
                          f'{colored("dim", "open")} {row["age"]}d' + (f' {colored("dim", "· last push")} {days_since(pushed)}d ago' if pushed else "")),
              field("status", colored(tone, missing))]
-    lines += [*failing(pr.failed_checks), ""] if pr.failed_checks else []
+    found = listed("failing", [link(check["url"], check["name"]) for check in pr.failed_checks]) + listed("conflict", map(escape, pr.conflicts))
+    lines += [*found, ""] if found else []
     lines += [field("ticket", f'{link(t["url"], t["key"])} {colored("dim", f"({t["status"]})")} {escape(t["summary"])}')
               for t in row["tickets"]] or [field("ticket", "—")]
     items = review_items(pr)
@@ -400,7 +401,7 @@ def factory_entry(ticket, now, settings, board):
         ci_tone, ci = CI_LABELS[pr.ci]
         lines += [field("pr", f'{link(pr.url, f"{rows.tui_repo(pr)}#{pr.number}")} {escape(review_state(pr)[1])} '
                               f'{colored("dim", "·")} {colored(rows.TUI_REVIEW[ci_tone], ci)}')]
-        lines += failing(pr.failed_checks)
+        lines += listed("failing", [link(check["url"], check["name"]) for check in pr.failed_checks])
     lines += ["", escape(ticket.detail)] if ticket.detail else []
     lines += ["", separator("agent"), *(escape(line) for line in ticket.output)] if ticket.output else []
     return Entry([(ticket.key, ""), (ticket.stage, tone), (age, "dim-right"), (session, "dim"), (ticket.detail or summary, "")],

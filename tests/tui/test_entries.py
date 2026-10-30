@@ -218,6 +218,13 @@ def test_pr_detail_links_the_failed_checks():
     assert "failing " not in Content.from_markup(entries.pr_entry(PR_TWO, {}, STATED).detail).plain, "a pr with no failed check names none"
 
 
+def test_pr_detail_lists_its_conflicts():
+    detail = entries.pr_entry(replace(PR_ONE, conflicts=["app.py", "README.md"]), {}, STATED).detail
+    lines = Content.from_markup(detail).plain.splitlines()
+    assert lines[lines.index("conflict • app.py") + 1:lines.index("conflict • app.py") + 3] == ["         • README.md", ""], \
+        "the detail lists each file the pr conflicts in on its own line, set apart from the ticket below"
+
+
 def test_activity_days():
     commits = [{"committedDate": at} for at in ("2026-10-23T21:30:00Z", "2026-10-23T22:30:00Z", "2025-10-23T08:00:00Z")]
     lines = Content.from_markup(entries.pr_entry(replace(PR_TWO, commits=commits), {}, STATED).detail).plain.splitlines()

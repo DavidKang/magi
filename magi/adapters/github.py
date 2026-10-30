@@ -1,6 +1,7 @@
 """GitHub adapter: PR searches and details through gh's GraphQL API, built into entities."""
 
 import json
+import subprocess
 
 from . import process
 from ..domain.entities import FoundPr, PullRequest
@@ -9,7 +10,7 @@ HEAD_CI = "head: commits(last: 1) { nodes { commit { statusCheckRollup { state }
 CHECKS_PAGE = """pageInfo { hasNextPage endCursor }
   nodes { ... on CheckRun { name conclusion detailsUrl } ... on StatusContext { context state targetUrl } }"""
 HEAD_CHECKS = f"head: commits(last: 1) {{ nodes {{ commit {{ statusCheckRollup {{ state contexts(first: 100) {{ {CHECKS_PAGE} }} }} }} }} }}"
-LIGHT_FIELDS = f"url number updatedAt title headRefName mergeable author {{ login }} repository {{ nameWithOwner }} {HEAD_CI}"
+LIGHT_FIELDS = f"url number updatedAt title headRefName baseRefName headRefOid mergeable author {{ login }} repository {{ nameWithOwner }} {HEAD_CI}"
 CHECK_FIELDS = f"url number repository {{ nameWithOwner }} {HEAD_CHECKS}"
 PR_FIELDS = f"""number title url updatedAt headRefName headRefOid isDraft createdAt reviewDecision mergeable author {{ login }}
   reviewRequests(first: 20) {{ nodes {{ requestedReviewer {{ __typename }} }} }}
@@ -59,6 +60,27 @@ def fetch_failed_checks(candidates):
     return in_batches(fetch_checks_batch, candidates)
 
 
+# A compare on a long-lived branch can take GitHub a while; past this, each of a PR's two compares gives up and the PR lists no files.
+COMPARE_TIMEOUT = 20
+
+
+def fetch_conflicts(candidates):
+    """Each PR's files that its branch and its base both changed since they parted, in the order asked: GitHub names no conflicting file.
+    A compare lists at most 300 files a side, so a bigger one may miss some."""
+    return process.parallel(conflicts, list(candidates))
+
+
+def conflicts(candidate):
+    """A PR's files in conflict; none when GitHub refuses a compare, as it does for a diff too big to build, so one PR never fails the refresh."""
+    repo, base, head = candidate
+    try:
+        ours = process.run_json(["gh", "api", f"repos/{repo}/compare/{base}...{head}"], COMPARE_TIMEOUT)
+        theirs = process.run_json(["gh", "api", f"repos/{repo}/compare/{ours['merge_base_commit']['sha']}...{base}"], COMPARE_TIMEOUT)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return []
+    return sorted({file["filename"] for file in ours["files"]} & {file["filename"] for file in theirs["files"]})
+
+
 def in_batches(fetch_batch, candidates):
     candidates = list(candidates)
     batches = [candidates[start:start + PRS_PER_QUERY] for start in range(0, len(candidates), PRS_PER_QUERY)]
@@ -83,7 +105,8 @@ def search_prs(query):
 def light_pr(node):
     owner_repo = node["repository"]["nameWithOwner"]
     return FoundPr(url=node["url"], number=node["number"], updated_at=node["updatedAt"], title=node["title"],
-                   head_ref_name=node["headRefName"], mergeable=node["mergeable"], author=node["author"] or GHOST,
+                   head_ref_name=node["headRefName"], base_ref_name=node["baseRefName"], head_ref_oid=node["headRefOid"],
+                   mergeable=node["mergeable"], author=node["author"] or GHOST,
                    name_with_owner=owner_repo, repo=owner_repo.split("/")[1], ci=head_ci(node))
 
 
@@ -135,7 +158,7 @@ def check(context):
 
 
 def pr_from_graph(pr, repo):
-    # The failed checks come in their own query, asked only for the PRs whose CI failed.
+    # The failed checks and the files in conflict come in their own calls, asked only for the PRs whose CI failed or that conflict.
     return PullRequest(
         number=pr["number"], title=pr["title"], url=pr["url"], updated_at=pr["updatedAt"], head_ref_name=pr["headRefName"],
         head_ref_oid=pr["headRefOid"], is_draft=pr["isDraft"], created_at=pr["createdAt"], review_decision=pr["reviewDecision"],
@@ -144,7 +167,7 @@ def pr_from_graph(pr, repo):
         threads=[{**thread, "comments": with_authors(thread["comments"]["nodes"])} for thread in pr["reviewThreads"]["nodes"]
                  if not thread["isResolved"]],
         conversation=[comment for comment in pr["comments"]["nodes"] if comment["author"] and not is_bot(comment["author"])],
-        repo=repo.split("/")[1], ci=head_ci(pr), failed_checks=[])
+        repo=repo.split("/")[1], ci=head_ci(pr), failed_checks=[], conflicts=[])
 
 
 def with_authors(nodes):

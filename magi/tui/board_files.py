@@ -9,7 +9,7 @@ REFRESH_SECONDS = 5 * 60
 REFRESH_COOLDOWN = 30
 CACHE = paths.CACHE_DIR / "cache.json"
 # Seen marks and snoozes kept their shape through these storage versions, so an upgrade keeps them instead of dropping them.
-KEPT_UPGRADES = {4: lambda saved: saved, 5: lambda saved: saved, 6: lambda saved: saved}
+KEPT_UPGRADES = {4: lambda saved: saved, 5: lambda saved: saved, 6: lambda saved: saved, 7: lambda saved: saved}
 SNOOZABLE = ("prs",)
 
 
