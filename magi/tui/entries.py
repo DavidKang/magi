@@ -5,6 +5,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.syntax import Syntax
 from rich.text import Text
+from textual.color import Color
 from textual.content import Content
 
 from .. import rows
@@ -57,6 +58,15 @@ def colored(tone, value):
     return f"[{COLORS[tone]}]{escape(value)}[/]"
 
 
+def shade(tone, palette=COLORS):
+    """A tone a third of the way into the background, for what the details show without shouting."""
+    return Color.parse(palette[tone]).blend(Color.parse(palette["bg"]), 0.35).hex
+
+
+def muted(tone, value):
+    return f"[{shade(tone)}]{escape(value)}[/]"
+
+
 def field(name, value):
     return f"{colored('blue', name.ljust(9))}{value}"
 
@@ -66,7 +76,7 @@ def heading(value):
 
 
 def separator(label=""):
-    return f'[b]{colored("accent", f"── {label} ──" if label else "──")}[/b]'
+    return f'[b]{muted("ok", f"── {label} ──" if label else "──")}[/b]'
 
 
 def pr_entry(pr, by_key, settings, asked=False):
@@ -332,7 +342,7 @@ def status_tone(status):
 
 
 def label_tag(label):
-    return f"[b]{colored('bad', label)}[/b]" if label == BLOCKED_LABEL else colored("warn", label)
+    return muted("bad", label) if label == BLOCKED_LABEL else colored("warn", label)
 
 
 def pr_list(prs):

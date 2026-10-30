@@ -159,6 +159,8 @@ def test_longest_turn_label_fits(name):
 @pytest.mark.usefixtures("default_theme")
 def test_narrow_box_keeps_some_title():
     assert boxes.widths("prs", 50)[0] == boxes.NARROW_TITLE, "a box too narrow for the columns still shows ten columns of title"
+    found = boxes.widths("prs", 70)
+    assert found[0] == boxes.NARROW_TITLE and sum(found) + len(found) == 70, "the repo gives up what the title's floor takes, so the row keeps to its box"
 
 
 @pytest.mark.usefixtures("default_theme")
@@ -174,10 +176,10 @@ def test_kanban_shows_its_pr_label_whole(name):
 @pytest.mark.parametrize(("name", "pad"), [("default", 0), ("okuda", 4)])
 def test_turn_column_takes_its_longest_label(name, pad):
     theme.use_theme(name)
-    found = {"prs": entries.team_pr_entries([PR_TWO], {}, STATED, set())[0],
-             "kanban": entries.kanban_entry(make_ticket(key="ACME-2"), [PR_TWO], STATED, False)}
-    for key, entry in found.items():
-        assert boxes.widths(key, 160, [entry])[boxes.TURN_COLUMNS[key]] == len("approved") + pad, \
+    found = {"prs": entries.team_pr_entries([PR_TWO, make_pr(ci="passing", mergeable="MERGEABLE")], {}, STATED, set()),
+             "kanban": [entries.kanban_entry(make_ticket(key="ACME-2"), [PR_TWO], STATED, False), entries.kanban_entry(make_ticket(), [], STATED, False)]}
+    for key, rows in found.items():
+        assert boxes.widths(key, 160, rows)[boxes.TURN_COLUMNS[key]] == len("no review yet" if key == "prs" else "approved") + pad, \
             f"the {key} box's turn column is as wide as its longest label, and a pill's caps when framed"
 
 

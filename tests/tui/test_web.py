@@ -207,6 +207,13 @@ def test_details_keep_the_tuis_tones_bold_and_links_as_html():
         "details turn bold into bold, colours into their tones and web links into links, and their text into escaped text"
 
 
+@pytest.mark.usefixtures("default_theme")
+def test_details_keep_their_muted_tones_faded():
+    found = web.detail_html(f"{entries.separator('links')} {entries.label_tag('blocked')}")
+    assert found == '<span class="text-ok opacity-65 font-bold">── links ──</span> <span class="text-bad opacity-65">blocked</span>', \
+        "a muted tone in the details reads on the page as its tone, faded"
+
+
 def shown(found, name):
     return {html.unescape(text) for names, text in re.findall(r'<span data-show="([^"]+)">(.*?)</span>', found) if name in names.split()}
 

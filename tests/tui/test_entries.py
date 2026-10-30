@@ -56,8 +56,8 @@ def test_ticket_detail_colours_its_status_as_the_changes_feed_does():
 
 def test_ticket_detail_colours_its_labels():
     detail = entries.ticket_entry(Ticket(key="ACME-1", summary="One", status="En proceso", detail=LABELLED), [], STATED).detail
-    assert f"[b]{entries.colored('bad', 'blocked')}[/b]" in detail and entries.colored("warn", "fraud") in detail, \
-        "the blocked label reads in bold red, the others as amber tags"
+    assert f"[b]{entries.muted('bad', 'blocked')}" not in detail and entries.muted("bad", "blocked") in detail \
+        and entries.colored("warn", "fraud") in detail, "the blocked label reads in a muted red, the others as amber tags"
 
 
 def test_ticket_detail_shows_its_labels_under_its_status():
@@ -70,7 +70,8 @@ def test_ticket_detail_shows_its_labels_under_its_status():
 
 def test_detail_field_names_and_section_headers_stand_out():
     assert entries.field("ticket", "x").startswith(f"[{theme.COLORS['blue']}]"), "a detail's field names read in blue, not dimmed"
-    assert entries.separator("links") == f"[b]{entries.colored('accent', '── links ──')}[/b]", "a detail's section headers read bold in the accent colour"
+    assert entries.separator("links") == f"[b]{entries.muted('ok', '── links ──')}[/b]", "a detail's section headers read bold in a muted approved green"
+    assert entries.muted("ok", "x") == "[#3C8F49]x[/]", "a muted tone is its colour a third of the way into the background"
 
 
 def test_ticket_detail_edges():
@@ -107,7 +108,7 @@ ONE = Ticket(key="ACME-1", summary="Ticket one", status="En revisión", assignee
 def test_a_kanban_row_tells_who_has_the_ticket_and_what_its_pr_misses():
     found = entries.entries({**board([PR_ONE]), "kanban": [ONE]}, STATED)["kanban"]
     missing = review.turn(PR_ONE)[1]
-    assert found[0].cells == [("ACME-1", ""), ("", ""), ("Ana", "accent"), (missing, f"{entries.TURN_TONES[review.standing(PR_ONE)]}-pill"),
+    assert found[0].cells == [("ACME-1", ""), ("", ""), ("Ana", "accent"), (missing, "blue-pill"),
                               (f"{days_since(CLEAR.updated)}d", "dim-right"), ("Ticket one", "")], \
         "a kanban row tells the ticket, who has it, mine in the accent colour, what its pr misses and the days since it last changed"
 
@@ -128,7 +129,7 @@ def test_a_kanban_row_tells_what_its_oldest_pr_misses():
     older = replace(PR_ONE, created_at="2026-10-19T10:00:00Z")
     found = entries.entries({**board([newer, older]), "kanban": [ONE]}, STATED)["kanban"]
     missing = review.turn(older)[1]
-    assert found[0].cells[3] == (missing, f"{entries.TURN_TONES[review.standing(older)]}-pill"), "a kanban ticket with several prs tells what its oldest one misses"
+    assert found[0].cells[3] == (missing, "blue-pill"), "a kanban ticket with several prs tells what its oldest one misses"
 
 
 def test_a_kanban_row_flags_a_ticket_labelled_blocked():

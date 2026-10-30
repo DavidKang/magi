@@ -13,7 +13,7 @@ from textual.content import Content
 from ..domain.review import condition
 from ..domain.snoozes import awake
 from . import frames, theme
-from .entries import KEY_HINTS, entries, folded
+from .entries import KEY_HINTS, entries, folded, shade
 from .theme import FRAMES, THEMES
 from .web_themes import JAPANESE, esc, faces, named, pieces, worded
 
@@ -28,6 +28,8 @@ KINDS = {"pill": "pill rounded-full border px-2 text-xs uppercase", "alarm": "fo
 LEVELS = {"green": "ok", "yellow": "warn", "red": "bad"}
 # The details are built in the default theme, so each colour in them reads back as the tone it came from.
 TONE_OF = {THEMES["default"][tone].lower(): tone for tone in TONES}
+# A muted tone in them reads back as its tone, faded.
+MUTED_OF = {shade(tone, THEMES["default"]).lower(): tone for tone in TONES}
 # A title's leading ticket key, bracketed or not, and its words: a theme can set the words apart while the key keeps the title's colour.
 KEY = re.compile(r"(\[?[A-Z][A-Z0-9]*-\d+\]?(?= )|)(.*)", re.S)
 # A link's url as the tui opens it: the quoted literal read back, so repr's escapes never reach the href.
@@ -128,7 +130,8 @@ def detail_html(markup):
 def piece(content, start, end):
     style = " ".join(str(span.style) for span in content.spans if span.start <= start and end <= span.end)
     words = style.lower().split()
-    classes = [f"text-{TONE_OF[word]}" for word in words if word in TONE_OF] + ["font-bold"] * bool({"b", "bold"} & set(words))
+    classes = ([f"text-{TONE_OF[word]}" for word in words if word in TONE_OF] + [f"text-{MUTED_OF[word]} opacity-65" for word in words if word in MUTED_OF]
+               + ["font-bold"] * bool({"b", "bold"} & set(words)))
     text = esc(content.plain[start:end])
     text = f'<span class="{" ".join(classes)}">{text}</span>' if classes else text
     link = LINK.search(style)
