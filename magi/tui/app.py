@@ -10,7 +10,7 @@ from rich.text import Text
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.containers import Horizontal, Vertical
 from textual.widgets import Footer, Input, Static
 from textual.widgets.option_list import Option
 
@@ -28,7 +28,7 @@ from .entries import cell_row, entries, escape, factory_entry, mine_entries, tic
 from .screens import LOGO_BLACK, LOGO_WHITE, ConfigScreen, ReviewScreen, ThemeScreen, TicketScreen, logo
 from .system import error_message, leave, off_loop, open_in_browser, pbcopy
 from .theme import COLORS, use_theme
-from .widgets import (FORTY_SEVEN, HATCHED_LINE, HAZARD_STRIPE, HEAVY_LINE, LEFT_CAP, RIGHT_CAP, TITLE_CAPS, Board, PanelTitle, SideButton,
+from .widgets import (FORTY_SEVEN, HATCHED_LINE, HAZARD_STRIPE, HEAVY_LINE, LEFT_CAP, RIGHT_CAP, TITLE_CAPS, Board, DetailBody, PanelTitle, SideButton,
                       elbow, glyphs)
 
 FACTORY_SECONDS = 10
@@ -120,8 +120,7 @@ class MagiApp(App):
                 with Vertical(id="panel-details", classes="panel") as panel:
                     panel.border_title = "details"
                     yield PanelTitle()
-                    with VerticalScroll(classes="pbody"):
-                        yield Static(id="detail")
+                    yield DetailBody(classes="pbody")
                 for key in ASIDE:
                     yield from self.box(key)
         with Horizontal(id="foot"):
@@ -477,7 +476,7 @@ class MagiApp(App):
         self.pass_by(entry.url if entry else None)
         news = self.news.get(entry.url) if entry else None
         heading = f'[{COLORS["accent"]}]● {escape(news["label"])} · {news["at"][11:16]}[/]\n\n' if news else ""
-        self.query_one("#detail", Static).update(heading + entry.detail if entry else "")
+        self.query_one(DetailBody).show(heading + entry.detail if entry else "", entry.fold if entry else 0)
 
     def on_option_list_option_highlighted(self, event):
         self.show_detail(event.option_list)

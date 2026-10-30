@@ -1,15 +1,16 @@
-"""The board's widgets: its boxes' lists and titles, the LCARS sidebar buttons and the thin scrollbar."""
+"""The board's widgets: its boxes' lists and titles, the details body, the LCARS sidebar buttons and the thin scrollbar."""
 
 from rich.segment import Segment, Segments
 from rich.style import Style
 from rich.text import Text
 from textual.binding import Binding
-from textual.containers import Horizontal
+from textual.containers import Horizontal, VerticalScroll
 from textual.scrollbar import ScrollBar, ScrollBarRender
 from textual.widgets import OptionList, Static
 
 from . import frames, theme
 from .boxes import BOXES, DIGITS
+from .entries import fitted
 from .frames import LCARS_NAMES
 from .theme import COLORS
 
@@ -78,6 +79,28 @@ class ThinScrollBar(ScrollBarRender):
 
 
 ScrollBar.renderer = ThinScrollBar
+
+
+class DetailBody(VerticalScroll):
+    """The details box's body: an entry's detail, its description cut to what the box holds whenever the box changes size."""
+
+    detail, fold = "", 0
+
+    def compose(self):
+        yield Static(id="detail")
+
+    def show(self, detail, fold):
+        self.detail, self.fold = detail, fold
+        self.fit()
+
+    def on_resize(self):
+        self.fit()
+
+    def fit(self):
+        # A fitted description leaves no scrollbar, so it wraps at the full width, not the one the last detail's scrollbar left.
+        width, height = self.content_region.size
+        # Before its first layout the box has no width to wrap at; the resize that lays it out fits it.
+        self.query_one("#detail", Static).update(fitted(self.detail, self.fold, width, height) if width else self.detail)
 
 
 class Board(OptionList):

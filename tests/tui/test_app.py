@@ -3,18 +3,22 @@ import os
 import subprocess
 import sys
 import threading
+from dataclasses import replace
 
 import pytest
 from PIL import Image as PILImage
+from textual.content import Content
 from textual.widgets import OptionList, Static
 from textual_image.widget import Image, get_cell_size
 
-from builders import PR_ONE, PR_THREE, PR_TWO, STATED, board, failing_load, magi_app, settings_file, started
+from builders import PR_ONE, PR_THREE, PR_TWO, STATED, board, failing_load, magi_app, make_ticket_detail, settings_file, started
 from magi.adapters import storage
+from magi.domain.entities import Ticket
 from magi.domain.status import column_for
 from magi.tui import app as app_module
-from magi.tui import screens, theme
+from magi.tui import entries, screens, theme
 from magi.tui.app import MagiApp
+from magi.tui.widgets import DetailBody
 
 
 async def main(cache):
@@ -434,3 +438,59 @@ def test_digits_reach_the_five_boxes():
     assert [(b.key, b.action) for b in boxes] == [(str(n), f"focus_box({n})") for n in range(1, 6)], "digits 1 to 5 reach the boxes, one each"
     assert [(b.key_display, b.description) for b in boxes if b.show] == [("1-5", "boxes")], "the footer shows the digits once, as 1-5"
     assert not any(binding.action.startswith("focus_tab") for binding in MagiApp.BINDINGS), "no key switches tabs: there are none"
+
+
+async def fitted_description(cache, lines, resized=None):
+    ticket = Ticket(key="ACME-1", summary="Ticket one", status="En proceso", assignee="Ana",
+                    detail=make_ticket_detail(description="\n".join(f"line {n}" for n in range(1, lines + 1))))
+    async with started(magi_app(cache, load=lambda: {**board([]), "kanban": [ticket]}), size=(160, 50)) as pilot:
+        await pilot.press("1")
+        await pilot.pause()
+        if resized:
+            await pilot.resize_terminal(*resized)
+            await pilot.pause()
+        body = pilot.app.query_one("#panel-details .pbody")
+        return str(pilot.app.query_one("#detail", Static).render()).splitlines(), body.scrollable_content_region.height
+
+
+def test_details_fit_a_long_description(cache):
+    shown, height = asyncio.run(fitted_description(cache, 80))
+    assert len(shown) == height, "a description longer than the details box fills it to its last line"
+    assert shown[-1] == "… c to read it all", "a description longer than the details box ends on the hint to read it all"
+
+
+def test_details_refit_when_the_terminal_resizes(cache):
+    shown, height = asyncio.run(fitted_description(cache, 80, resized=(160, 60)))
+    assert len(shown) == height and shown[-1] == "… c to read it all", "a resized details box fits the description to its new height"
+
+
+def test_details_show_a_short_description_whole(cache):
+    shown, _ = asyncio.run(fitted_description(cache, 3))
+    assert shown[-1] == "line 3" and "… c to read it all" not in shown, "a description that fits the details box shows whole, with no hint"
+
+
+def snug_ticket(width, height):
+    two = Ticket(key="ACME-2", summary="Ticket two", status="En proceso", detail=make_ticket_detail(links=[], comments=[], description="x"))
+    rows = len(Content.from_markup(entries.ticket_entry(two, [], STATED).detail).wrap(width)) - 1
+    description = "\n".join([*(f"line {n}" for n in range(height - rows - 1)), "w" * width])
+    return entries.ticket_entry(replace(two, detail=replace(two.detail, description=description)), [], STATED)
+
+
+async def snug_after_crowded(cache):
+    crowded = Ticket(key="ACME-1", summary="Ticket one", status="En proceso", detail=make_ticket_detail(
+        links=[{"relation": "relates to", "key": f"ACME-{n}", "summary": "Other", "status": "En proceso"} for n in range(60)]))
+    async with started(magi_app(cache, load=lambda: {**board([]), "kanban": [crowded]}), size=(160, 50)) as pilot:
+        await pilot.press("1")
+        await pilot.pause()
+        body = pilot.app.query_one(DetailBody)
+        assert body.scrollbar_size_vertical, "a detail taller than the box scrolls"
+        snug = snug_ticket(*body.content_region.size)
+        body.show(snug.detail, snug.fold)
+        await pilot.pause()
+        return str(pilot.app.query_one("#detail", Static).render()).splitlines()
+
+
+def test_details_fit_at_the_box_width_whatever_the_last_detail_scrolled(cache):
+    shown = asyncio.run(snug_after_crowded(cache))
+    assert shown[-1] == "w" * len(shown[-1]) and "… c to read it all" not in shown, \
+        "a description that fits the box at its full width shows whole, even after a detail that showed a scrollbar"

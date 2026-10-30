@@ -238,6 +238,12 @@ def test_the_web_details_drop_the_tuis_key_hints():
     assert "c to open" not in found and found.count("c to read it all") == 1, "the page has no c key, so its details never point at one"
 
 
+def test_the_web_cuts_a_long_description_at_twelve_lines():
+    long = make_ticket(detail=make_ticket_detail(description="\n".join(f"line {n}" for n in range(40))))
+    found = box(render(bare_board(my_tickets=[long])), "mine_tickets")
+    assert "line 11\n" in found and "line 12" not in found, "the page cuts a long description at its first twelve lines"
+
+
 def votes(found):
     return re.findall(r'<span class="vote" data-vote="([^"]+)"><b>([A-Z]+-\d)</b>', found)
 

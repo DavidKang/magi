@@ -80,11 +80,14 @@ def test_ticket_detail_edges():
     assert "epic     —" in lines, "a ticket without an epic shows a dash"
     assert "labels   —" in Content.from_markup(entries.ticket_entry(Ticket(key="ACME-1", summary="One", status="En proceso", detail=replace(
         TICKET_DETAIL, labels=[])), [], STATED).detail).plain.splitlines(), "a ticket without labels shows a dash"
-    assert "line 12" in lines, "a long description is cut with a hint to open it"
-    assert "line 13" not in lines, "a long description is cut with a hint to open it"
-    assert "… c to read it all" in lines, "a long description is cut with a hint to open it"
-    assert entries.colored("accent", entries.MORE_HINT) in entries.ticket_entry(ticket, [], STATED).detail, \
+    assert "line 14" in lines, "a ticket's detail holds its whole description, for the details box to fit"
+    long = entries.ticket_entry(ticket, [], STATED)
+    folded = Content.from_markup(entries.folded(long.detail, long.fold, 12)).plain.splitlines()
+    assert "line 12" in folded and "line 13" not in folded, "a folded description keeps the lines asked for"
+    assert folded[-1] == "… c to read it all", "a folded description ends with a hint to open it"
+    assert entries.colored("accent", entries.MORE_HINT) in entries.folded(long.detail, long.fold, 12), \
         "the hint to read the whole description reads in the accent colour of the section headers"
+    assert entries.folded(long.detail, long.fold, 14) == long.detail, "a description that is kept whole has no hint"
     assert not any(line.startswith("comments") for line in lines), "a ticket without comments shows no comments line"
     cached = entries.ticket_entry(Ticket(key="OPS-7", summary="Ticket seven", status="Tareas por hacer"), [], STATED)
     assert cached.popup[1] == [], "a ticket cached before the detail fetch has nothing to open"
@@ -376,3 +379,22 @@ def test_a_kanban_ticket_without_detail_or_assignee():
     cells = [value for value, _ in entries.kanban_entry(Ticket(key="OPS-7", summary="Ticket seven", status="Tareas por hacer"), [], STATED, True).cells]
     assert cells[1:3] == ["", ""] and cells[4] == "", \
         "a ticket of mine off the board, cached before its detail, shows no blocked mark, no assignee and no age"
+
+
+def test_ticket_description_fits_the_space_it_has():
+    ticket = Ticket(key="ACME-1", summary="Ticket one", status="En proceso", detail=replace(
+        TICKET_DETAIL, description="\n".join(f"line {n}" for n in range(1, 31))))
+    entry = entries.ticket_entry(ticket, [], STATED)
+    whole = len(Content.from_markup(entry.detail).wrap(60))
+    assert entries.fitted(entry.detail, entry.fold, 60, whole) == entry.detail, "a description that fits the box shows whole"
+    fitted = Content.from_markup(entries.fitted(entry.detail, entry.fold, 60, whole - 5)).wrap(60)
+    assert len(fitted) == whole - 5, "a description that does not fit fills the box to its last line"
+    assert fitted[-1].plain == "… c to read it all", "a description that does not fit ends on the hint to read it all"
+
+
+def test_ticket_description_fits_by_the_rows_its_lines_wrap_to():
+    ticket = Ticket(key="ACME-1", summary="Ticket one", status="En proceso", detail=replace(
+        TICKET_DETAIL, description="\n".join(f"line {n} " + "word " * 20 for n in range(1, 31))))
+    entry = entries.ticket_entry(ticket, [], STATED)
+    rows = Content.from_markup(entries.fitted(entry.detail, entry.fold, 60, 40)).wrap(60)
+    assert len(rows) <= 40 and rows[-1].plain == "… c to read it all", "a description whose lines wrap is cut by the rows they take, not by its lines"

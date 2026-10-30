@@ -13,7 +13,7 @@ from textual.content import Content
 from ..domain.review import condition
 from ..domain.snoozes import awake
 from . import frames, theme
-from .entries import KEY_HINTS, entries
+from .entries import KEY_HINTS, entries, folded
 from .theme import FRAMES, THEMES
 from .web_themes import JAPANESE, esc, faces, named, pieces, worded
 
@@ -21,6 +21,8 @@ from .web_themes import JAPANESE, esc, faces, named, pieces, worded
 TAILWIND = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.1.4/dist/index.global.js"
 TAILWIND_HASH = "sha384-ire6tt7Y6e2HMB3Q+cZpObkqM8M2DVZO9LimwpwuDZstD6FxU2vhSkUzEBlAX3dh"
 TONES = ("ok", "bad", "warn", "blue", "dim", "accent")
+# The page shows a long description's first lines; the TUI fits as many as its details box holds.
+DESCRIPTION_LINES = 12
 # A cell's kind after its tone, as the TUI names it: dim-right, warn-pill, bad-alarm.
 KINDS = {"pill": "pill rounded-full border px-2 text-xs uppercase", "alarm": "font-bold uppercase"}
 LEVELS = {"green": "ok", "yellow": "warn", "red": "bad"}
@@ -112,7 +114,7 @@ def row(detail, entry, widths):
     link = f'href="{esc(entry.url)}" {NEW_TAB} ' if entry.url else ""
     return (f'<a {link}data-detail="{detail}" class="col-span-full grid grid-cols-subgrid items-center rounded px-2 py-0.5 '
             f'hover:bg-pick aria-[current=true]:bg-pick-focus">{cells}</a>'
-            f'<template data-detail="{detail}">{detail_html(entry.detail)}</template>')
+            f'<template data-detail="{detail}">{detail_html(folded(entry.detail, entry.fold, DESCRIPTION_LINES))}</template>')
 
 
 def detail_html(markup):

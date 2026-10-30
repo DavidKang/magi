@@ -161,7 +161,7 @@ The kanban box lists the tickets on your project's Jira board: every ticket of t
 
 Each row shows the ticket's key, a red `blocked` when the ticket has the `blocked` label, who has it (yours in the accent colour), what its oldest PR is missing, as a team PR's row does, and the days since the ticket last changed, then its summary. Its detail is the ticket's own.
 
-A ticket's detail, in the kanban box and in the web page's **my tickets**, gives its type and priority, its status in its column's colour, its labels, the blocked one in red, then its epic, creator and last update. Then it lists each PR that names the ticket with its review state in colour, who opened it and its age, then its links and the start of its description.
+A ticket's detail, in the kanban box and in the web page's **my tickets**, gives its type and priority, its status in its column's colour, its labels, the blocked one in red, then its epic, creator and last update. Then it lists each PR that names the ticket with its review state in colour, who opened it and its age, then its links and its description: whole when it fits the details box, otherwise cut to the box with a hint that `c` reads it all (the web page shows its first twelve lines).
 
 ### Team PRs
 

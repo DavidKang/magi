@@ -1,10 +1,12 @@
 import re
+from bisect import bisect_left
 from dataclasses import dataclass, replace
 from pathlib import Path
 
 from rich.console import Console
 from rich.syntax import Syntax
 from rich.text import Text
+from textual.content import Content
 
 from .. import rows
 from ..domain import changes
@@ -16,7 +18,6 @@ from ..domain.status import COLUMNS, STATUS_COLUMNS, kanban_order, status_label,
 from . import theme
 from .theme import COLORS
 
-DESCRIPTION_LINES = 12
 # The keys a details text points at, each in a span of its own: the web page has no keys, so it drops these spans.
 OPEN_HINT, MORE_HINT = " · c to open", " c to read it all"
 KEY_HINTS = (OPEN_HINT, MORE_HINT)
@@ -36,6 +37,7 @@ class Entry:
     group: str = None
     ticket: str = None
     progress: tuple = None
+    fold: int = 0
 
 
 ZERO_WIDTH_SPACE = "\u200b"
@@ -288,12 +290,26 @@ def ticket_entry(ticket, prs, settings):
         for other in detail.links:
             lines += [f'• {colored("dim", other["relation"])} {link(settings.jira_browse + other["key"], other["key"])} '
                       f'{colored("dim", f"({status_label(other["status"])})")}', f'  {escape(other["summary"])}']
-    if detail and detail.description:
-        shown = detail.description.splitlines()
-        lines += ["", separator("description"), *(escape(line) for line in shown[:DESCRIPTION_LINES])]
-        lines += [colored("accent", "…") + colored("accent", MORE_HINT)] if len(shown) > DESCRIPTION_LINES else []
+    shown = detail.description.splitlines() if detail and detail.description else []
+    lines += ["", separator("description"), *(escape(line) for line in shown)] if shown else []
     return Entry([(ticket.key, ""), (ticket.summary, "")], "\n".join(lines), url, ticket.key,
-                 f'{ticket.key} {ticket.summary} {status}', (f'{ticket.key} · {ticket.summary}', items), group=status)
+                 f'{ticket.key} {ticket.summary} {status}', (f'{ticket.key} · {ticket.summary}', items), group=status, fold=len(shown))
+
+
+def folded(detail, fold, kept):
+    """A detail keeping only the first lines of its last `fold` ones, the description's, and a hint to read them all when it cuts any."""
+    if kept >= fold:
+        return detail
+    lines = detail.split("\n")
+    return "\n".join(lines[:len(lines) - fold + kept] + [colored("accent", "…") + colored("accent", MORE_HINT)])
+
+
+def fitted(detail, fold, width, height):
+    """A detail folded to the most description lines that fit a box of this size, the whole of it when it all fits."""
+    def overflows(kept):
+        return len(Content.from_markup(folded(detail, fold, kept)).wrap(width)) > height
+    # Keeping more lines never takes fewer rows, so the first count that overflows is found by halving.
+    return folded(detail, fold, max(0, bisect_left(range(fold + 1), True, key=overflows) - 1))
 
 
 def status_tone(status):
