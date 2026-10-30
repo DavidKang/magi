@@ -17,7 +17,7 @@ TURN_COLUMNS = {"prs": 2, "kanban": 3}
 CHANGE_WIDTHS = [12, 18, 14, None]
 NO_CHANGES = f"no changes in the last {changes.CHANGES_HOURS} h"
 # The web page's boxes and their numbers: magi web keeps my prs and my tickets, and numbers them as the TUI once did.
-SECTIONS = {"kanban": ("kanban", "no tickets on the board", KANBAN_WIDTHS),
+SECTIONS = {"kanban": ("jira tickets", "no tickets on the board", KANBAN_WIDTHS),
             "prs": ("team prs", "no open prs", PR_WIDTHS),
             "changes": ("changes", NO_CHANGES, CHANGE_WIDTHS),
             "epics": ("epics", "no epics", [9, 20, 6, None]),

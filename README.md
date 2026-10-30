@@ -138,7 +138,7 @@ Epics are not configured: the board shows every epic of the project in Developin
 
 | Key | Action |
 |-----|--------|
-| `1`-`3` | Jump to the main boxes: kanban, team PRs, changes |
+| `1`-`3` | Jump to the main boxes: jira tickets, team PRs, changes |
 | `4` | Jump to the epics box under the factory |
 | `5` | Jump to the factory box under the details: the software factory's tickets (see [Factory](#factory)) |
 | `j` / `k` | Move down / up |
@@ -146,7 +146,7 @@ Epics are not configured: the board shows every epic of the project in Developin
 | `c` | Open the selected PR's comments, reviews and code threads with their diff, or the selected ticket's description and comments (`j`/`k` move, `enter` opens it in the browser, `esc` closes) |
 | `v` | Open the Jira ticket of the selected PR in a popup, fetched from Jira the first time after each refresh (`c` opens its description and comments, `enter` opens it in the browser, `esc` closes) |
 | `/` | Filter every box but details from the header (`escape` clears it) |
-| `m` | Show only your work, marked `mine` in the header, and press it again for the whole team: your tickets not done in the kanban, even off the board; your PRs and the ones asking for your review; the changes on them and on your tickets; the epics holding your tickets. The factory stays as it is |
+| `m` | Show only your work, marked `mine` in the header, and press it again for the whole team: your tickets not done in jira tickets, even off the board; your PRs and the ones asking for your review; the changes on them and on your tickets; the epics holding your tickets. The factory stays as it is |
 | `y` | Copy the selected link (the key, for an epic) |
 | `g` | Jump to the herdr session of the selected factory ticket (see [Factory](#factory)) |
 | `s` | Snooze the selected team PR until it changes (see [Snoozed](#snoozed)) |
@@ -155,13 +155,13 @@ Epics are not configured: the board shows every epic of the project in Developin
 | `t` | Pick a theme (see [Themes](#themes)) |
 | `q` | Quit |
 
-### Kanban
+### Jira tickets
 
-The kanban box lists the tickets on your project's Jira board: every ticket of the **Jira project** that is not an epic, not in `Backlog` and not done. They are grouped by status, in this order: in review, in progress, ready to deploy, then to do, and keep Jira's rank within a status.
+The jira tickets box lists the tickets on your project's Jira board: every ticket of the **Jira project** that is not an epic, not in `Backlog` and not done. They are grouped by status, in this order: in review, in progress, ready to deploy, then to do, and keep Jira's rank within a status.
 
 Each row shows the ticket's key, a red `blocked` when the ticket has the `blocked` label, who has it (yours in the accent colour), what its oldest PR is missing, as a team PR's row does, and the days since the ticket last changed, then its summary. Its detail is the ticket's own.
 
-A ticket's detail, in the kanban box and in the web page's **my tickets**, gives its type and priority, its status in its column's colour, its labels, the blocked one in red, then its epic, creator and last update. Then it lists each PR that names the ticket with its review state in colour, who opened it and its age, then its links and its description: whole when it fits the details box, otherwise cut to the box with a hint that `c` reads it all (the web page shows its first twelve lines).
+A ticket's detail, in the jira tickets box and in the web page's **my tickets**, gives its type and priority, its status in its column's colour, its labels, the blocked one in red, then its epic, creator and last update. Then it lists each PR that names the ticket with its review state in colour, who opened it and its age, then its links and its description: whole when it fits the details box, otherwise cut to the box with a hint that `c` reads it all (the web page shows its first twelve lines).
 
 ### Team PRs
 
@@ -242,7 +242,7 @@ The LCARS, NERV and Cyberpunk themes show how the board is doing in the header:
 
 | Box | Default | LCARS | NERV | Cyberpunk |
 |-----|---------|-------|------|-----------|
-| Kanban board | kanban | DUTY ROSTER | COMMAND BOARD | JOB BOARD |
+| Jira tickets | jira tickets | DUTY ROSTER | COMMAND BOARD | JOB BOARD |
 | Team PRs | team prs | CREW REPORTS | SORTIES | FIXER GIGS |
 | Last 24 hours | changes | CAPTAIN'S LOG | OPERATIONS LOG | DATASHARDS |
 | Epics | epics | MISSIONS | PROJECTS | MAIN JOBS |
@@ -300,7 +300,7 @@ The LCARS, NERV and Cyberpunk themes show how the board is doing in the header:
 | `~/.cache/magi/prs.json` | Comments, reviews and threads of the PRs on the board, reused until a PR changes |
 | `~/.cache/magi/updated.json` | When each in-progress ticket last changed, refetched only for tickets Jira reports as changed |
 | `~/.cache/magi/my-tickets.json` | Details of your own tickets, refetched only for tickets Jira reports as changed |
-| `~/.cache/magi/kanban.json` | Details of the kanban board's tickets, refetched only for tickets Jira reports as changed |
+| `~/.cache/magi/kanban.json` | Details of the jira tickets box's tickets, refetched only for tickets Jira reports as changed |
 | `~/.cache/magi/seen.json` | The last change you saw on each PR or ticket, so new ones stay marked until you pass them |
 | `~/.cache/magi/snoozed.json` | What you snoozed in each box, with the change each item had then |
 | `~/.cache/magi/board.html` | The board as a web page, rewritten after each refresh and snooze (see [Web page](#web-page)) |

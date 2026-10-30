@@ -46,8 +46,8 @@ async def main(cache):
         assert not app.query("#panel-desk"), "there is no my desk or worktrees box"
         assert not app.query("#panel-worktrees"), "there is no my desk or worktrees box"
         titles = [str(panel.border_title) for panel in app.query(".panel")]
-        assert titles == ["[1] kanban 1", "[2] team prs 2", "[3] changes 1", "details", "[5] factory 0", "[4] epics 1"], \
-            "the boxes are numbered from 1, kanban, team prs and changes beside the details, and epics sits under the factory"
+        assert titles == ["[1] jira tickets 1", "[2] team prs 2", "[3] changes 1", "details", "[5] factory 0", "[4] epics 1"], \
+            "the boxes are numbered from 1, jira tickets, team prs and changes beside the details, and epics sits under the factory"
         assert not app.query("#panel-mine_prs") and not app.query("#panel-mine_tickets"), "the tui has no my prs nor my tickets box"
         assert "Ticket one" in detail(), "the board starts on the jira tickets box"
         prompts = [app.query_one("#list-prs", OptionList).get_option_at_index(i).prompt for i in range(5)]
