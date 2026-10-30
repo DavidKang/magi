@@ -51,7 +51,7 @@ def pr_events(pr):
 
 # The groups of team PRs, in the order the board lists them.
 TURNS = ["needs review", "on the author", "ready to merge", "drafts"]
-# How a blocked PR names its review state where the state's own name reads wrong beside a blocker.
+# How a label names a review state whose own name reads wrong on the board.
 LEADS = {"changes": "re-review", "waiting": "needs review"}
 
 
@@ -61,24 +61,36 @@ def answered(pr):
     return bool(asked) and any(commit["committedDate"] > max(asked) for commit in pr.commits)
 
 
-def turn(pr):
-    """Whose move a PR waits on, and what it is missing: only red CI, a conflict or unanswered changes put it on its author."""
-    if pr.is_draft:
-        return "drafts", "draft"
+def blockers(pr):
+    """What keeps a PR on its author, in the order its label names them: unanswered changes, red CI, a conflict."""
     state = review_state(pr)[0]
-    blockers = [label for label, blocks in (("changes", state == "changes" and not answered(pr)), ("red CI", pr.ci == "failing"),
-                                            ("conflict", pr.mergeable == "CONFLICTING")) if blocks]
-    if blockers == ["changes"]:
-        return "on the author", "changes requested"
-    if blockers:
+    return [label for label, blocks in (("changes", state == "changes" and not answered(pr)), ("CI", pr.ci == "failing"),
+                                        ("conflict", pr.mergeable == "CONFLICTING")) if blocks]
+
+
+def turn_parts(pr):
+    """Whose move a PR waits on, and what it is missing in parts, each saying whether it blocks the PR:
+    only red CI, a conflict or unanswered changes put it on its author."""
+    if pr.is_draft:
+        return "drafts", [("draft", False)]
+    state, blocking = review_state(pr)[0], blockers(pr)
+    if blocking == ["changes"]:
+        return "on the author", [("changes requested", True)]
+    if blocking:
         # Unanswered changes are the state and a blocker at once; any other state leads what blocks the PR.
-        lead = [] if blockers[0] == "changes" else [LEADS.get(state, state)]
-        return "on the author", " · ".join(lead + blockers)
+        lead = [] if blocking[0] == "changes" else [(LEADS.get(state, state), False)]
+        return "on the author", lead + [(part, True) for part in blocking]
     if state == "approved":
-        return "ready to merge", "approved · CI running" if pr.ci == "running" else "approved"
+        return "ready to merge", [("approved · CI running" if pr.ci == "running" else "approved", False)]
     if state == "changes":
-        return "needs review", "re-review"
-    return "needs review", "comments, no verdict" if state == "commented" else "no review yet"
+        return "needs review", [("re-review", False)]
+    return "needs review", [("comments, no verdict" if state == "commented" else LEADS["waiting"], False)]
+
+
+def turn(pr):
+    """Whose move a PR waits on, and what it is missing as one label."""
+    group, parts = turn_parts(pr)
+    return group, " · ".join(part for part, _ in parts)
 
 
 def standing(pr):

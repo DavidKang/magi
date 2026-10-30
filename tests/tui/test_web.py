@@ -214,6 +214,18 @@ def test_details_keep_their_muted_tones_faded():
         "a muted tone in the details reads on the page as its tone, faded"
 
 
+@pytest.mark.usefixtures("default_theme")
+def test_a_labels_blockers_read_red_on_the_page():
+    entry = entries.team_pr_entries([make_pr(ci="failing", mergeable="CONFLICTING")], {}, STATED, set())[0]
+    found = web.cell(*entry.cells[2], 32, None)
+    assert ('<span class="text-blue" style="--t: var(--blue)">needs review</span> · <span class="text-bad" style="--t: var(--bad)">CI</span>'
+            in found), "a PR's label on the page keeps its review's colour and each blocker in red, as in the tui"
+
+
+def test_lcars_fills_each_part_of_a_pill():
+    assert ".pill > span { background: var(--t); color: var(--bg); }" in web.CSS, "LCARS fills each part of a pill with its own tone, as the tui does"
+
+
 def shown(found, name):
     return {html.unescape(text) for names, text in re.findall(r'<span data-show="([^"]+)">(.*?)</span>', found) if name in names.split()}
 

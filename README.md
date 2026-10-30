@@ -170,8 +170,8 @@ Team PRs are grouped by whose turn it is, oldest first in each group:
 | Group | When |
 |-------|------|
 | needs review | Nobody approved or asked for changes yet, or the author pushed after the last change request (`re-review`). PRs that ask for your review come first, as `your review` |
-| on the author | Changes requested, red CI or a conflict, each after the PR's review state (`approved · red CI · conflict`, `needs review · red CI`) |
-| ready to merge | Approved, with no red CI or conflict |
+| on the author | Changes requested, failing CI or a conflict, each after the PR's review state: the state in its own colour, each blocker in red (`approved · CI · conflict`, `needs review · CI`) |
+| ready to merge | Approved, with no failing CI or conflict |
 | drafts | Drafts |
 
 Each row starts with the PR's title, which stretches with the box up to 60 columns, then the author, what the PR is missing and its age, red after three days; the repo, without the PR number, sits at the right edge. A green CI shows nothing.

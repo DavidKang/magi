@@ -1,7 +1,7 @@
 import pytest
 
 from builders import make_pr
-from magi.domain.review import CONDITIONS, condition, looks_ready_but_blocked, pr_events, review_state, standing, turn
+from magi.domain.review import CONDITIONS, blockers, condition, looks_ready_but_blocked, pr_events, review_state, standing, turn, turn_parts
 
 
 def test_review_state_reads_the_pr():
@@ -67,7 +67,7 @@ def test_turn_reads_whose_move_a_pr_waits_on():
         "draft": ({"is_draft": True, **green}, ("drafts", "draft")),
         "approved and green": ({"review_decision": "APPROVED", **green}, ("ready to merge", "approved")),
         "approved, CI running": ({"review_decision": "APPROVED", **green, "ci": "running"}, ("ready to merge", "approved · CI running")),
-        "approved, red CI": ({"review_decision": "APPROVED", **green, "ci": "failing"}, ("on the author", "approved · red CI")),
+        "approved, red CI": ({"review_decision": "APPROVED", **green, "ci": "failing"}, ("on the author", "approved · CI")),
         "changes requested": ({"reviews": [changes], **green, "commits": []}, ("on the author", "changes requested")),
         "changes and conflict": ({"reviews": [changes], "ci": "passing", "mergeable": "CONFLICTING", "commits": []},
                                  ("on the author", "changes · conflict")),
@@ -75,16 +75,16 @@ def test_turn_reads_whose_move_a_pr_waits_on():
                                      ("needs review", "re-review")),
         "commit before the changes": ({"reviews": [changes], **green, "commits": [{"committedDate": "2026-10-21T09:00:00Z"}]},
                                       ("on the author", "changes requested")),
-        "red CI, no verdict": ({"ci": "failing", "mergeable": "MERGEABLE"}, ("on the author", "needs review · red CI")),
+        "red CI, no verdict": ({"ci": "failing", "mergeable": "MERGEABLE"}, ("on the author", "needs review · CI")),
         "approved, conflict": ({"review_decision": "APPROVED", "ci": "passing", "mergeable": "CONFLICTING"}, ("on the author", "approved · conflict")),
         "approved, red CI and conflict": ({"review_decision": "APPROVED", "ci": "failing", "mergeable": "CONFLICTING"},
-                                          ("on the author", "approved · red CI · conflict")),
+                                          ("on the author", "approved · CI · conflict")),
         "changes, red CI and conflict": ({"reviews": [changes], "ci": "failing", "mergeable": "CONFLICTING", "commits": []},
-                                         ("on the author", "changes · red CI · conflict")),
+                                         ("on the author", "changes · CI · conflict")),
         "answered, red CI": ({"reviews": [changes], **green, "ci": "failing", "commits": [{"committedDate": "2026-10-23T09:00:00Z"}]},
-                             ("on the author", "re-review · red CI")),
+                             ("on the author", "re-review · CI")),
         "answered, red CI and conflict": ({"reviews": [changes], "ci": "failing", "mergeable": "CONFLICTING",
-                                           "commits": [{"committedDate": "2026-10-23T09:00:00Z"}]}, ("on the author", "re-review · red CI · conflict")),
+                                           "commits": [{"committedDate": "2026-10-23T09:00:00Z"}]}, ("on the author", "re-review · CI · conflict")),
         "answered, conflict": ({"reviews": [changes], **green, "mergeable": "CONFLICTING",
                                 "commits": [{"committedDate": "2026-10-23T09:00:00Z"}]}, ("on the author", "re-review · conflict")),
         "asked again after the push": ({"reviews": [changes, {**changes, "submittedAt": "2026-10-24T09:00:00Z"}], **green,
@@ -93,9 +93,9 @@ def test_turn_reads_whose_move_a_pr_waits_on():
                                         ("on the author", "changes requested")),
         "only comments": ({"reviews": [{"state": "COMMENTED"}], **green}, ("needs review", "comments, no verdict")),
         "comments, red CI and conflict": ({"reviews": [{"state": "COMMENTED"}], "ci": "failing", "mergeable": "CONFLICTING"},
-                                          ("on the author", "commented · red CI · conflict")),
-        "no review, CI running": ({**green, "ci": "running"}, ("needs review", "no review yet")),
-        "no review": (green, ("needs review", "no review yet")),
+                                          ("on the author", "commented · CI · conflict")),
+        "no review, CI running": ({**green, "ci": "running"}, ("needs review", "needs review")),
+        "no review": (green, ("needs review", "needs review")),
     }
     for name, (fields, expected) in cases.items():
         group, label = turn(make_pr(**fields))
@@ -117,3 +117,20 @@ def test_pr_events_leave_out_a_review_not_submitted():
     (make_pr(is_draft=True, ci="failing"), "drafts")])
 def test_standing_follows_the_review_alone(pr, expected):
     assert standing(pr) == expected, "a PR's standing is the turn its review gives it, whatever its CI or conflicts"
+
+
+@pytest.mark.parametrize(("pr", "expected"), [
+    (make_pr(ci="failing", mergeable="CONFLICTING"), ["CI", "conflict"]),
+    (make_pr(ci="passing", mergeable="MERGEABLE"), []),
+    (make_pr(reviews=[{"state": "CHANGES_REQUESTED", "submittedAt": "2026-10-22T09:00:00Z", "author": {"login": "bob"}, "body": ""}],
+             ci="failing", mergeable="MERGEABLE", commits=[]), ["changes", "CI"])])
+def test_blockers_name_what_keeps_a_pr_on_its_author(pr, expected):
+    assert blockers(pr) == expected, "unanswered changes, red CI and a conflict each block a PR, in that order"
+
+
+@pytest.mark.parametrize(("pr", "expected"), [
+    (make_pr(ci="failing", mergeable="CONFLICTING"), ("on the author", [("needs review", False), ("CI", True), ("conflict", True)])),
+    (make_pr(reviews=[{"state": "CHANGES_REQUESTED", "submittedAt": "2026-10-22T09:00:00Z", "author": {"login": "bob"}, "body": ""}],
+             ci="passing", mergeable="MERGEABLE", commits=[]), ("on the author", [("changes requested", True)]))])
+def test_turn_parts_say_which_block(pr, expected):
+    assert turn_parts(pr) == expected, "a blocked PR's label leads with its review, then each blocker; unanswered changes alone block under their own name"

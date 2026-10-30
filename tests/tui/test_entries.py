@@ -195,7 +195,7 @@ def test_pr_detail_status_and_activity():
     commits = [{"committedDate": at} for at in ("2026-10-23T08:00:00Z", "2026-10-23T15:00:00Z", "2026-10-21T11:00:00Z")]
     pr = replace(PR_TWO, commits=commits, ci="failing")
     lines = Content.from_markup(entries.pr_entry(pr, {}, STATED).detail).plain.splitlines()
-    assert "status   approved · red CI" in lines, "the detail says in one line what the pr is missing, as its row does"
+    assert "status   approved · CI" in lines, "the detail says in one line what the pr is missing, as its row does"
     assert not any(line.startswith(("review ", "ci ", "merge ")) for line in lines), "the status line replaces review, ci and merge"
     assert f"last push {days_since('2026-10-23T15:00:00Z')}d ago" in next(line for line in lines if line.startswith("pr ")), \
         "the pr line says how long ago the last commit was pushed"

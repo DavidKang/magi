@@ -106,7 +106,7 @@ async def lcars_theme(cache):
         await pick_theme(pilot, "default")
         assert app.screen.styles.background == Color.parse(theme.THEMES["default"]["bg"]), "t switches back to the default theme"
         assert str(app.query_one("#panel-prs").border_title) == "[2] team prs 1", "the default theme keeps its titles, states and header"
-        assert "red CI · conflict" in app.query_one("#list-prs").get_option_at_index(1).prompt.plain, \
+        assert "needs review · CI · conflict" in app.query_one("#list-prs").get_option_at_index(1).prompt.plain, \
             "the default theme keeps its titles, states and header"
         assert str(app.query_one("#top .brand").render()) == "MAGI", "the default theme keeps its titles, states and header"
         assert not app.query_one("#sidebar").display, "the default theme keeps its titles, states and header"

@@ -56,7 +56,7 @@ def test_pr_rows():
         "the repo sits at the right edge however wide the box, past the title's 60 columns"
     assert row(replace(PR_ONE, title="A" * 90)).startswith("A" * 30 + "… "), "a title longer than its room ends in an ellipsis"
     assert "alice" in row(PR_ONE), "a pr row shows its author"
-    assert "red CI · conflict" in row(PR_ONE), "a pr row says only what blocks it"
+    assert "needs review · CI · conflict" in row(PR_ONE), "a pr row says only what blocks it"
     assert "✓ ci" not in row(PR_TWO) and "approved" in row(PR_TWO), "a pr row hides a green CI"
 
 
@@ -88,7 +88,7 @@ def test_team_prs_are_grouped_by_turn():
         "team PRs are grouped by whose turn it is: my review requests first, then oldest first in each group, drafts last"
     row = lambda entry: entries.cell_row(entry, boxes.widths("prs", 100)).plain
     assert "your review" in row(listed[0]), "a PR that asks for my review says so"
-    assert "no review yet" in row(listed[1]), "a PR nobody reviewed says so"
+    assert "needs review" in row(listed[1]), "a PR nobody reviewed says so"
     assert "changes · conflict" in row(listed[3]), "a PR on its author says what blocks it"
     assert row(listed[5]).startswith("Change 5 ") and "draft" in row(listed[5]), "a draft is a row like any other PR"
     assert [e.group for e in entries.entries(found, STATED)["mine_prs"]] == [None] * len(prs), "my PRs keep one row each, without groups"
@@ -153,7 +153,7 @@ def test_longest_turn_label_fits(name):
     pr = make_pr(ci="failing", mergeable="CONFLICTING")
     entry = entries.team_pr_entries([pr], {}, STATED, set())[0]
     row = entries.cell_row(entry, boxes.widths("prs", 160)).plain
-    assert "needs review · red ci · conflict " in row.lower(), "the longest turn label shows whole in every theme"
+    assert "needs review · ci · conflict " in row.lower(), "the longest turn label shows whole in every theme"
 
 
 @pytest.mark.usefixtures("default_theme")
@@ -168,7 +168,7 @@ def test_narrow_box_keeps_some_title():
 def test_kanban_shows_its_pr_label_whole(name):
     theme.use_theme(name)
     entry = entries.kanban_entry(make_ticket(), [make_pr()], STATED, False)
-    assert "needs review · red ci · conflict " in entries.cell_row(entry, boxes.widths("kanban")).plain.lower(), \
+    assert "needs review · ci · conflict " in entries.cell_row(entry, boxes.widths("kanban")).plain.lower(), \
         "a ticket's row shows its oldest PR's state and every blocker, as the PR's own row does"
 
 
@@ -179,7 +179,7 @@ def test_turn_column_takes_its_longest_label(name, pad):
     found = {"prs": entries.team_pr_entries([PR_TWO, make_pr(ci="passing", mergeable="MERGEABLE")], {}, STATED, set()),
              "kanban": [entries.kanban_entry(make_ticket(key="ACME-2"), [PR_TWO], STATED, False), entries.kanban_entry(make_ticket(), [], STATED, False)]}
     for key, rows in found.items():
-        assert boxes.widths(key, 160, rows)[boxes.TURN_COLUMNS[key]] == len("no review yet" if key == "prs" else "approved") + pad, \
+        assert boxes.widths(key, 160, rows)[boxes.TURN_COLUMNS[key]] == len("needs review" if key == "prs" else "approved") + pad, \
             f"the {key} box's turn column is as wide as its longest label, and a pill's caps when framed"
 
 
@@ -187,5 +187,24 @@ def test_turn_column_takes_its_longest_label(name, pad):
 def test_a_label_takes_its_review_colour():
     blocked = entries.team_pr_entries([make_pr(ci="failing", mergeable="CONFLICTING")], {}, STATED, set())[0]
     ticket = entries.kanban_entry(make_ticket(), [make_pr(ci="failing", mergeable="CONFLICTING")], STATED, False)
-    assert blocked.cells[2] == ("needs review · red CI · conflict", "blue-pill") and ticket.cells[3][1] == "blue-pill", \
+    assert blocked.cells[2] == ("needs review · CI · conflict", "blue-pill") and ticket.cells[3][1] == "blue-pill", \
         "a PR's label reads in the colour of its review, whatever blocks it"
+    assert ticket.cells[3][0].parts == [("needs review", "blue"), ("CI", "bad"), ("conflict", "bad")], \
+        "a ticket's label keeps its PR's review colour and each blocker in red"
+
+
+def colour_at(text, word):
+    at = text.plain.index(word) + len(word) - len(word.lstrip())
+    return [str(span.style) for span in text.spans if span.start <= at < span.end][-1]
+
+
+@pytest.mark.usefixtures("default_theme")
+@pytest.mark.parametrize("name", ["default", "okuda", "nerv"])
+def test_each_part_of_a_label_takes_its_own_colour(name):
+    theme.use_theme(name)
+    entry = entries.team_pr_entries([make_pr(ci="failing", mergeable="CONFLICTING")], {}, STATED, set())[0]
+    row = entries.cell_row(entry, boxes.widths("prs", 160))
+    words = ("needs review", " CI ", "conflict") if name == "default" else ("NEEDS REVIEW", " CI ", "CONFLICT")
+    review, ci, conflict = (colour_at(row, word) for word in words)
+    assert theme.COLORS["blue"] in review and theme.COLORS["bad"] in ci and theme.COLORS["bad"] in conflict, \
+        "a PR's review reads in its own colour and each blocker in red"

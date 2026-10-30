@@ -13,7 +13,7 @@ from textual.content import Content
 from ..domain.review import condition
 from ..domain.snoozes import awake
 from . import frames, theme
-from .entries import KEY_HINTS, entries, folded, shade
+from .entries import KEY_HINTS, Parts, entries, folded, shade
 from .theme import FRAMES, THEMES
 from .web_themes import JAPANESE, esc, faces, named, pieces, worded
 
@@ -149,7 +149,12 @@ def cell(value, tone, width, progress):
     text = value.plain if isinstance(value, Text) else value
     look = " ".join(filter(None, [f"text-{color}" if color in TONES else "", KINDS.get(kind, "")]))
     tone = f' style="--t: var(--{color})"' if kind == "pill" and color in TONES else ""
-    return f'<span class="{room}"><span class="{look}"{tone}>{title(text) if width is None else esc(text)}</span></span>'
+    shown = title(text) if width is None else parts(value) if isinstance(value, Parts) else esc(text)
+    return f'<span class="{room}"><span class="{look}"{tone}>{shown}</span></span>'
+
+
+def parts(value):
+    return " · ".join(f'<span class="text-{own}" style="--t: var(--{own})">{esc(part)}</span>' for part, own in value.parts)
 
 
 def title(text):

@@ -13,7 +13,7 @@ from ..domain import changes
 from ..domain.ages import ago, days_since
 from ..domain.labels import BLOCKED_LABEL, blocked
 from ..domain.mine import my_changes, my_epics, my_prs
-from ..domain.review import CI_LABELS, STALE_PR_DAYS, TURNS, review_state, standing, turn
+from ..domain.review import CI_LABELS, STALE_PR_DAYS, TURNS, review_state, standing, turn, turn_parts
 from ..domain.status import COLUMNS, STATUS_COLUMNS, kanban_order, status_label, ticket_order
 from . import theme
 from .theme import COLORS
@@ -24,6 +24,15 @@ KEY_HINTS = (OPEN_HINT, MORE_HINT)
 DIFF_BACKGROUNDS = {"+": "#12261e", "-": "#2d1418"}
 DIFF_SIGNS = {"+": "ok", "-": "bad", " ": "dim"}
 HUNK_HEADER = re.compile(r"@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
+
+
+class Parts(str):
+    """A label whose parts each keep a tone, named rather than resolved, so a theme switch repaints them."""
+
+    def __new__(cls, parts):
+        label = super().__new__(cls, " · ".join(part for part, _ in parts))
+        label.parts = parts
+        return label
 
 
 @dataclass
@@ -81,8 +90,8 @@ def separator(label=""):
 
 def pr_entry(pr, by_key, settings, asked=False):
     row = rows.pr_row(pr, by_key, settings)
-    group, missing = row["turn"]
-    missing, tone = ("your review", "warn") if yours(group, asked) else (missing, TURN_TONES[standing(pr)])
+    group = row["turn"][0]
+    missing, tone = ("your review", "warn") if yours(group, asked) else (label_parts(pr), TURN_TONES[standing(pr)])
     cells = [(Text(row["title"]), ""), (row["author"], "dim"), (missing, f"{tone}-pill"), (f'{row["age"]}d', "dim-right"),
              (rows.tui_repo(pr), "dim-right")]
     pushed = max((c["committedDate"] for c in pr.commits), default=None)
@@ -359,11 +368,10 @@ def kanban_entry(ticket, prs, settings, mine):
     """A ticket in the jira tickets box: whether it is blocked, who has it, mine in the accent colour,
     what its oldest PR misses and the days since it last changed."""
     pr = min(rows.prs_naming(ticket.key, prs, settings), key=lambda found: found.created_at, default=None)
-    missing = turn(pr)[1] if pr else ""
     # My tickets off the board carry no assignee, and one cached before the detail fetch no detail.
     detail = ticket.detail
     cells = [(ticket.key, ""), ("blocked", "bad-pill") if detail and blocked(ticket) else ("", ""), (ticket.assignee or "", "accent" if mine else "dim"),
-             (missing, f"{TURN_TONES[standing(pr)]}-pill" if pr else ""), (f"{days_since(detail.updated)}d" if detail else "", "dim-right"), (ticket.summary, "")]
+             (label_parts(pr) if pr else "", f"{TURN_TONES[standing(pr)]}-pill" if pr else ""), (f"{days_since(detail.updated)}d" if detail else "", "dim-right"), (ticket.summary, "")]
     return replace(ticket_entry(ticket, prs, settings), cells=cells)
 
 
@@ -472,12 +480,31 @@ def board_entries(board, settings, tickets, prs, found, epics):
 def pill(value, width, tone):
     if not value:
         return Text(" " * width)
-    body, label = width - 4, value.upper().lstrip("✓✗…–⚠ ")
-    label = label if len(label) <= body else label[:body - 1] + "…"
+    label = painted(value, tone) if isinstance(value, Parts) else Text(value.lstrip("✓✗…–⚠ "), COLORS[tone])
+    label = Text(label.plain.upper(), spans=label.spans)
+    label.truncate(width - 4, overflow="ellipsis", pad=True)
     left, right = PILL_CAPS[theme.frame()]
     # NERV outlines its badges in their colour instead of filling them, after nerv-ui's.
-    fill = f"bold {COLORS[tone]}" if theme.frame() == "nerv" else f"{COLORS['bg']} on {COLORS[tone]}"
-    return Text.assemble((left, COLORS[tone]), (f" {label.ljust(body)} ", fill), (right, COLORS[tone]))
+    fill = (lambda color: f"bold {color}") if theme.frame() == "nerv" else (lambda color: f"{COLORS['bg']} on {color}")
+    body = Text(f" {label.plain} ", fill(COLORS[tone]))
+    for span in label.spans:
+        body.stylize(fill(span.style), span.start + 1, span.end + 1)
+    return Text.assemble((left, COLORS[tone]), body, (right, COLORS[tone]))
+
+
+def painted(value, tone):
+    """A label in parts, each in its own tone and the dots between them in the cell's."""
+    text = Text()
+    for n, (part, own) in enumerate(value.parts):
+        text.append(" · " if n else "", COLORS[tone])
+        text.append(part, COLORS[own])
+    return text
+
+
+def label_parts(pr):
+    """A PR's label with each blocker in red and the rest in its review's colour."""
+    tone = TURN_TONES[standing(pr)]
+    return Parts([(part, "bad" if blocks else tone) for part, blocks in turn_parts(pr)[1]])
 
 
 def status(value, width, tone, kind):
@@ -492,7 +519,10 @@ def cell_row(entry, widths):
         kind = tone.rpartition("-")[2]
         if kind in STATUS_KINDS:
             tone = tone.removesuffix(f"-{kind}")
-            value = status(value, width, tone, kind) if theme.frame() else value
+            if theme.frame():
+                value = status(value, width, tone, kind)
+            elif isinstance(value, Parts):
+                value = painted(value, tone)
         if isinstance(value, Text):
             if width is not None:
                 value = value.copy()

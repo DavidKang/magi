@@ -52,7 +52,7 @@ async def cyberpunk(cache):
                 f"cyberpunk draws the {key} box {tone == 'focus' and 'yellow, focused' or 'cyan'}"
         prompts = [app.query_one("#list-prs").get_option_at_index(i).prompt.plain for i in range(2)]
         assert prompts[0] == "── ON THE AUTHOR (1) ──", "cyberpunk writes the turn groups in capitals"
-        assert "◢ NEEDS REVIEW · RED CI · CONFLICT ◤" in prompts[1], "cyberpunk slants its badges, as wide as the box's longest label"
+        assert "◢ NEEDS REVIEW · CI · CONFLICT ◤" in prompts[1], "cyberpunk slants its badges, as wide as the box's longest label"
 
 
 @pytest.mark.usefixtures("default_theme")
