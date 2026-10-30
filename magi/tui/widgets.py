@@ -1,8 +1,11 @@
-"""The board's widgets: its boxes' lists and titles, and the LCARS sidebar buttons."""
+"""The board's widgets: its boxes' lists and titles, the LCARS sidebar buttons and the thin scrollbar."""
 
+from rich.segment import Segment, Segments
+from rich.style import Style
 from rich.text import Text
 from textual.binding import Binding
 from textual.containers import Horizontal
+from textual.scrollbar import ScrollBar, ScrollBarRender
 from textual.widgets import OptionList, Static
 
 from . import frames, theme
@@ -58,6 +61,23 @@ class PanelTitle(Horizontal):
         code_seg.display = bool(code)
         name_seg.update(name)
         count_seg.update(count)
+
+
+class ThinScrollBar(ScrollBarRender):
+    """A vertical scrollbar drawn as half a cell, since a terminal cell is the narrowest a bar can be."""
+
+    @classmethod
+    def render_bar(cls, size=25, virtual_size=50, window_size=20, position=0, thickness=1, vertical=True, back_color=None, bar_color=None):
+        if not vertical or not (window_size and size and virtual_size and size != virtual_size):
+            return super().render_bar(size, virtual_size, window_size, position, thickness, vertical, back_color, bar_color)
+        thumb = max(1, round(size * window_size / virtual_size))
+        start = round((size - thumb) * position / (virtual_size - window_size))
+        above, below = (Segment(" ", Style(bgcolor=back_color, meta={"@mouse.down": action})) for action in ("scroll_up", "scroll_down"))
+        line = Segment("▐", Style(color=bar_color, bgcolor=back_color, meta={"@mouse.down": "grab"}))
+        return Segments([above] * start + [line] * thumb + [below] * (size - start - thumb), new_lines=True)
+
+
+ScrollBar.renderer = ThinScrollBar
 
 
 class Board(OptionList):

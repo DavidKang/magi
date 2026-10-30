@@ -214,7 +214,7 @@ Magi writes the board to `~/.cache/magi/board.html` after each refresh and snooz
 
 ## Themes
 
-Press `t` to pick a theme. Magi remembers your choice in its settings.
+Press `t` to pick a theme. Magi remembers your choice in its settings. In every theme the scrollbars are a thin line in the theme's progress green.
 
 | Theme | Inspired by |
 |-------|-------------|

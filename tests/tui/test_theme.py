@@ -13,6 +13,7 @@ from builders import ALERT_PRS, PR_ONE, PR_TWO, SETTINGS, TICKETS, board, failin
 from magi import rows
 from magi.tui import screens, theme
 from magi.tui.screens import ThemeScreen
+from magi.tui.widgets import ThinScrollBar
 
 
 async def lcars_theme(cache):
@@ -197,6 +198,16 @@ async def long_boxes(cache):
                 panel, body, rows = (pilot.app.query_one(f"#panel-{box}{part}") for part in ("", " .pbody", f" #list-{box}"))
                 assert rows.max_scroll_y > 0, f"a full {box} box scrolls in the {name} theme"
                 assert body.region.bottom <= panel.region.bottom, f"a full {box} box keeps its bottom line in the {name} theme"
+                bar = rows.vertical_scrollbar
+                drawn = pilot.app.console.render(bar.render(), pilot.app.console.options.update(width=1, height=bar.size.height))
+                assert {segment.text for segment in drawn} - {"\n"} == {" ", "▐"}, f"a full {box} box draws its scrollbar as a thin line"
+                assert (rows.styles.scrollbar_size_vertical, rows.styles.scrollbar_color) == (1, Color.parse(theme.THEMES[name]["progress"])), \
+                    f"a full {box} box scrolls with a one-cell bar in the {name} theme's dull green"
+                styles = rows.styles
+                assert {styles.scrollbar_color_hover, styles.scrollbar_color_active} == {Color.parse(theme.THEMES[name]["progress"])}, \
+                    f"a full {box} box keeps its bar's dull green under the mouse in the {name} theme"
+                assert {styles.scrollbar_background, styles.scrollbar_background_hover, styles.scrollbar_background_active} == \
+                    {Color.parse(theme.THEMES[name]["bg"])}, f"a full {box} box draws its bar on the {name} theme's background"
 
 
 @pytest.mark.usefixtures("default_theme")
@@ -376,3 +387,18 @@ async def short_terminal(cache):
 @pytest.mark.usefixtures("default_theme")
 def test_a_short_terminal_scrolls_the_aside(cache):
     asyncio.run(short_terminal(cache))
+
+
+def thumb_rows(size, virtual_size, window_size, position=0):
+    drawn = ThinScrollBar.render_bar(size=size, virtual_size=virtual_size, window_size=window_size, position=position,
+                                     back_color=None, bar_color=None).segments
+    return [n for n, text in enumerate(segment.text for segment in drawn if segment.text != "\n") if text == "▐"]
+
+
+def test_thin_scrollbar_thumb_spans_the_window_from_top_to_bottom():
+    assert thumb_rows(12, 48, 12) == [0, 1, 2], "a list at its top draws the thumb at the top, a quarter of the bar for a quarter of the rows"
+    assert thumb_rows(12, 48, 12, position=36) == [9, 10, 11], "a list scrolled to its end draws the thumb at the bottom"
+
+
+def test_thin_scrollbar_draws_no_thumb_for_a_list_that_fits():
+    assert thumb_rows(10, 10, 10) == [], "a list that fits draws no thumb"

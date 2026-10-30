@@ -1,4 +1,6 @@
 Screen { background: $tk-bg; color: $tk-fg; }
+* { scrollbar-size-vertical: 1; scrollbar-color: $tk-progress; scrollbar-color-hover: $tk-progress; scrollbar-color-active: $tk-progress;
+    scrollbar-background: $tk-bg; scrollbar-background-hover: $tk-bg; scrollbar-background-active: $tk-bg; }
 .masthead { height: 1; }
 .masthead #logo, .masthead #nerv-logo { height: 1; margin-right: 1; }
 #nerv-logo { display: none; }
