@@ -49,7 +49,7 @@ async def main(cache):
         assert titles == ["[1] kanban 1", "[2] team prs 2", "[3] changes 1", "details", "[5] factory 0", "[4] epics 1"], \
             "the boxes are numbered from 1, kanban, team prs and changes beside the details, and epics sits under the factory"
         assert not app.query("#panel-mine_prs") and not app.query("#panel-mine_tickets"), "the tui has no my prs nor my tickets box"
-        assert "Ticket one" in detail(), "the board starts on the kanban box"
+        assert "Ticket one" in detail(), "the board starts on the jira tickets box"
         prompts = [app.query_one("#list-prs", OptionList).get_option_at_index(i).prompt for i in range(5)]
         assert [p.plain for p in prompts[2:4]] == ["", "── ready to merge (1) ──"], "a blank line separates the groups"
         assert str(prompts[0].style) == f"bold {theme.THEMES['default']['fg']}", "group headers stand out in bold, in the text colour"
@@ -495,3 +495,15 @@ def test_details_fit_at_the_box_width_whatever_the_last_detail_scrolled(cache):
     shown = asyncio.run(snug_after_crowded(cache))
     assert shown[-1] == "w" * len(shown[-1]) and "… c to read it all" not in shown, \
         "a description that fits the box at its full width shows whole, even after a detail that showed a scrollbar"
+
+
+async def ticket_row(cache):
+    ticket = Ticket(key="ACME-2", summary="Second ticket", status="En proceso", assignee="Ana")
+    async with started(magi_app(cache, load=lambda: {**board([PR_TWO]), "kanban": [ticket]})) as pilot:
+        listed = pilot.app.query_one("#list-kanban", OptionList)
+        row = next(listed.get_option_at_index(i).prompt.plain for i in range(listed.option_count) if listed.get_option_at_index(i).id)
+        return row[:listed.scrollable_content_region.width]
+
+
+def test_short_labels_leave_room_for_the_summary(cache):
+    assert "Second" in asyncio.run(ticket_row(cache)), "the label column takes only the room its longest label needs, so the summary shows"

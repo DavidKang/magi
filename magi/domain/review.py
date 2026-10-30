@@ -1,5 +1,7 @@
 """Where a PR stands: its review, its CI as a tone and a label, and whose turn it is."""
 
+from dataclasses import replace
+
 CI_LABELS = {"failing": ("changes", "CI red"), "running": ("commented", "CI running"),
              "passing": ("approved", "CI green"), "none": ("draft", "No CI")}
 STALE_PR_DAYS = 3
@@ -49,6 +51,8 @@ def pr_events(pr):
 
 # The groups of team PRs, in the order the board lists them.
 TURNS = ["needs review", "on the author", "ready to merge", "drafts"]
+# How a blocked PR names its review state where the state's own name reads wrong beside a blocker.
+LEADS = {"changes": "re-review", "waiting": "needs review"}
 
 
 def answered(pr):
@@ -67,10 +71,16 @@ def turn(pr):
     if blockers == ["changes"]:
         return "on the author", "changes requested"
     if blockers:
-        # Approved only leads a single blocker, so the longest label stays "changes · red CI · conflict".
-        return "on the author", " · ".join(["approved"] * (state == "approved" and len(blockers) == 1) + blockers)
+        # Unanswered changes are the state and a blocker at once; any other state leads what blocks the PR.
+        lead = [] if blockers[0] == "changes" else [LEADS.get(state, state)]
+        return "on the author", " · ".join(lead + blockers)
     if state == "approved":
         return "ready to merge", "approved · CI running" if pr.ci == "running" else "approved"
     if state == "changes":
         return "needs review", "re-review"
     return "needs review", "comments, no verdict" if state == "commented" else "no review yet"
+
+
+def standing(pr):
+    """The turn a PR's review alone gives it, green CI and no conflict assumed: its label's colour follows this, not what blocks it."""
+    return turn(replace(pr, ci="none", mergeable="MERGEABLE"))[0]

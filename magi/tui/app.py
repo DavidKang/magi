@@ -362,17 +362,19 @@ class MagiApp(App):
                     board.replace_option_prompt_at_index(index, self.row(key, self.sections[key][int(option_id)]))
         self.title_panels()
 
-    def row(self, key, entry):
-        room = self.query_one(f"#list-{key}", Board).scrollable_content_region.width - 2
-        return Text.assemble(("● ", COLORS["accent"]) if entry.url in self.news else "  ", cell_row(entry, widths(key, room)))
+    def sizes(self, key):
+        return widths(key, self.query_one(f"#list-{key}", Board).scrollable_content_region.width - 2, self.sections[key])
+
+    def row(self, key, entry, sizes=None):
+        return Text.assemble(("● ", COLORS["accent"]) if entry.url in self.news else "  ", cell_row(entry, sizes or self.sizes(key)))
 
     def redraw(self, key):
         """A box that changes width redraws its rows, so a PR's title fills the room it has."""
-        board = self.query_one(f"#list-{key}", Board)
+        board, sizes = self.query_one(f"#list-{key}", Board), self.sizes(key)
         for index in range(board.option_count):
             option_id = board.get_option_at_index(index).id
             if option_id:
-                board.replace_option_prompt_at_index(index, self.row(key, self.sections[key][int(option_id)]))
+                board.replace_option_prompt_at_index(index, self.row(key, self.sections[key][int(option_id)], sizes))
 
     def apply_theme(self, name):
         use_theme(name)
@@ -440,7 +442,7 @@ class MagiApp(App):
         empty = BOXES[key][1]
         board.clear_options()
         shown = [(i, entry) for i, entry in enumerate(self.sections[key]) if query in entry.search.lower()]
-        group = None
+        group, sizes = None, self.sizes(key)
         for i, entry in shown:
             if entry.group and entry.group != group:
                 if group:
@@ -448,7 +450,7 @@ class MagiApp(App):
                 group = entry.group
                 size = sum(1 for _, other in shown if other.group == group)
                 board.add_option(Option(Text(f"── {group} ({size}) ──", f"bold {COLORS['fg']}"), disabled=True))
-            board.add_option(Option(self.row(key, entry), id=str(i)))
+            board.add_option(Option(self.row(key, entry, sizes), id=str(i)))
         if not self.sections[key]:
             board.add_option(Option(Text(empty, COLORS["dim"]), disabled=True))
         first = next((i for i in range(board.option_count) if not board.get_option_at_index(i).disabled), None)

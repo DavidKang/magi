@@ -125,7 +125,7 @@ def test_nerv_outlines_its_badges():
     found = bare_board(prs=[late])
     row = entries.cell_row(entries.entries(found, STATED)["prs"][0], boxes.widths("prs"))
     style = lambda text: row.get_style_at_offset(Console(), row.plain.index(text))
-    assert f"▕ {'CHANGES · CONFLICT':<27} ▏    ▲ 58D " in row.plain, \
+    assert f"▕ {'CHANGES · CONFLICT':<32} ▏    ▲ 58D " in row.plain, \
         "nerv draws what a PR is missing as an outlined badge and a critical age as an alarm, after nerv-ui"
     for text in ("▕ CHANGES", "CHANGES", "CONFLICT"):
         assert (style(text).color.triplet.hex, style(text).bgcolor) == (MAGI["bad"], None), "nerv badges are coloured text in a thin outline, not filled"
@@ -133,7 +133,7 @@ def test_nerv_outlines_its_badges():
     calm = replace(PR_ONE, created_at=f"{dt.date.today() - dt.timedelta(days=2)}T10:00:00Z", review_decision="APPROVED", ci="passing",
                    mergeable="MERGEABLE")
     row = entries.cell_row(entries.entries({**found, "prs": [calm]}, STATED)["prs"][0], boxes.widths("prs"))
-    assert f"▕ {'APPROVED':<27} ▏ {'2d':>8} " in row.plain, "nerv leaves a nominal age plain"
+    assert f"▕ {'APPROVED':<32} ▏ {'2d':>8} " in row.plain, "nerv leaves a nominal age plain"
     assert (style("APPROVED").color.triplet.hex, style("2d").color.triplet.hex) == (MAGI["ok"], theme.THEMES["nerv"]["dim"]), \
         "nerv outlines a PR ready to merge in green and dims a nominal age"
 

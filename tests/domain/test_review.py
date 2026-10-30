@@ -1,7 +1,7 @@
 import pytest
 
 from builders import make_pr
-from magi.domain.review import CONDITIONS, condition, looks_ready_but_blocked, pr_events, review_state, turn
+from magi.domain.review import CONDITIONS, condition, looks_ready_but_blocked, pr_events, review_state, standing, turn
 
 
 def test_review_state_reads_the_pr():
@@ -75,29 +75,45 @@ def test_turn_reads_whose_move_a_pr_waits_on():
                                      ("needs review", "re-review")),
         "commit before the changes": ({"reviews": [changes], **green, "commits": [{"committedDate": "2026-10-21T09:00:00Z"}]},
                                       ("on the author", "changes requested")),
-        "red CI, no verdict": ({"ci": "failing", "mergeable": "MERGEABLE"}, ("on the author", "red CI")),
+        "red CI, no verdict": ({"ci": "failing", "mergeable": "MERGEABLE"}, ("on the author", "needs review · red CI")),
         "approved, conflict": ({"review_decision": "APPROVED", "ci": "passing", "mergeable": "CONFLICTING"}, ("on the author", "approved · conflict")),
         "approved, red CI and conflict": ({"review_decision": "APPROVED", "ci": "failing", "mergeable": "CONFLICTING"},
-                                          ("on the author", "red CI · conflict")),
+                                          ("on the author", "approved · red CI · conflict")),
         "changes, red CI and conflict": ({"reviews": [changes], "ci": "failing", "mergeable": "CONFLICTING", "commits": []},
                                          ("on the author", "changes · red CI · conflict")),
         "answered, red CI": ({"reviews": [changes], **green, "ci": "failing", "commits": [{"committedDate": "2026-10-23T09:00:00Z"}]},
-                             ("on the author", "red CI")),
+                             ("on the author", "re-review · red CI")),
+        "answered, red CI and conflict": ({"reviews": [changes], "ci": "failing", "mergeable": "CONFLICTING",
+                                           "commits": [{"committedDate": "2026-10-23T09:00:00Z"}]}, ("on the author", "re-review · red CI · conflict")),
         "answered, conflict": ({"reviews": [changes], **green, "mergeable": "CONFLICTING",
-                                "commits": [{"committedDate": "2026-10-23T09:00:00Z"}]}, ("on the author", "conflict")),
+                                "commits": [{"committedDate": "2026-10-23T09:00:00Z"}]}, ("on the author", "re-review · conflict")),
         "asked again after the push": ({"reviews": [changes, {**changes, "submittedAt": "2026-10-24T09:00:00Z"}], **green,
                                         "commits": [{"committedDate": "2026-10-23T09:00:00Z"}]}, ("on the author", "changes requested")),
         "commit at the changes' time": ({"reviews": [changes], **green, "commits": [{"committedDate": "2026-10-22T09:00:00Z"}]},
                                         ("on the author", "changes requested")),
         "only comments": ({"reviews": [{"state": "COMMENTED"}], **green}, ("needs review", "comments, no verdict")),
+        "comments, red CI and conflict": ({"reviews": [{"state": "COMMENTED"}], "ci": "failing", "mergeable": "CONFLICTING"},
+                                          ("on the author", "commented · red CI · conflict")),
         "no review, CI running": ({**green, "ci": "running"}, ("needs review", "no review yet")),
         "no review": (green, ("needs review", "no review yet")),
     }
     for name, (fields, expected) in cases.items():
-        assert turn(make_pr(**fields)) == expected, f"{name}: only red CI, a conflict or unanswered changes put a PR on its author"
+        group, label = turn(make_pr(**fields))
+        assert group == expected[0], f"{name}: only red CI, a conflict or unanswered changes put a PR on its author"
+        assert label == expected[1], f"{name}: a blocked PR's label leads with its review state, then what blocks it"
 
 
 def test_pr_events_leave_out_a_review_not_submitted():
     pr = make_pr(reviews=[{"submittedAt": None, "state": "PENDING", "author": {"login": "alice"}},
                           {"submittedAt": "2026-10-22T10:00:00Z", "state": "APPROVED", "author": {"login": "bob"}}])
     assert [event["author"] for event in pr_events(pr)] == [None, "bob"], "a review not submitted yet has no time, so it is no event"
+
+
+@pytest.mark.parametrize(("pr", "expected"), [
+    (make_pr(ci="failing", mergeable="CONFLICTING"), "needs review"),
+    (make_pr(review_decision="APPROVED", ci="failing", mergeable="MERGEABLE"), "ready to merge"),
+    (make_pr(reviews=[{"state": "CHANGES_REQUESTED", "submittedAt": "2026-10-22T09:00:00Z", "author": {"login": "bob"}, "body": ""}],
+             ci="failing", mergeable="CONFLICTING", commits=[]), "on the author"),
+    (make_pr(is_draft=True, ci="failing"), "drafts")])
+def test_standing_follows_the_review_alone(pr, expected):
+    assert standing(pr) == expected, "a PR's standing is the turn its review gives it, whatever its CI or conflicts"

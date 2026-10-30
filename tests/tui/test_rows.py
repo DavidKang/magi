@@ -6,7 +6,7 @@ import pytest
 from textual.color import Color
 from textual.content import Content
 
-from builders import EPIC, PR_ONE, PR_TWO, STATED, TICKETS, bare_board, make_pr
+from builders import EPIC, PR_ONE, PR_TWO, STATED, TICKETS, bare_board, make_pr, make_ticket
 from magi import rows
 from magi.domain import ages
 from magi.tui import app as app_module
@@ -54,7 +54,7 @@ def test_pr_rows():
     assert row(replace(PR_ONE, title="A" * 90), 160).startswith("A" * 59 + "… "), "the title stops growing at 60 columns"
     assert len(row(PR_ONE, 160)) == 160 and row(PR_ONE, 160).rstrip().endswith(" app"), \
         "the repo sits at the right edge however wide the box, past the title's 60 columns"
-    assert row(replace(PR_ONE, title="A" * 90)).startswith("A" * 35 + "… "), "a title longer than its room ends in an ellipsis"
+    assert row(replace(PR_ONE, title="A" * 90)).startswith("A" * 30 + "… "), "a title longer than its room ends in an ellipsis"
     assert "alice" in row(PR_ONE), "a pr row shows its author"
     assert "red CI · conflict" in row(PR_ONE), "a pr row says only what blocks it"
     assert "✓ ci" not in row(PR_TWO) and "approved" in row(PR_TWO), "a pr row hides a green CI"
@@ -133,9 +133,9 @@ def test_lcars_epic_bars_round_to_tenths():
 def test_lcars_pills_fit_their_text():
     pr = replace(PR_ONE, created_at=opened(123), review_decision="CHANGES_REQUESTED", ci="passing")
     row = lambda: entries.cell_row(entries.entries(bare_board(prs=[pr]), STATED)["prs"][0], boxes.widths("prs")).plain
-    assert f"{'changes · conflict':<27} 123d" in row(), "the default theme keeps its plain cells"
+    assert f"{'changes · conflict':<32} 123d" in row(), "the default theme keeps its plain cells"
     theme.use_theme("okuda")
-    for label in (f"◖ {'CHANGES · CONFLICT':<27} ◗", "◖ 123D ◗"):
+    for label in (f"◖ {'CHANGES · CONFLICT':<32} ◗", "◖ 123D ◗"):
         assert label in row(), f"LCARS pads {label} inside its pill and gives the cell room for all of it"
 
 
@@ -150,13 +150,40 @@ def test_pr_ticket_keys():
 @pytest.mark.parametrize("name", ["default", "okuda", "nerv"])
 def test_longest_turn_label_fits(name):
     theme.use_theme(name)
-    pr = make_pr(reviews=[{"state": "CHANGES_REQUESTED", "submittedAt": "2026-10-22T09:00:00Z", "author": {"login": "bob"}, "body": ""}],
-                 commits=[], ci="failing", mergeable="CONFLICTING")
+    pr = make_pr(ci="failing", mergeable="CONFLICTING")
     entry = entries.team_pr_entries([pr], {}, STATED, set())[0]
     row = entries.cell_row(entry, boxes.widths("prs", 160)).plain
-    assert "changes · red ci · conflict" in row.lower(), "the longest turn label shows whole in every theme"
+    assert "needs review · red ci · conflict " in row.lower(), "the longest turn label shows whole in every theme"
 
 
 @pytest.mark.usefixtures("default_theme")
 def test_narrow_box_keeps_some_title():
     assert boxes.widths("prs", 50)[0] == boxes.NARROW_TITLE, "a box too narrow for the columns still shows ten columns of title"
+
+
+@pytest.mark.usefixtures("default_theme")
+@pytest.mark.parametrize("name", ["default", "okuda", "nerv"])
+def test_kanban_shows_its_pr_label_whole(name):
+    theme.use_theme(name)
+    entry = entries.kanban_entry(make_ticket(), [make_pr()], STATED, False)
+    assert "needs review · red ci · conflict " in entries.cell_row(entry, boxes.widths("kanban")).plain.lower(), \
+        "a ticket's row shows its oldest PR's state and every blocker, as the PR's own row does"
+
+
+@pytest.mark.usefixtures("default_theme")
+@pytest.mark.parametrize(("name", "pad"), [("default", 0), ("okuda", 4)])
+def test_turn_column_takes_its_longest_label(name, pad):
+    theme.use_theme(name)
+    found = {"prs": entries.team_pr_entries([PR_TWO], {}, STATED, set())[0],
+             "kanban": entries.kanban_entry(make_ticket(key="ACME-2"), [PR_TWO], STATED, False)}
+    for key, entry in found.items():
+        assert boxes.widths(key, 160, [entry])[boxes.TURN_COLUMNS[key]] == len("approved") + pad, \
+            f"the {key} box's turn column is as wide as its longest label, and a pill's caps when framed"
+
+
+@pytest.mark.usefixtures("default_theme")
+def test_a_label_takes_its_review_colour():
+    blocked = entries.team_pr_entries([make_pr(ci="failing", mergeable="CONFLICTING")], {}, STATED, set())[0]
+    ticket = entries.kanban_entry(make_ticket(), [make_pr(ci="failing", mergeable="CONFLICTING")], STATED, False)
+    assert blocked.cells[2] == ("needs review · red CI · conflict", "blue-pill") and ticket.cells[3][1] == "blue-pill", \
+        "a PR's label reads in the colour of its review, whatever blocks it"

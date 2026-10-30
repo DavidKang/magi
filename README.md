@@ -170,7 +170,7 @@ Team PRs are grouped by whose turn it is, oldest first in each group:
 | Group | When |
 |-------|------|
 | needs review | Nobody approved or asked for changes yet, or the author pushed after the last change request (`re-review`). PRs that ask for your review come first, as `your review` |
-| on the author | Changes requested, red CI or a conflict |
+| on the author | Changes requested, red CI or a conflict, each after the PR's review state (`approved · red CI · conflict`, `needs review · red CI`) |
 | ready to merge | Approved, with no red CI or conflict |
 | drafts | Drafts |
 

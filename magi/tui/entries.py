@@ -12,7 +12,7 @@ from ..domain import changes
 from ..domain.ages import ago, days_since
 from ..domain.labels import BLOCKED_LABEL, blocked
 from ..domain.mine import my_changes, my_epics, my_prs
-from ..domain.review import CI_LABELS, STALE_PR_DAYS, TURNS, review_state, turn
+from ..domain.review import CI_LABELS, STALE_PR_DAYS, TURNS, review_state, standing, turn
 from ..domain.status import COLUMNS, STATUS_COLUMNS, kanban_order, status_label, ticket_order
 from . import theme
 from .theme import COLORS
@@ -72,7 +72,7 @@ def separator(label=""):
 def pr_entry(pr, by_key, settings, asked=False):
     row = rows.pr_row(pr, by_key, settings)
     group, missing = row["turn"]
-    missing, tone = ("your review", "warn") if yours(group, asked) else (missing, TURN_TONES[group])
+    missing, tone = ("your review", "warn") if yours(group, asked) else (missing, TURN_TONES[standing(pr)])
     cells = [(Text(row["title"]), ""), (row["author"], "dim"), (missing, f"{tone}-pill"), (f'{row["age"]}d', "dim-right"),
              (rows.tui_repo(pr), "dim-right")]
     pushed = max((c["committedDate"] for c in pr.commits), default=None)
@@ -346,14 +346,14 @@ def pr_list(prs):
 
 
 def kanban_entry(ticket, prs, settings, mine):
-    """A ticket on the kanban board: whether it is blocked, who has it, mine in the accent colour,
+    """A ticket in the jira tickets box: whether it is blocked, who has it, mine in the accent colour,
     what its oldest PR misses and the days since it last changed."""
     pr = min(rows.prs_naming(ticket.key, prs, settings), key=lambda found: found.created_at, default=None)
-    group, missing = turn(pr) if pr else (None, "")
+    missing = turn(pr)[1] if pr else ""
     # My tickets off the board carry no assignee, and one cached before the detail fetch no detail.
     detail = ticket.detail
     cells = [(ticket.key, ""), ("blocked", "bad-pill") if detail and blocked(ticket) else ("", ""), (ticket.assignee or "", "accent" if mine else "dim"),
-             (missing, f"{TURN_TONES[group]}-pill" if pr else ""), (f"{days_since(detail.updated)}d" if detail else "", "dim-right"), (ticket.summary, "")]
+             (missing, f"{TURN_TONES[standing(pr)]}-pill" if pr else ""), (f"{days_since(detail.updated)}d" if detail else "", "dim-right"), (ticket.summary, "")]
     return replace(ticket_entry(ticket, prs, settings), cells=cells)
 
 
