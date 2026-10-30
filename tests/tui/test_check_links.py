@@ -44,7 +44,7 @@ def test_a_failed_check_links_its_log_and_nothing_else(url, opened):
     assert [parse(action) for text, action in found if text == "lint"] == [("app", "open_link", (opened,))], \
         "a failed check opens its own https log, or else the pr's checks, as one link"
     assert {parse(action)[1] for _, action in found} <= {"open_link", "open_review"}, "a check url never adds an action of its own"
-    assert "failing  lint" in to_content(detail).plain.splitlines(), "a check url never breaks the detail's text"
+    assert "failing  • lint" in to_content(detail).plain.splitlines(), "a check url never breaks the detail's text"
 
 
 async def clicked(cache, url):

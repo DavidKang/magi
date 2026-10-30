@@ -176,7 +176,7 @@ Team PRs are grouped by whose turn it is, oldest first in each group:
 
 Each row starts with the PR's title, which stretches with the box up to 60 columns, then the author, what the PR is missing and its age, red after three days; the repo, without the PR number, sits at the right edge. A green CI shows nothing.
 
-The detail of a PR says in one status line what it is missing, as its row does, names each failed check with a link to its log, says when it opened and when it was last pushed, and lists its activity newest first, with a day's commits in one line. `v` opens its Jira ticket in a popup.
+The detail of a PR says in one status line what it is missing, as its row does, lists each failed check on its own line with a link to its log, says when it opened and when it was last pushed, and lists its activity newest first, with a day's commits in one line. `v` opens its Jira ticket in a popup.
 
 ### Changes
 

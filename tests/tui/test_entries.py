@@ -211,7 +211,9 @@ def test_pr_detail_status_and_activity():
 def test_pr_detail_links_the_failed_checks():
     checks = [{"name": "rspec", "url": "https://ci/rspec"}, {"name": "ci/jenkins", "url": "https://jenkins/1"}]
     detail = entries.pr_entry(replace(PR_TWO, ci="failing", failed_checks=checks), {}, STATED).detail
-    assert "failing  rspec · ci/jenkins" in Content.from_markup(detail).plain.splitlines(), "the detail names each failed check"
+    lines = Content.from_markup(detail).plain.splitlines()
+    assert lines[lines.index("failing  • rspec") + 1] == "         • ci/jenkins", "the detail lists each failed check on its own line"
+    assert lines[lines.index("failing  • rspec") + 2] == "", "a blank line sets the failed checks apart from the ticket below"
     assert "app.open_link('https://ci/rspec')" in detail, "a failed check opens its log"
     assert "failing " not in Content.from_markup(entries.pr_entry(PR_TWO, {}, STATED).detail).plain, "a pr with no failed check names none"
 
@@ -343,10 +345,12 @@ def test_factory_detail_finds_an_epics_ticket_without_its_epic():
 
 
 def test_factory_detail_lists_the_prs_naming_the_ticket():
-    pr = replace(PR_ONE, failed_checks=[{"name": "lint", "url": "https://ci.example/1"}])
+    pr = replace(PR_ONE, failed_checks=[{"name": "lint", "url": "https://ci.example/1"}, {"name": "rspec", "url": "https://ci.example/2"}])
     detail = factory_detail(FactoryTicket("ACME-1", "ready", "", FACTORY_NOW, None), board([pr, PR_TWO]))
-    assert "app#1 Awaiting review · CI red" in detail and "failing  lint" in detail and "#2" not in detail, \
-        "a factory ticket's details list the prs that name it, with their review, ci and failing checks, and no other pr"
+    assert "app#1 Awaiting review · CI red" in detail and "#2" not in detail, \
+        "a factory ticket's details list the prs that name it, with their review and ci, and no other pr"
+    assert ["failing  • lint", "         • rspec"] == [line for line in detail.splitlines() if line.endswith(("• lint", "• rspec"))], \
+        "a factory ticket's pr lists its failing checks one per line"
 
 
 def test_factory_detail_ends_with_what_the_agent_wrote():
