@@ -109,6 +109,13 @@ def test_pr_events_leave_out_a_review_not_submitted():
     assert [event["author"] for event in pr_events(pr)] == [None, "bob"], "a review not submitted yet has no time, so it is no event"
 
 
+def test_pr_events_tell_the_comments_of_the_conversation():
+    said = {"author": {"__typename": "User", "login": "carol"}, "body": "Looks good to me", "createdAt": "2026-11-03T11:50:40Z",
+            "url": "https://github.com/acme/app/pull/1#issuecomment-1"}
+    assert {"at": "2026-11-03T11:50:40Z", "state": "COMMENTED", "author": "carol"} in pr_events(make_pr(conversation=[said])), \
+        "a comment on a pr's conversation is an event, by its author at its time, as a review that only comments is"
+
+
 @pytest.mark.parametrize(("pr", "expected"), [
     (make_pr(ci="failing", mergeable="CONFLICTING"), "needs review"),
     (make_pr(review_decision="APPROVED", ci="failing", mergeable="MERGEABLE"), "ready to merge"),

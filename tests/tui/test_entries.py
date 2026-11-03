@@ -202,6 +202,10 @@ def test_pr_detail_status_and_activity():
     activity = lines[lines.index("── activity ──") + 1:]
     assert [line for line in activity if "commit" in line] == ["Oct 23        2 commits", "Oct 21        1 commit"], \
         "activity groups the commits of a day in one line"
+    said = {"author": {"__typename": "User", "login": "carol"}, "body": "Looks good to me", "createdAt": "2026-10-24T09:50:00Z", "url": "u"}
+    commented = Content.from_markup(entries.pr_entry(replace(pr, conversation=[said]), {}, STATED).detail).plain.splitlines()
+    assert commented[commented.index("── activity ──") + 1].endswith("commented carol"), \
+        "a pr's activity tells the comments of its conversation, newest first with its commits and reviews"
     asked = Content.from_markup(entries.pr_entry(replace(PR_ONE, reviews=[], ci="passing", mergeable="MERGEABLE"), {}, STATED, asked=True).detail).plain
     assert "status   your review" in asked, "a pr waiting on your review says so in its status line"
     assert "last push" not in Content.from_markup(entries.pr_entry(PR_TWO, {}, STATED).detail).plain, \

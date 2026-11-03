@@ -44,9 +44,10 @@ def review_state(pr):
 
 
 def pr_events(pr):
-    """A PR's commits and submitted reviews, at GitHub's own times."""
+    """A PR's commits, submitted reviews and comments on its conversation, at GitHub's own times."""
     return ([{"at": c["committedDate"], "state": None, "author": None} for c in pr.commits]
-            + [{"at": r["submittedAt"], "state": r["state"], "author": r["author"]["login"]} for r in pr.reviews if r["submittedAt"]])
+            + [{"at": r["submittedAt"], "state": r["state"], "author": r["author"]["login"]} for r in pr.reviews if r["submittedAt"]]
+            + [{"at": c["createdAt"], "state": "COMMENTED", "author": c["author"]["login"]} for c in pr.conversation])
 
 
 # The groups of team PRs, in the order the board lists them.
