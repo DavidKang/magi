@@ -154,7 +154,7 @@ async def eva01(cache):
         assert (description.color.triplet.hex, key.styles.background) == (EVA01["accent"], Color.parse(EVA01["bg"])), \
             "EVA 01 writes the footer in green on black, since no text reads well on purple"
         assert key.get_component_styles("footer-key--description").padding.left == 1, "EVA 01 sets the footer text off its key"
-        assert str(app.query_one("#status").render()) == f"EVA-01 · PILOT ALICE · SYNC {dt.datetime.fromtimestamp(1000.0):%H:%M}", \
+        assert str(app.query_one("#status").render()) == f"EVA-01 · PILOT BULMA · SYNC {dt.datetime.fromtimestamp(1000.0):%H:%M}", \
             "EVA 01 names you, by your GitHub user, as its pilot"
         for tone, label in zip(ALERT_PRS, ("SYNC STABLE", "SYNC UNSTABLE", "BERSERK")):
             app.show_board(board([ALERT_PRS[tone]]), 1000.0)

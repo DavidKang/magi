@@ -72,7 +72,7 @@ async def wake_the_box(cache):
     async with started(app) as pilot:
         await pilot.press("2", "s")
         await pilot.pause()
-        assert ["[ACME-2]" in row for row in rows(app, "prs")] == [True], "s hides the selected team pr"
+        assert ["[KAME-2]" in row for row in rows(app, "prs")] == [True], "s hides the selected team pr"
         await pilot.press("S")
         await pilot.pause()
         assert len(rows(app, "prs")) == 2, "S brings back every snoozed item of the box"
@@ -148,7 +148,7 @@ def test_s_on_a_quiet_pr(cache):
 def ticket_moved():
     found = two_prs()
     moved = {"at": "2026-10-25T04:00", "tone": "approved", "label": "Done", "note": None, "aside": "was: In Progress", "told": False,
-             "subject": ticket_subject("ACME-1", STATED.jira_browse, "Ticket one"), "item": STATED.jira_browse + "ACME-1", "group": PR_ONE.url}
+             "subject": ticket_subject("KAME-1", STATED.jira_browse, "Find the dragon balls"), "item": STATED.jira_browse + "KAME-1", "group": PR_ONE.url}
     found["changes"] = [moved, *found["changes"]]
     return found
 

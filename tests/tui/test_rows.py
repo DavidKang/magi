@@ -16,28 +16,28 @@ from magi.tui import boxes, entries, theme
 def test_rows_view_model():
     ticket = TICKETS[0]
     row = rows.pr_row(PR_ONE, {ticket.key: ticket}, STATED)
-    assert row["ref"] == "app#1", "a pr row is plain data built from the settings passed in"
+    assert row["ref"] == "radar#1", "a pr row is plain data built from the settings passed in"
     assert row["url"] == PR_ONE.url, "a pr row is plain data built from the settings passed in"
-    assert row["author"] == "alice", "a pr row is plain data built from the settings passed in"
+    assert row["author"] == "bulma", "a pr row is plain data built from the settings passed in"
     assert row["review"] == ("waiting", "Awaiting review"), "a pr row is plain data built from the settings passed in"
     assert row["ci"] == "failing", "a pr row is plain data built from the settings passed in"
     assert row["conflict"], "a pr row is plain data built from the settings passed in"
     assert row["review_requested"], "a pr row is plain data built from the settings passed in"
     assert row["age"] == ages.days_since(PR_ONE.created_at), "a pr row is plain data built from the settings passed in"
-    assert (row["tickets"] == [{"key": "ACME-1", "url": "https://acme.atlassian.net/browse/ACME-1", "status": "In Progress",
-                                    "summary": "Ticket one"}]), "a pr row is plain data built from the settings passed in"
+    assert (row["tickets"] == [{"key": "KAME-1", "url": "https://capsulecorp.atlassian.net/browse/KAME-1", "status": "In Progress",
+                                    "summary": "Find the dragon balls"}]), "a pr row is plain data built from the settings passed in"
     linked = rows.ticket_row(ticket, [PR_ONE, PR_TWO], STATED)
-    assert linked["key"] == "ACME-1", "a ticket row is plain data with its linked prs"
-    assert linked["url"] == "https://acme.atlassian.net/browse/ACME-1", "a ticket row is plain data with its linked prs"
+    assert linked["key"] == "KAME-1", "a ticket row is plain data with its linked prs"
+    assert linked["url"] == "https://capsulecorp.atlassian.net/browse/KAME-1", "a ticket row is plain data with its linked prs"
     assert linked["status"] == "In Progress", "a ticket row is plain data with its linked prs"
-    assert [pr["ref"] for pr in linked["prs"]] == ["app#1"], "a ticket row is plain data with its linked prs"
+    assert [pr["ref"] for pr in linked["prs"]] == ["radar#1"], "a ticket row is plain data with its linked prs"
     assert linked["prs"][0]["review"] == "Awaiting review", "a ticket row is plain data with its linked prs"
     two_days = replace(PR_ONE, created_at=(dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=2)).isoformat())
     found = rows.ticket_row(ticket, [two_days], STATED)["prs"][0]
-    assert {key: found[key] for key in ("tone", "author", "age")} == {"tone": "warn", "author": "alice", "age": 2}, \
+    assert {key: found[key] for key in ("tone", "author", "age")} == {"tone": "warn", "author": "bulma", "age": 2}, \
         "a ticket row's prs carry their review tone, who opened them and their age"
     tui = Content.from_markup(entries.ticket_entry(ticket, [PR_ONE], STATED).detail).plain
-    assert "app#1  Awaiting review" in tui, "the TUI shows the row data"
+    assert "radar#1  Awaiting review" in tui, "the TUI shows the row data"
 
 
 def test_styles_live_in_a_tcss_file():
@@ -48,14 +48,14 @@ def test_styles_live_in_a_tcss_file():
 
 def test_pr_rows():
     row = lambda pr, room=100: entries.cell_row(entries.pr_entry(pr, {}, STATED), boxes.widths("prs", room)).plain
-    assert row(PR_ONE).startswith("[ACME-1] First change "), "a pr row starts with the PR's title"
-    assert row(PR_ONE).rstrip().endswith(" app") and "#1" not in row(PR_ONE), "a pr row ends with its repo, without the PR number"
+    assert row(PR_ONE).startswith("[KAME-1] Charge the Kamehameha "), "a pr row starts with the PR's title"
+    assert row(PR_ONE).rstrip().endswith(" radar") and "#1" not in row(PR_ONE), "a pr row ends with its repo, without the PR number"
     assert len(row(PR_ONE)) == 100, "the title stretches with the box"
     assert row(replace(PR_ONE, title="A" * 90), 160).startswith("A" * 59 + "… "), "the title stops growing at 60 columns"
-    assert len(row(PR_ONE, 160)) == 160 and row(PR_ONE, 160).rstrip().endswith(" app"), \
+    assert len(row(PR_ONE, 160)) == 160 and row(PR_ONE, 160).rstrip().endswith(" radar"), \
         "the repo sits at the right edge however wide the box, past the title's 60 columns"
     assert row(replace(PR_ONE, title="A" * 90)).startswith("A" * 30 + "… "), "a title longer than its room ends in an ellipsis"
-    assert "alice" in row(PR_ONE), "a pr row shows its author"
+    assert "bulma" in row(PR_ONE), "a pr row shows its author"
     assert "needs review · CI · conflict" in row(PR_ONE), "a pr row says only what blocks it"
     assert "✓ ci" not in row(PR_TWO) and "approved" in row(PR_TWO), "a pr row hides a green CI"
 
@@ -71,13 +71,13 @@ def opened(days):
 
 def by_turn(number, days, **fields):
     green = {"ci": "passing", "mergeable": "MERGEABLE", "review_requests": [], "commits": []}
-    return make_pr(**{**green, "url": f"u{number}", "repo": "web", "number": number, "title": f"Change {number}",
+    return make_pr(**{**green, "url": f"u{number}", "repo": "scouter", "number": number, "title": f"Wish {number}",
                       "created_at": opened(days), **fields})
 
 
 @pytest.mark.usefixtures("default_theme")
 def test_team_prs_are_grouped_by_turn():
-    changes = {"state": "CHANGES_REQUESTED", "submittedAt": opened(5), "body": "", "author": {"login": "bob"}}
+    changes = {"state": "CHANGES_REQUESTED", "submittedAt": opened(5), "body": "", "author": {"login": "goku"}}
     asked, old = by_turn(2, 2), by_turn(7, 4)
     prs = [by_turn(1, 1), asked, by_turn(3, 5, reviews=[changes], mergeable="CONFLICTING"),
            by_turn(4, 3, review_decision="APPROVED"), by_turn(5, 6, is_draft=True), by_turn(6, 1, is_draft=True), old]
@@ -90,7 +90,7 @@ def test_team_prs_are_grouped_by_turn():
     assert "your review" in row(listed[0]), "a PR that asks for my review says so"
     assert "needs review" in row(listed[1]), "a PR nobody reviewed says so"
     assert "changes · conflict" in row(listed[3]), "a PR on its author says what blocks it"
-    assert row(listed[5]).startswith("Change 5 ") and "draft" in row(listed[5]), "a draft is a row like any other PR"
+    assert row(listed[5]).startswith("Wish 5 ") and "draft" in row(listed[5]), "a draft is a row like any other PR"
     assert [e.group for e in entries.entries(found, STATED)["mine_prs"]] == [None] * len(prs), "my PRs keep one row each, without groups"
     days = lambda: {e.url: e.cells[entries.DAYS_CELL] for e in entries.team_pr_entries([by_turn(8, 3), by_turn(9, 4)], {}, STATED, set())}
     assert days() == {"u8": ("3d", "dim-right"), "u9": ("4d", "bad-right")}, "a PR's days turn red only once it is open over three days"
@@ -140,10 +140,10 @@ def test_lcars_pills_fit_their_text():
 
 
 def test_pr_ticket_keys():
-    titled = make_pr(title="[ACME-99] Fix it", head_ref_name="ACME-100-fix")
-    assert rows.pr_row(titled, {}, STATED)["keys"] == ["ACME-99", "ACME-100"], "a pr's ticket is the one its title names, before its branch's"
-    branched = make_pr(title="Fix it", head_ref_name="ACME-100-and-ACME-99")
-    assert rows.pr_row(branched, {}, STATED)["keys"] == ["ACME-99", "ACME-100"], "ticket keys sort by number, not as text"
+    titled = make_pr(title="[KAME-99] Fix the scouter", head_ref_name="KAME-100-fix")
+    assert rows.pr_row(titled, {}, STATED)["keys"] == ["KAME-99", "KAME-100"], "a pr's ticket is the one its title names, before its branch's"
+    branched = make_pr(title="Fix the scouter", head_ref_name="KAME-100-and-KAME-99")
+    assert rows.pr_row(branched, {}, STATED)["keys"] == ["KAME-99", "KAME-100"], "ticket keys sort by number, not as text"
 
 
 @pytest.mark.usefixtures("default_theme")
@@ -177,7 +177,7 @@ def test_kanban_shows_its_pr_label_whole(name):
 def test_turn_column_takes_its_longest_label(name, pad):
     theme.use_theme(name)
     found = {"prs": entries.team_pr_entries([PR_TWO, make_pr(ci="passing", mergeable="MERGEABLE")], {}, STATED, set()),
-             "kanban": [entries.kanban_entry(make_ticket(key="ACME-2"), [PR_TWO], STATED, False), entries.kanban_entry(make_ticket(), [], STATED, False)]}
+             "kanban": [entries.kanban_entry(make_ticket(key="KAME-2"), [PR_TWO], STATED, False), entries.kanban_entry(make_ticket(), [], STATED, False)]}
     for key, rows in found.items():
         assert boxes.widths(key, 160, rows)[boxes.TURN_COLUMNS[key]] == len("needs review" if key == "prs" else "approved") + pad, \
             f"the {key} box's turn column is as wide as its longest label, and a pill's caps when framed"

@@ -22,13 +22,13 @@ async def review_popup(cache):
         assert "brs#2" in str(app.screen.query_one("#review").border_title), "the popup title names the PR"
         assert any(b.key_display == "j/k" for b in app.screen.query_one(OptionList)._bindings.key_to_bindings.get("j", [])), \
             "the popup footer explains how to move"
-        assert "Please split this" in comments(), "a review shows its body without a diff"
+        assert "Please split this like a Fusion Dance" in comments(), "a review shows its body without a diff"
         assert not app.screen.query_one("#review-diff-box").display, "a review shows its body without a diff"
         await pilot.press("j")
-        assert "app/models/order.rb:12" in text("#review-place"), "j moves to the next thread and shows its file and line"
+        assert "app/models/senzu_bean.rb:12" in text("#review-place"), "j moves to the next thread and shows its file and line"
         assert app.screen.query_one("#review-diff-box").display, "the thread shows its diff"
         assert ".sum { |item|" in text("#review-diff"), "the thread shows its diff"
-        assert comments().index("Rename qty") < comments().index("Done"), "the thread shows every comment in order"
+        assert comments().index("Rename qty") < comments().index("Done, Vegeta"), "the thread shows every comment in order"
         assert [block.has_class("lead") for block in app.screen.query(".comment")] == [False, True], \
             "the pr's author's comments stand out from the reviewers'"
         await pilot.press("enter")

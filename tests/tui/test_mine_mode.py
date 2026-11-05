@@ -9,15 +9,15 @@ from magi.domain.entities import Ticket
 from magi.tui import app as app_module
 from magi.tui.widgets import Board
 
-ASKED = make_pr(url="https://github.com/acme/app/pull/9", number=9, title="[ACME-9] Asked of me", author={"login": "carol"}, head_ref_oid="z9")
+ASKED = make_pr(url="https://github.com/capsulecorp/radar/pull/9", number=9, title="[KAME-9] Review my Final Flash", author={"login": "vegeta"}, head_ref_oid="z9")
 
 
 def mine_board():
     team = board([PR_ONE, PR_TWO])
     on_two = {**team["changes"][0], "item": PR_TWO.url, "group": PR_TWO.url, "subject": {**team["changes"][0]["subject"], "url": PR_TWO.url}}
     return {**team, "review_prs": [ASKED], "changes": [*team["changes"], on_two],
-            "epics": [*team["epics"], make_epic(key="ACME-200", summary="Not mine")],
-            "tickets_by_epic": {**team["tickets_by_epic"], "ACME-200": [make_ticket(key="ACME-5")]}}
+            "epics": [*team["epics"], make_epic(key="KAME-200", summary="Not my saga")],
+            "tickets_by_epic": {**team["tickets_by_epic"], "KAME-200": [make_ticket(key="KAME-5")]}}
 
 
 def shown(app, key):
@@ -40,8 +40,8 @@ async def in_mine(cache, load=mine_board):
 
 
 @pytest.mark.usefixtures("default_theme")
-@pytest.mark.parametrize("key, mine", [("kanban", ["ACME-1", "OPS-7"]), ("prs", sorted([PR_ONE.url, ASKED.url])),
-                                       ("changes", [PR_ONE.url]), ("epics", ["ACME-100"])])
+@pytest.mark.parametrize("key, mine", [("kanban", ["KAME-1", "RED-7"]), ("prs", sorted([PR_ONE.url, ASKED.url])),
+                                       ("changes", [PR_ONE.url]), ("epics", ["KAME-100"])])
 def test_mine_shows_my_work(cache, key, mine):
     async def check(cache):
         async with in_mine(cache) as (app, _):
@@ -112,7 +112,7 @@ async def waking_in_mine_wakes_only_my_snoozes(cache):
 async def my_ticket_cached_before_its_detail(cache):
     async with in_mine(cache) as (app, pilot):
         await pilot.press("1")
-        highlight(app, "kanban", "OPS-7")
+        highlight(app, "kanban", "RED-7")
         await pilot.pause()
         detail = str(app.query_one("#detail", Static).render())
         assert "creator" not in detail and "epic" not in detail, "a ticket cached before the detail fetch shows no detail fields"
@@ -121,7 +121,7 @@ async def my_ticket_cached_before_its_detail(cache):
 async def reviewing_my_ticket_cached_before_its_detail(cache):
     async with in_mine(cache) as (app, pilot):
         await pilot.press("1")
-        highlight(app, "kanban", "OPS-7")
+        highlight(app, "kanban", "RED-7")
         await pilot.pause()
         await pilot.press("c")
         await pilot.pause()
@@ -130,17 +130,17 @@ async def reviewing_my_ticket_cached_before_its_detail(cache):
 
 
 def ranked_board():
-    ticket = lambda key: Ticket(key=key, summary=key, status="En proceso", assignee="Ana", detail=TICKET_DETAIL)
-    return {**board([PR_ONE]), "kanban": [ticket("ACME-1"), ticket("ACME-2")], "my_tickets": [ticket("ACME-2"), ticket("ACME-1")]}
+    ticket = lambda key: Ticket(key=key, summary=key, status="En proceso", assignee="Chichi", detail=TICKET_DETAIL)
+    return {**board([PR_ONE]), "kanban": [ticket("KAME-1"), ticket("KAME-2")], "my_tickets": [ticket("KAME-2"), ticket("KAME-1")]}
 
 
 async def mine_keeps_the_jira_rank(cache):
     async with in_mine(cache, load=ranked_board) as (app, _):
-        assert [entry.copy for entry in app.sections["kanban"]] == ["ACME-1", "ACME-2"], "my tickets on the board keep their Jira rank in mine mode"
+        assert [entry.copy for entry in app.sections["kanban"]] == ["KAME-1", "KAME-2"], "my tickets on the board keep their Jira rank in mine mode"
 
 
 async def mine_with_nothing_of_mine(cache):
-    async with in_mine(cache, load=lambda: bare_board(prs=[PR_TWO], epics=[make_epic()], tickets_by_epic={"ACME-100": []})) as (app, _):
+    async with in_mine(cache, load=lambda: bare_board(prs=[PR_TWO], epics=[make_epic()], tickets_by_epic={"KAME-100": []})) as (app, _):
         assert all(app.sections[key] == [] for key in ("kanban", "prs", "changes", "epics")), "with nothing of mine, mine mode empties the boxes"
 
 

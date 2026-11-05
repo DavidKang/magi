@@ -14,37 +14,37 @@ def test_search_prs(monkeypatch):
     seen = []
     monkeypatch.setattr(process, "run_json", lambda cmd: seen.append(cmd) or {"data": {"search": {"nodes": [
         {**light_node(PR_TWO, ci="FAILURE"), "author": None}]}}})
-    found = github.search_prs("is:pr is:open org:acme author:alice")
+    found = github.search_prs("is:pr is:open org:capsulecorp author:bulma")
     query = next(arg for arg in seen[0] if arg.startswith("query="))
     assert seen[0][:3] == ["gh", "api", "graphql"], "pr searches go through graphql, not the rest search api"
-    assert 'search(type: ISSUE, query: "is:pr is:open org:acme author:alice", first: 100)' in query, \
+    assert 'search(type: ISSUE, query: "is:pr is:open org:capsulecorp author:bulma", first: 100)' in query, \
         "pr searches go through graphql, not the rest search api"
     assert (found == [FoundPr(
-          url=PR_TWO.url, number=2, updated_at="2026-10-24T10:00:00Z", title=PR_TWO.title, head_ref_name="ACME-2-y",
+          url=PR_TWO.url, number=2, updated_at="2026-10-24T10:00:00Z", title=PR_TWO.title, head_ref_name="KAME-2-y",
           base_ref_name="main", head_ref_oid=PR_TWO.head_ref_oid, mergeable="MERGEABLE", author={"login": "ghost"},
-          name_with_owner="acme/billing-reconciliation-service",
-          repo="billing-reconciliation-service", ci="failing")]), "a search returns light prs with their ci, repo and update time"
+          name_with_owner="capsulecorp/hyperbolic-time-chamber-portal",
+          repo="hyperbolic-time-chamber-portal", ci="failing")]), "a search returns light prs with their ci, repo and update time"
     assert "contexts" not in query, "a search asks only for the ci state, leaving the failed checks to the prs whose ci failed"
     assert not any(hasattr(module, name) for module in (process, github) for name in
                    ("search_team_prs", "search_open_prs", "search_merged_prs", "search_review_requested_from_me")), "the rest pr searches are gone"
 
 
 def test_conflicts_are_the_files_both_sides_changed(monkeypatch):
-    answers = {"repos/acme/app/compare/main...a1": {"files": [{"filename": "app.py"}, {"filename": "README.md"}]},
-               "repos/acme/app/compare/a1...main": {"files": [{"filename": "setup.py"}, {"filename": "README.md"}, {"filename": "app.py"}]},
-               "repos/acme/web/compare/main...c2": {"files": [{"filename": "web.py"}]},
-               "repos/acme/web/compare/c2...main": {"files": [{"filename": "setup.py"}]}}
+    answers = {"repos/capsulecorp/radar/compare/main...a1": {"files": [{"filename": "radar.py"}, {"filename": "README.md"}]},
+               "repos/capsulecorp/radar/compare/a1...main": {"files": [{"filename": "capsule.py"}, {"filename": "README.md"}, {"filename": "radar.py"}]},
+               "repos/capsulecorp/scouter/compare/main...c2": {"files": [{"filename": "scouter.py"}]},
+               "repos/capsulecorp/scouter/compare/c2...main": {"files": [{"filename": "capsule.py"}]}}
     timeouts, alone, both = [], [], threading.Barrier(2, timeout=1)
 
     def answer(cmd, timeout=None):
-        if cmd[2].startswith("repos/acme/app/"):
+        if cmd[2].startswith("repos/capsulecorp/radar/"):
             try:
                 both.wait()
             except threading.BrokenBarrierError:
                 alone.append(cmd[2])
         return timeouts.append(timeout) or answers[cmd[2]]
     monkeypatch.setattr(process, "run_json", answer)
-    assert github.fetch_conflicts([("acme/app", "main", "a1"), ("acme/web", "main", "c2")]) == [["README.md", "app.py"], []], \
+    assert github.fetch_conflicts([("capsulecorp/radar", "main", "a1"), ("capsulecorp/scouter", "main", "c2")]) == [["README.md", "radar.py"], []], \
         "a PR's conflicts are the files its branch and its base both changed since they parted, each PR in the order asked"
     assert not alone, "a PR's two compares are asked at once: neither waits for the other's answer"
     assert timeouts == [github.COMPARE_TIMEOUT] * 4, "every compare gives up after COMPARE_TIMEOUT, so a hung one cannot hold up the refresh"
@@ -53,11 +53,11 @@ def test_conflicts_are_the_files_both_sides_changed(monkeypatch):
 @pytest.mark.parametrize("error", [subprocess.CalledProcessError(1, "gh"), subprocess.TimeoutExpired("gh", github.COMPARE_TIMEOUT)])
 def test_conflicts_a_failed_compare_lists_no_files(monkeypatch, error):
     def answer(cmd, timeout=None):
-        if cmd[2] == "repos/acme/huge/compare/a1...main":
+        if cmd[2] == "repos/capsulecorp/oozaru/compare/a1...main":
             raise error
-        return {"files": [{"filename": "app.py"}]}
+        return {"files": [{"filename": "radar.py"}]}
     monkeypatch.setattr(process, "run_json", answer)
-    assert github.fetch_conflicts([("acme/huge", "main", "a1"), ("acme/app", "main", "c2")]) == [[], ["app.py"]], \
+    assert github.fetch_conflicts([("capsulecorp/oozaru", "main", "a1"), ("capsulecorp/radar", "main", "c2")]) == [[], ["radar.py"]], \
         "a compare GitHub refuses or never answers, even on one side only, lists no files for that PR instead of failing the refresh"
 
 
@@ -66,7 +66,7 @@ def failed_checks_of(monkeypatch, node):
     seen = []
     monkeypatch.setattr(process, "run_json", lambda cmd: seen.append(next(arg for arg in cmd if arg.startswith("query="))) or
                         {"data": {"pr0": {"pullRequest": node}}})
-    return github.fetch_failed_checks([("acme/billing-reconciliation-service", 2)])[0], seen
+    return github.fetch_failed_checks([("capsulecorp/hyperbolic-time-chamber-portal", 2)])[0], seen
 
 
 def test_failed_checks_are_named(monkeypatch):
@@ -104,7 +104,7 @@ def test_failed_checks_are_asked_in_parallel_batches_of_3(monkeypatch):
         return {"data": {f"pr{i}": {"pullRequest": light_node(replace(PR_TWO, number=n), ci="FAILURE", checks=[failed[i]])}
                          for i, n in enumerate(numbers)}}
     monkeypatch.setattr(process, "run_json", graph)
-    found = github.fetch_failed_checks([("acme/app", n) for n in range(7)])
+    found = github.fetch_failed_checks([("capsulecorp/radar", n) for n in range(7)])
     assert [checks[0]["name"] for checks in found] == [f"rspec {n}" for n in range(7)], "each pr's failed checks come back in the order asked"
     assert len(seen) == 3, "the failed checks come from one graphql call per batch of 3 prs"
     assert github.fetch_failed_checks([]) == [] and len(seen) == 3, "no pr whose ci failed asks nothing"
@@ -124,7 +124,7 @@ def paged(monkeypatch, ci, pages):
         rollup = pages[n] and {"contexts": checks_page(pages[n], cursors[n])}
         return {"data": {"repository": {"pullRequest": {"commits": {"nodes": [{"commit": {"statusCheckRollup": rollup}}]}}}}}
     monkeypatch.setattr(process, "run_json", graph)
-    return github.fetch_failed_checks([("acme/billing-reconciliation-service", 2)])[0], seen
+    return github.fetch_failed_checks([("capsulecorp/hyperbolic-time-chamber-portal", 2)])[0], seen
 
 
 def test_a_failed_rollup_with_over_100_checks_names_every_failed_one(monkeypatch):
@@ -135,7 +135,7 @@ def test_a_failed_rollup_with_over_100_checks_names_every_failed_one(monkeypatch
     assert found == [{"name": "rspec", "url": "https://ci/rspec"}, {"name": "lint", "url": "https://ci/lint"}], \
         "a failed rollup with over 100 checks asks for the next pages until it has named every failed check"
     assert len(seen) == 3, "each page past the first is one more graphql call"
-    assert all('repository(owner: "acme", name: "billing-reconciliation-service")' in q and "pullRequest(number: 2)" in q for q in seen[1:]), \
+    assert all('repository(owner: "capsulecorp", name: "hyperbolic-time-chamber-portal")' in q and "pullRequest(number: 2)" in q for q in seen[1:]), \
         "the next pages ask for the pr's own head commit"
     assert ['after: "c1"' in seen[1], 'after: "c2"' in seen[2]] == [True, True], "each page starts after the last one"
 
@@ -157,12 +157,12 @@ def test_pr_states(monkeypatch):
     seen = []
     monkeypatch.setattr(process, "run_json", lambda cmd: seen.append(cmd) or {"data": {
         "pr0": {"pullRequest": {"state": "MERGED"}}, "pr1": {"pullRequest": {"state": "CLOSED"}}}})
-    urls = ["https://github.com/acme/app/pull/8", "https://github.com/acme/web/pull/9"]
+    urls = ["https://github.com/capsulecorp/radar/pull/8", "https://github.com/capsulecorp/scouter/pull/9"]
     states = github.fetch_pr_states(urls)
     query = next(arg for arg in seen[0] if arg.startswith("query="))
     assert len(seen) == 1, "vanished pr states come from one graphql call"
     assert states == {urls[0]: "MERGED", urls[1]: "CLOSED"}, "vanished pr states come from one graphql call"
-    assert 'name: "web"' in query, "vanished pr states come from one graphql call"
+    assert 'name: "scouter"' in query, "vanished pr states come from one graphql call"
     assert "pullRequest(number: 9)" in query, "vanished pr states come from one graphql call"
     assert github.fetch_pr_states([]) == {}, "nothing vanished asks nothing"
     assert len(seen) == 1, "nothing vanished asks nothing"
@@ -180,16 +180,16 @@ def test_pr_fetch():
 
     process.run_json = graph
     try:
-        prs = github.fetch_prs([("acme/app", 2), ("acme/app", 3)])
-        many = github.fetch_prs([("acme/app", n) for n in range(25)])
+        prs = github.fetch_prs([("capsulecorp/radar", 2), ("capsulecorp/radar", 3)])
+        many = github.fetch_prs([("capsulecorp/radar", n) for n in range(25)])
     finally:
         process.run_json = run_json
     query = next(arg for arg in seen[0] if arg.startswith("query="))
     assert len(seen) == 10, "prs come from one graphql call per batch of 3"
     assert all("graphql" in cmd for cmd in seen), "prs come from one graphql call per batch of 3"
     assert len(many) == 25, "prs come from one graphql call per batch of 3"
-    assert 'owner: "acme"' in query, "pr fetch asks for each pr by repo and number"
-    assert 'name: "app"' in query, "pr fetch asks for each pr by repo and number"
+    assert 'owner: "capsulecorp"' in query, "pr fetch asks for each pr by repo and number"
+    assert 'name: "radar"' in query, "pr fetch asks for each pr by repo and number"
     assert "pullRequest(number: 2)" in query, "pr fetch asks for each pr by repo and number"
     assert "pullRequest(number: 3)" in query, "pr fetch asks for each pr by repo and number"
     assert [pr.number for pr in many] == list(range(25)), "pr fetch keeps the order it was asked"
@@ -200,7 +200,7 @@ def test_pr_fetch():
     assert [c["committedDate"] for c in prs[0].commits] == ["2026-10-21T10:00:00Z", "2026-10-22T10:00:00Z"], \
         "pr fetch flattens reviews, review requests and commits"
     assert [pr.ci for pr in many[:4]] == ["failing", "running", "passing", "none"], "pr ci comes from the last commit's check rollup"
-    assert prs[0].repo == "app", "pr fetch names the repo"
+    assert prs[0].repo == "radar", "pr fetch names the repo"
     assert "commits(last: 100) { nodes { commit { committedDate } } }" in query, "pr fetch asks for the check rollup of the head commit only"
     assert "head: commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }" in query, \
         "pr fetch asks for the check rollup of the head commit only, leaving its failed checks to their own query"
@@ -208,7 +208,7 @@ def test_pr_fetch():
     node = pr_node(5, None)["pullRequest"]
     ghost = {**node, "author": None, "reviews": {"nodes": [{**CHANGES, "author": None}]},
              "reviewThreads": {"nodes": [{**THREAD, "comments": {"nodes": [{**THREAD["comments"][0], "author": None}]}}]}}
-    pr = github.pr_from_graph(ghost, "acme/app")
+    pr = github.pr_from_graph(ghost, "capsulecorp/radar")
     assert pr.author == {"login": "ghost"}, "a deleted account reads as ghost"
     assert pr.reviews[0]["author"] == {"login": "ghost"}, "a deleted account reads as ghost"
     assert pr.threads[0]["comments"][0]["author"] == {"login": "ghost"}, "a deleted account reads as ghost"

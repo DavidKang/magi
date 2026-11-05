@@ -131,7 +131,7 @@ def test_lcars_theme(cache):
 async def lcars_edit(cache):
     app = magi_app(cache, theme="okuda", edit_config=True)
     async with started(app) as pilot:
-        app.screen.query_one("#config-team", Input).value = "alice bob, carol"
+        app.screen.query_one("#config-team", Input).value = "bulma goku, vegeta"
         await pilot.click("#config-save")
         await app.workers.wait_for_complete()
         await pilot.pause()
@@ -188,7 +188,7 @@ def test_lcars_condition_colors(cache):
 
 
 def full_board():
-    epics = [make_epic(key=f"ACME-{n}") for n in range(15)]
+    epics = [make_epic(key=f"KAME-{n}") for n in range(15)]
     return {**board([PR_ONE]), "epics": epics, "tickets_by_epic": {e.key: TICKETS for e in epics}, "kanban": board([PR_ONE])["kanban"] * 20}
 
 
@@ -350,7 +350,7 @@ def test_pr_rows_follow_their_box_when_it_resizes(cache, default_theme):
     before, after, plain = asyncio.run(run())
     assert before[0] == before[1] and after[0] == after[1] and after[0] > before[0], \
         f"a PR row fills its box, before and after the terminal resizes: {before} then {after}"
-    assert plain.rstrip().endswith(" app"), "the repo stays at the right edge after a resize"
+    assert plain.rstrip().endswith(" radar"), "the repo stays at the right edge after a resize"
 
 
 @pytest.mark.usefixtures("default_theme")

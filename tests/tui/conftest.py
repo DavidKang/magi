@@ -6,7 +6,7 @@ from magi.tui import screens, theme
 
 @pytest.fixture
 def aliases(monkeypatch):
-    monkeypatch.setitem(rows.TUI_REPO_ALIASES, "billing-reconciliation-service", "brs")
+    monkeypatch.setitem(rows.TUI_REPO_ALIASES, "hyperbolic-time-chamber-portal", "brs")
 
 
 @pytest.fixture

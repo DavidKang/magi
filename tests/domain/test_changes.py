@@ -9,54 +9,54 @@ from magi.domain.entities import Ticket
 
 
 def test_epic_changes():
-    epic_one, epic_two = EPIC, replace(EPIC, key="ACME-200", summary="Epic two")
-    one, two, three = (Ticket(key=key, summary=f"Ticket {key}", status="En proceso") for key in ("ACME-1", "ACME-2", "ACME-3"))
+    epic_one, epic_two = EPIC, replace(EPIC, key="KAME-200", summary="Majin Buu Saga")
+    one, two, three = (Ticket(key=key, summary=f"Ticket {key}", status="En proceso") for key in ("KAME-1", "KAME-2", "KAME-3"))
     summaries = {t.key: t.summary for t in (one, two, three)}
     pr = replace(PR_TWO, head_ref_oid="abc")
-    before = changes.snapshot([epic_one], {"ACME-100": [one]}, [], STATED)
-    now = changes.snapshot([epic_one, epic_two], {"ACME-100": [one], "ACME-200": [two, three]}, [pr], STATED)
+    before = changes.snapshot([epic_one], {"KAME-100": [one]}, [], STATED)
+    now = changes.snapshot([epic_one, epic_two], {"KAME-100": [one], "KAME-200": [two, three]}, [pr], STATED)
     found = changes.changes_between(before, now, summaries, {}, STATED)
     assert ([(c["label"], c["item"]) for c in found]
-            == [("New epic", "https://acme.atlassian.net/browse/ACME-200")]), "a new epic is one change with its summary"
-    assert found[0]["subject"]["title"] == "Epic two", "a new epic is one change with its summary"
+            == [("New epic", "https://capsulecorp.atlassian.net/browse/KAME-200")]), "a new epic is one change with its summary"
+    assert found[0]["subject"]["title"] == "Majin Buu Saga", "a new epic is one change with its summary"
     assert changes.vanished_prs(now, before) == [], "an epic leaving needs no lookup of its PRs"
     found = changes.changes_between(now, before, summaries, {}, STATED)
-    assert [(c["label"], c["item"]) for c in found] == [("Off the epics", "https://acme.atlassian.net/browse/ACME-200")], \
+    assert [(c["label"], c["item"]) for c in found] == [("Off the epics", "https://capsulecorp.atlassian.net/browse/KAME-200")], \
         "an epic leaving is one change, without per-ticket changes"
-    grown = changes.snapshot([epic_one], {"ACME-100": [one, two]}, [], STATED)
+    grown = changes.snapshot([epic_one], {"KAME-100": [one, two]}, [], STATED)
     found = changes.changes_between(before, grown, summaries, {}, STATED)
     assert [c["label"] for c in found] == ["In Progress"], "a new ticket in a known epic is a change, its status in English"
-    assert found[0]["note"] == "joins ACME-100 Epic one", "a new ticket names the epic it joins"
+    assert found[0]["note"] == "joins KAME-100 Frieza Saga", "a new ticket names the epic it joins"
     legacy = {key: value for key, value in before.items() if key != "epics"}
     found = changes.changes_between(legacy, grown, summaries, {}, STATED)
     assert [c["label"] for c in found] == ["In Progress"], "a saved state without epics still reports new tickets"
 
 
 def test_domain_returns_data():
-    gone = replace(PR_ONE, url="https://github.com/acme/app/pull/8", number=8, title="[ACME-1] Gone", head_ref_oid="x")
+    gone = replace(PR_ONE, url="https://github.com/capsulecorp/radar/pull/8", number=8, title="[KAME-1] Gone", head_ref_oid="x")
     before = changes.snapshot([], {}, [gone], STATED)
     now = changes.snapshot([], {}, [], STATED)
     assert changes.vanished_prs(before, now) == [gone.url], "a vanished pr outside quiet epics needs its state"
     found = changes.changes_between(before, now, {}, {gone.url: "MERGED"}, STATED)
     assert (found == [
           {"item": gone.url, "group": gone.url, "tone": "approved", "label": "Merged", "note": None, "aside": None, "told": False,
-           "subject": {"kind": "pr", "url": gone.url, "ref": "app#8", "title": "[ACME-1] Gone", "author": gone.author["login"]}}]), \
+           "subject": {"kind": "pr", "url": gone.url, "ref": "radar#8", "title": "[KAME-1] Gone", "author": gone.author["login"]}}]), \
         "a vanished pr is labelled from the state it was given, as data, and keeps who opened it"
 
 
 def test_pr_titles_read_like_their_links():
-    for title, shown in (("[ACME-1]NoSpace", "[ACME-1] NoSpace"), ("[ACME-6]   multi   space", "[ACME-6] multi   space"),
-                         ("[ACME-1][ACME-30] mixed", "[ACME-1] [ACME-30] mixed"), ("[ACME-4] ", "[ACME-4]"), ("No key", "No key")):
-        assert changes.subject_text(changes.pr_subject("u", "app#1", title, "alice")) == shown, f"a pr titled {title!r} reads {shown!r}"
+    for title, shown in (("[KAME-1]NoSpace", "[KAME-1] NoSpace"), ("[KAME-6]   multi   space", "[KAME-6] multi   space"),
+                         ("[KAME-1][KAME-30] mixed", "[KAME-1] [KAME-30] mixed"), ("[KAME-4] ", "[KAME-4]"), ("No key", "No key")):
+        assert changes.subject_text(changes.pr_subject("u", "radar#1", title, "bulma")) == shown, f"a pr titled {title!r} reads {shown!r}"
 
 
 def test_a_new_ticket_names_its_own_epic():
-    epic_two = replace(EPIC, key="ACME-200", summary="Epic two")
-    one, two = (Ticket(key=key, summary=f"Ticket {key}", status="En proceso") for key in ("ACME-1", "ACME-2"))
+    epic_two = replace(EPIC, key="KAME-200", summary="Majin Buu Saga")
+    one, two = (Ticket(key=key, summary=f"Ticket {key}", status="En proceso") for key in ("KAME-1", "KAME-2"))
     before = changes.snapshot([EPIC, epic_two], {EPIC.key: [], epic_two.key: []}, [], STATED)
     now = changes.snapshot([EPIC, epic_two], {EPIC.key: [one], epic_two.key: [two]}, [], STATED)
-    found = changes.changes_between(before, now, {"ACME-1": "Ticket one", "ACME-2": "Ticket two"}, {}, STATED)
-    assert [(c["subject"]["ref"], c["note"]) for c in found] == [("ACME-1", "joins ACME-100 Epic one"), ("ACME-2", "joins ACME-200 Epic two")], \
+    found = changes.changes_between(before, now, {"KAME-1": "Find the dragon balls", "KAME-2": "Train with King Kai"}, {}, STATED)
+    assert [(c["subject"]["ref"], c["note"]) for c in found] == [("KAME-1", "joins KAME-100 Frieza Saga"), ("KAME-2", "joins KAME-200 Majin Buu Saga")], \
         "each new ticket names the epic it joins, not another epic on the board"
 
 
@@ -75,54 +75,54 @@ def test_domain_takes_the_settings_it_is_given():
     pr = replace(PR_ONE, head_ref_oid="a1")
     found = changes.changes_between(changes.snapshot([], {}, [], STATED), changes.snapshot([], {}, [pr], STATED), {}, {}, STATED)
     assert [c["label"] for c in found] == ["New PR"], "changes take the settings they are given"
-    assert keys.ticket_keys_in(pr, "ACME") == {"ACME-1"}, "pr ticket keys take the project they are given"
+    assert keys.ticket_keys_in(pr, "KAME") == {"KAME-1"}, "pr ticket keys take the project they are given"
 
 
 def test_a_ticket_change_joins_the_only_pr_that_names_it():
     pr = replace(PR_ONE, head_ref_oid="a1")
-    one = Ticket(key="ACME-1", summary="Ticket one", status="En proceso")
+    one = Ticket(key="KAME-1", summary="Find the dragon balls", status="En proceso")
     moved = replace(one, status="En revisión")
-    before = changes.snapshot([EPIC], {"ACME-100": [one]}, [pr], STATED)
-    now = changes.snapshot([EPIC], {"ACME-100": [moved]}, [pr], STATED)
-    found = changes.changes_between(before, now, {"ACME-1": "Ticket one"}, {}, STATED)
+    before = changes.snapshot([EPIC], {"KAME-100": [one]}, [pr], STATED)
+    now = changes.snapshot([EPIC], {"KAME-100": [moved]}, [pr], STATED)
+    found = changes.changes_between(before, now, {"KAME-1": "Find the dragon balls"}, {}, STATED)
     assert [(c["label"], c["group"]) for c in found] == [("In review", PR_ONE.url)], "a ticket change joins the group of the one pr that names it"
     assert found[0]["aside"] == "was: In Progress", "a ticket change names both statuses in English"
-    other = replace(PR_TWO, title="[ACME-1] Also", head_ref_name="also", head_ref_oid="b1")
-    twice = changes.snapshot([EPIC], {"ACME-100": [moved]}, [pr, other], STATED)
-    found = changes.changes_between(before, twice, {"ACME-1": "Ticket one"}, {}, STATED)
-    assert [c["group"] for c in found if c["label"] == "In review"] == ["https://acme.atlassian.net/browse/ACME-1"], \
+    other = replace(PR_TWO, title="[KAME-1] Also Kaioken", head_ref_name="also-kaioken", head_ref_oid="b1")
+    twice = changes.snapshot([EPIC], {"KAME-100": [moved]}, [pr, other], STATED)
+    found = changes.changes_between(before, twice, {"KAME-1": "Find the dragon balls"}, {}, STATED)
+    assert [c["group"] for c in found if c["label"] == "In review"] == ["https://capsulecorp.atlassian.net/browse/KAME-1"], \
         "a ticket two prs name keeps a group of its own"
-    empty = changes.snapshot([EPIC], {"ACME-100": []}, [pr], STATED)
-    joined = changes.changes_between(empty, now, {"ACME-1": "Ticket one"}, {}, STATED)
+    empty = changes.snapshot([EPIC], {"KAME-100": []}, [pr], STATED)
+    joined = changes.changes_between(empty, now, {"KAME-1": "Find the dragon balls"}, {}, STATED)
     left = changes.changes_between(now, empty, {}, {}, STATED)
-    assert [(c["note"], c["group"]) for c in joined + left] == [("joins ACME-100 Epic one", PR_ONE.url), ("(cancelled or moved)", PR_ONE.url)], \
+    assert [(c["note"], c["group"]) for c in joined + left] == [("joins KAME-100 Frieza Saga", PR_ONE.url), ("(cancelled or moved)", PR_ONE.url)], \
         "a ticket joining or leaving the epics joins the group of its pr too"
 
 
 def test_a_ticket_leaving_the_epics_keeps_its_title():
-    one = Ticket(key="ACME-1", summary="Ticket one", status="En proceso")
+    one = Ticket(key="KAME-1", summary="Find the dragon balls", status="En proceso")
     before = changes.snapshot([EPIC], {EPIC.key: [one]}, [], STATED)
     now = changes.snapshot([EPIC], {EPIC.key: []}, [], STATED)
     found = changes.changes_between(before, now, {}, {}, STATED)
-    assert [changes.change_text(c) for c in found] == ["ACME-1 Ticket one (cancelled or moved)"], \
+    assert [changes.change_text(c) for c in found] == ["KAME-1 Find the dragon balls (cancelled or moved)"], \
         "a ticket leaving the epics keeps the title it had on the board"
-    untitled = {**before, "tickets": {"ACME-1": {"status": "En proceso", "summary": None}}}
+    untitled = {**before, "tickets": {"KAME-1": {"status": "En proceso", "summary": None}}}
     found = changes.changes_between(untitled, now, {}, {}, STATED)
-    assert [changes.change_text(c) for c in found] == ["ACME-1 (cancelled or moved)"], \
+    assert [changes.change_text(c) for c in found] == ["KAME-1 (cancelled or moved)"], \
         "a ticket leaving the epics before its title was ever saved shows its key alone"
 
 
 def test_a_pr_change_leads_its_ticket_move_from_the_same_refresh():
     pr = replace(PR_ONE, head_ref_oid="a1")
-    before = changes.snapshot([EPIC], {"ACME-100": [Ticket(key="ACME-1", summary="Ticket one", status="En revisión")]}, [pr], STATED)
-    now = changes.snapshot([EPIC], {"ACME-100": [Ticket(key="ACME-1", summary="Ticket one", status="Finalizado")]}, [], STATED)
-    found = changes.recent_changes({"snapshot": before, "changes": []}, now, {"ACME-1": "Ticket one"}, dt.datetime(2026, 10, 25, 9, 0),
+    before = changes.snapshot([EPIC], {"KAME-100": [Ticket(key="KAME-1", summary="Find the dragon balls", status="En revisión")]}, [pr], STATED)
+    now = changes.snapshot([EPIC], {"KAME-100": [Ticket(key="KAME-1", summary="Find the dragon balls", status="Finalizado")]}, [], STATED)
+    found = changes.recent_changes({"snapshot": before, "changes": []}, now, {"KAME-1": "Find the dragon balls"}, dt.datetime(2026, 10, 25, 9, 0),
                                    {PR_ONE.url: "MERGED"}, STATED)
     assert [c["label"] for c in changes.latest(found, "group")] == ["Merged"], "a pr's own change leads its ticket's move from the same refresh"
 
 
 def test_recent_changes_keep_every_change_of_the_last_day():
-    subject = changes.pr_subject(PR_ONE.url, "app#1", PR_ONE.title, PR_ONE.author["login"])
+    subject = changes.pr_subject(PR_ONE.url, "radar#1", PR_ONE.title, PR_ONE.author["login"])
     earlier = {"at": "2026-10-25T08:00", **changes.change(subject, "waiting", changes.PUSHED)}
     stale = {**earlier, "at": "2026-10-24T08:00"}
     before = changes.snapshot([], {}, [replace(PR_ONE, head_ref_oid="a1")], STATED)
@@ -152,7 +152,7 @@ def test_group_changes_leave_out_what_the_pr_history_tells():
 
 
 def test_a_pr_change_is_told_by_its_history_only_when_a_commit_or_review_caused_it():
-    reviewed = {"state": "COMMENTED", "author": {"login": "bob"}, "submittedAt": "2026-10-22T10:00:00Z"}
+    reviewed = {"state": "COMMENTED", "author": {"login": "goku"}, "submittedAt": "2026-10-22T10:00:00Z"}
     draft = replace(PR_ONE, is_draft=True, reviews=[reviewed], head_ref_oid="a1")
     ready = replace(draft, is_draft=False)
     approved = replace(ready, reviews=[reviewed, {**reviewed, "state": "APPROVED"}])
@@ -172,42 +172,42 @@ def test_a_push_on_a_snapshot_without_its_commit_time_is_told():
 
 
 def test_a_pending_review_is_no_new_review():
-    submitted = {"state": "COMMENTED", "author": {"login": "bob"}, "submittedAt": "2026-10-22T10:00:00Z"}
+    submitted = {"state": "COMMENTED", "author": {"login": "goku"}, "submittedAt": "2026-10-22T10:00:00Z"}
     before = replace(PR_ONE, reviews=[submitted])
-    now = replace(before, reviews=[submitted, {"state": "PENDING", "author": {"login": "carol"}, "submittedAt": None}])
+    now = replace(before, reviews=[submitted, {"state": "PENDING", "author": {"login": "vegeta"}, "submittedAt": None}])
     found = changes.changes_between(changes.snapshot([], {}, [before], STATED), changes.snapshot([], {}, [now], STATED), {}, {}, STATED)
     assert found == [], "a review not submitted yet changes nothing on the board"
 
 
 def test_a_ticket_joins_the_group_of_its_newest_change():
-    one = Ticket(key="ACME-1", summary="Ticket one", status="En proceso")
+    one = Ticket(key="KAME-1", summary="Find the dragon balls", status="En proceso")
     moved = replace(one, status="En revisión")
-    alone = {"at": "2026-10-25T07:00", **changes.change(changes.ticket_subject("ACME-1", STATED.jira_browse, "Ticket one"), "waiting", "In progress")}
+    alone = {"at": "2026-10-25T07:00", **changes.change(changes.ticket_subject("KAME-1", STATED.jira_browse, "Find the dragon balls"), "waiting", "In progress")}
     before = changes.snapshot([EPIC], {EPIC.key: [one]}, [PR_ONE], STATED)
     now = changes.snapshot([EPIC], {EPIC.key: [moved]}, [PR_ONE], STATED)
-    found = changes.recent_changes({"snapshot": before, "changes": [alone]}, now, {"ACME-1": "Ticket one"}, dt.datetime(2026, 10, 25, 9, 0), {}, STATED)
+    found = changes.recent_changes({"snapshot": before, "changes": [alone]}, now, {"KAME-1": "Find the dragon balls"}, dt.datetime(2026, 10, 25, 9, 0), {}, STATED)
     assert [(c["label"], c["group"]) for c in found] == [("In review", PR_ONE.url), ("In progress", PR_ONE.url)], \
         "a ticket's earlier changes join the pr its newest change joined"
     assert [c["label"] for c in changes.latest(found, "group")] == ["In review"], "a ticket shows once, at its newest status"
 
 
 def test_a_ticket_joins_the_pr_that_names_it_after_its_moves():
-    one = Ticket(key="ACME-1", summary="Ticket one", status="En proceso")
-    alone = {"at": "2026-10-25T07:00", **changes.change(changes.ticket_subject("ACME-1", STATED.jira_browse, "Ticket one"), "waiting", "In progress")}
+    one = Ticket(key="KAME-1", summary="Find the dragon balls", status="En proceso")
+    alone = {"at": "2026-10-25T07:00", **changes.change(changes.ticket_subject("KAME-1", STATED.jira_browse, "Find the dragon balls"), "waiting", "In progress")}
     before = changes.snapshot([EPIC], {EPIC.key: [one]}, [], STATED)
     now = changes.snapshot([EPIC], {EPIC.key: [one]}, [PR_ONE], STATED)
-    found = changes.recent_changes({"snapshot": before, "changes": [alone]}, now, {"ACME-1": "Ticket one"}, dt.datetime(2026, 10, 25, 9, 0), {}, STATED)
+    found = changes.recent_changes({"snapshot": before, "changes": [alone]}, now, {"KAME-1": "Find the dragon balls"}, dt.datetime(2026, 10, 25, 9, 0), {}, STATED)
     assert [(c["label"], c["group"]) for c in found] == [(changes.NEW_PR, PR_ONE.url), ("In progress", PR_ONE.url)], \
         "a ticket's moves from before its pr opened join the pr that names it"
     assert [c["label"] for c in changes.latest(found, "group")] == [changes.NEW_PR], "the ticket and its pr show as one row"
 
 
 def test_an_epic_never_joins_a_pr_that_names_it():
-    epic_two = replace(EPIC, key="ACME-200", summary="Epic two")
+    epic_two = replace(EPIC, key="KAME-200", summary="Majin Buu Saga")
     before = changes.snapshot([EPIC], {EPIC.key: []}, [], STATED)
-    now = changes.snapshot([EPIC, epic_two], {EPIC.key: [], epic_two.key: []}, [replace(PR_ONE, title="[ACME-200] Set the epic up")], STATED)
+    now = changes.snapshot([EPIC, epic_two], {EPIC.key: [], epic_two.key: []}, [replace(PR_ONE, title="[KAME-200] Gather the Z Fighters")], STATED)
     found = changes.recent_changes({"snapshot": before, "changes": []}, now, {}, dt.datetime(2026, 10, 25, 9, 0), {}, STATED)
-    assert {c["label"]: c["group"] for c in found}["New epic"] == STATED.jira_browse + "ACME-200", \
+    assert {c["label"]: c["group"] for c in found}["New epic"] == STATED.jira_browse + "KAME-200", \
         "an epic's change keeps its own row: only a ticket's moves join the pr that names it"
 
 

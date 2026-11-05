@@ -105,12 +105,12 @@ def test_refetch_changed_links():
 
 
 def test_collect_shows_my_prs_outside_the_team():
-    mine = replace(PR_TWO, title="Bump a gem", head_ref_name="bump-gem", author={"login": "carol"})
+    mine = replace(PR_TWO, title="Bump the senzu gem", head_ref_name="bump-senzu", author={"login": "vegeta"})
     queries = []
 
     def search(query):
         queries.append(query)
-        return [github.light_pr(light_node(mine))] if "author:carol" in query else []
+        return [github.light_pr(light_node(mine))] if "author:vegeta" in query else []
     tickets = types.SimpleNamespace(
         fetch_my_tickets=lambda details: [], fetch_kanban=lambda settings, details: [], fetch_updated=lambda key: key,
         changed_since=lambda keys, minutes, linked_to=(): set(),
@@ -120,26 +120,26 @@ def test_collect_shows_my_prs_outside_the_team():
                                           fetch_conflicts=lambda items: [[] for _ in items],
                                           fetch_pr_states=lambda urls: {}, search_terms=github.search_terms)
     refresh, _, _ = refresh_with(tickets, pull_requests)
-    found = refresh.collect(make_settings(github_user="carol"))
-    assert "is:pr is:open archived:false org:acme author:alice author:bob author:carol" in queries, \
+    found = refresh.collect(make_settings(github_user="vegeta"))
+    assert "is:pr is:open archived:false org:capsulecorp author:bulma author:goku author:vegeta" in queries, \
         "my own prs are searched with the team's, though i am not in the team"
     assert [pr.number for pr in found["prs"]] == [2], "my prs show among the team's even without a tracked ticket"
     assert [pr.number for pr in found["my_prs"]] == [2], "my prs show in mine even without a tracked ticket"
 
 
 def test_a_merged_pr_keeps_its_history():
-    mine = replace(PR_TWO, title="Bump a gem", head_ref_name="bump-gem", author={"login": "carol"})
+    mine = replace(PR_TWO, title="Bump the senzu gem", head_ref_name="bump-senzu", author={"login": "vegeta"})
     shown = {"prs": [github.light_pr(light_node(mine))]}
     tickets = types.SimpleNamespace(
         fetch_my_tickets=lambda details: [], fetch_kanban=lambda settings, details: [], fetch_updated=lambda key: key,
         changed_since=lambda keys, minutes, linked_to=(): set(),
         fetch_epics=lambda settings: [EPIC], fetch_children=lambda key: [replace(t, prs=[]) for t in TICKETS])
-    pull_requests = types.SimpleNamespace(search_prs=lambda query: shown["prs"] if "author:carol" in query else [],
+    pull_requests = types.SimpleNamespace(search_prs=lambda query: shown["prs"] if "author:vegeta" in query else [],
                                           fetch_prs=lambda items: [mine for _ in items], fetch_failed_checks=lambda items: [[] for _ in items],
                                           fetch_conflicts=lambda items: [[] for _ in items],
                                           fetch_pr_states=lambda urls: {url: "MERGED" for url in urls}, search_terms=github.search_terms)
     refresh, store, _ = refresh_with(tickets, pull_requests)
-    settings = make_settings(github_user="carol")
+    settings = make_settings(github_user="vegeta")
     assert refresh.collect(settings)["histories"] == {mine.url: review.pr_events(mine)}, "the board carries the history of every pr on it"
     assert store.read("state")["histories"] == {mine.url: review.pr_events(mine)}, "every pr on the board has its history saved"
     shown["prs"] = []
@@ -163,13 +163,13 @@ NO_PRS = types.SimpleNamespace(search_prs=lambda query: [], fetch_prs=lambda ite
 def test_changes_saved_by_format_3_survive_the_upgrade(tmp_path):
     files = {name: tmp_path / path.name for name, path in paths.REFRESH_FILES.items()}
     old = {"at": "2026-10-25T08:00", "item": PR_ONE.url, "tone": "commented", "label": "New PR", "note": None, "aside": None,
-           "subject": {"kind": "pr", "url": PR_ONE.url, "ref": "app#1", "title": PR_ONE.title}}
-    moved = {"at": "2026-10-25T07:00", "item": STATED.jira_browse + "ACME-1", "tone": "waiting", "label": "En proceso", "note": None,
-             "aside": "was: Tareas por hacer", "subject": changes.ticket_subject("ACME-1", STATED.jira_browse, "Ticket one")}
+           "subject": {"kind": "pr", "url": PR_ONE.url, "ref": "radar#1", "title": PR_ONE.title}}
+    moved = {"at": "2026-10-25T07:00", "item": STATED.jira_browse + "KAME-1", "tone": "waiting", "label": "En proceso", "note": None,
+             "aside": "was: Tareas por hacer", "subject": changes.ticket_subject("KAME-1", STATED.jira_browse, "Find the dragon balls")}
     pushed = {**old, "at": "2026-10-25T08:30", "tone": "waiting", "label": "New commits"}
     reviewed = {**old, "at": "2026-10-25T08:15", "label": "Commented", "aside": "new review"}
-    joined = {**moved, "at": "2026-10-25T06:00", "item": STATED.jira_browse + "ACME-2", "label": "Finalizado", "note": "joins the epics",
-              "aside": None, "subject": changes.ticket_subject("ACME-2", STATED.jira_browse, "Ticket two")}
+    joined = {**moved, "at": "2026-10-25T06:00", "item": STATED.jira_browse + "KAME-2", "label": "Finalizado", "note": "joins the epics",
+              "aside": None, "subject": changes.ticket_subject("KAME-2", STATED.jira_browse, "Train with King Kai")}
     taken = changes.snapshot([EPIC], {EPIC.key: [replace(t, prs=[]) for t in TICKETS]}, [], STATED)
     saved = {**taken, "tickets": {t.key: t.status for t in TICKETS}}
     files["state"].write_text(json.dumps({"version": 3, "snapshot": saved, "changes": [pushed, reviewed, old, moved, joined]}))
@@ -191,23 +191,23 @@ def test_changes_saved_by_format_3_survive_the_upgrade(tmp_path):
 
 def test_a_snapshot_saved_by_format_4_survives_the_upgrade(tmp_path):
     files = {name: tmp_path / path.name for name, path in paths.REFRESH_FILES.items()}
-    statuses = {**{t.key: t.status for t in TICKETS}, "ACME-9": "En proceso"}
+    statuses = {**{t.key: t.status for t in TICKETS}, "KAME-9": "En proceso"}
     taken = {"epics": {EPIC.key: {"summary": EPIC.summary, "tickets": list(statuses)}}, "tickets": statuses, "prs": {}}
     files["state"].write_text(json.dumps({"version": 4, "snapshot": taken, "changes": [], "histories": {}}))
     store = storage.JsonFiles(files, UPGRADES)
     assert store.read("state")["snapshot"]["tickets"] == {key: {"status": status, "summary": None} for key, status in statuses.items()}, \
         "a snapshot saved by format 4 keeps its ticket statuses, without the titles it never saved"
     found = Refresh(quiet_jira(), NO_PRS, store, FakeClock(1600.0), in_order).collect(STATED)
-    assert [changes.change_text(c) for c in found["changes"]] == ["ACME-9 (cancelled or moved)"], \
+    assert [changes.change_text(c) for c in found["changes"]] == ["KAME-9 (cancelled or moved)"], \
         "the first refresh after the upgrade still tells a ticket that left the epics, by its key alone"
 
 
 def test_a_state_saved_by_format_5_survives_the_upgrade(tmp_path):
     files = {name: tmp_path / path.name for name, path in paths.REFRESH_FILES.items()}
     taken = changes.snapshot([EPIC], {EPIC.key: [replace(t, prs=[]) for t in TICKETS]}, [], STATED)
-    moved = {"at": "2026-10-25T07:00", "item": STATED.jira_browse + "ACME-1", "group": STATED.jira_browse + "ACME-1", "tone": "waiting",
+    moved = {"at": "2026-10-25T07:00", "item": STATED.jira_browse + "KAME-1", "group": STATED.jira_browse + "KAME-1", "tone": "waiting",
              "label": "In Progress", "note": None, "aside": "was: Todo", "told": False,
-             "subject": changes.ticket_subject("ACME-1", STATED.jira_browse, "Ticket one")}
+             "subject": changes.ticket_subject("KAME-1", STATED.jira_browse, "Find the dragon balls")}
     files["state"].write_text(json.dumps({"version": 5, "snapshot": taken, "changes": [moved], "histories": {}}))
     store = storage.JsonFiles(files, UPGRADES)
     assert store.read("state") == {"snapshot": taken, "changes": [moved], "histories": {}}, \
@@ -218,7 +218,7 @@ def test_a_state_saved_by_format_6_survives_the_upgrade(tmp_path):
     files = {name: tmp_path / path.name for name, path in paths.REFRESH_FILES.items()}
     taken = changes.snapshot([], {}, [PR_ONE], STATED)
     merged = {"at": "2026-10-25T07:00", "item": PR_ONE.url, "group": PR_ONE.url, "tone": "good", "label": "Merged", "note": None,
-              "aside": None, "told": False, "subject": changes.pr_subject(PR_ONE.url, "app#1", PR_ONE.title, "alice")}
+              "aside": None, "told": False, "subject": changes.pr_subject(PR_ONE.url, "radar#1", PR_ONE.title, "bulma")}
     older = {**taken, "prs": {url: {k: v for k, v in pr.items() if k != "author"} for url, pr in taken["prs"].items()}}
     unsigned = {**merged, "subject": {k: v for k, v in merged["subject"].items() if k != "author"}}
     files["state"].write_text(json.dumps({"version": 6, "snapshot": older, "changes": [unsigned], "histories": {}}))
@@ -228,7 +228,7 @@ def test_a_state_saved_by_format_6_survives_the_upgrade(tmp_path):
 
 
 def test_known_epics_load_their_tickets_while_jira_lists_the_epics():
-    new = make_epic(key="ACME-200", summary="Epic two")
+    new = make_epic(key="KAME-200", summary="Majin Buu Saga")
     epics, children, overlapped = [EPIC], [], []
     asked = threading.Event()
 
@@ -263,14 +263,14 @@ def test_jira_is_asked_what_changed_while_the_tickets_load():
     def changed_since(keys, minutes, linked_to=()):
         changed.append(sorted(keys))
         asked.set()
-        return {"ACME-1"}
+        return {"KAME-1"}
     jira = quiet_jira(fetch_children=fetch_children, changed_since=changed_since, fetch_updated=lambda key: updated.append(key) or key)
     refresh, _, _ = refresh_with(jira, NO_PRS)
     refresh.collect(STATED)
     refresh.collect(STATED)
     assert overlapped == [False, True], "a refresh asks jira which tickets changed while the epics' tickets load"
-    assert changed == [["ACME-1"]], "jira is asked once per refresh which tickets changed"
-    assert updated == ["ACME-1", "ACME-1"], "a ticket jira names as changed has its update time asked again"
+    assert changed == [["KAME-1"]], "jira is asked once per refresh which tickets changed"
+    assert updated == ["KAME-1", "KAME-1"], "a ticket jira names as changed has its update time asked again"
 
 
 def key_search(found):
@@ -288,7 +288,7 @@ def test_known_keys_search_their_prs_while_jira_lists_the_epics():
         return [EPIC]
 
     def search(query):
-        searched.append(re.findall(r"ACME-\d+", query))
+        searched.append(re.findall(r"KAME-\d+", query))
         asked.set()
         return []
     prs = types.SimpleNamespace(**{**vars(NO_PRS), "search_prs": key_search(search)})
@@ -298,25 +298,25 @@ def test_known_keys_search_their_prs_while_jira_lists_the_epics():
     asked.clear()
     overlapped.clear()
     searched.clear()
-    children.append(make_ticket(key="ACME-3", summary="Ticket three"))
+    children.append(make_ticket(key="KAME-3", summary="Survive the Saiyans"))
     refresh.collect(STATED)
     assert overlapped == [True], "a refresh searches the prs of the keys it knew while jira lists the epics"
-    assert searched == [["ACME-100", "ACME-1"], ["ACME-3"]], \
+    assert searched == [["KAME-100", "KAME-1"], ["KAME-3"]], \
         "a key new to the board has its prs searched once jira lists it, a done ticket's never, and no key twice"
 
 
 def found_by(key, pr):
     """GitHub that finds pr, from outside the team, when a key search asks key."""
-    pr = replace(pr, author={"login": "zoe"})
+    pr = replace(pr, author={"login": "yamcha"})
     return types.SimpleNamespace(**{**vars(NO_PRS), "fetch_prs": lambda items: [pr for _ in items],
                                     "fetch_pr_states": lambda urls: {url: "OPEN" for url in urls},
                                     "search_prs": key_search(lambda query: [github.light_pr(light_node(pr))]
-                                                             if key in re.findall(r"ACME-\d+", query) else [])})
+                                                             if key in re.findall(r"KAME-\d+", query) else [])})
 
 
 def test_a_pr_naming_only_a_ticket_done_since_leaves_the_board():
     children = [make_ticket()]
-    refresh, _, _ = refresh_with(quiet_jira(fetch_children=lambda key: children), found_by("ACME-1", PR_ONE))
+    refresh, _, _ = refresh_with(quiet_jira(fetch_children=lambda key: children), found_by("KAME-1", PR_ONE))
     assert [pr.url for pr in refresh.collect(STATED)["prs"]] == [PR_ONE.url], "a pr naming an open ticket is on the board"
     children[:] = [make_ticket(status="Finalizado", column="done")]
     assert refresh.collect(STATED)["prs"] == [], \
@@ -327,23 +327,23 @@ def test_a_status_no_longer_mapped_in_the_saved_state_cannot_break_the_refresh()
     refresh, store, _ = refresh_with(quiet_jira(), NO_PRS)
     refresh.collect(STATED)
     state = json.loads(store.files["state"])
-    state["snapshot"]["tickets"]["ACME-1"]["status"] = "Renamed in Jira"
+    state["snapshot"]["tickets"]["KAME-1"]["status"] = "Renamed in Jira"
     store.files["state"] = json.dumps(state)
-    assert list(refresh.collect(STATED)["by_key"]) == ["ACME-1", "ACME-2"], \
+    assert list(refresh.collect(STATED)["by_key"]) == ["KAME-1", "KAME-2"], \
         "a status the last refresh saved and magi no longer maps only hints which keys to search early, it never stops the refresh"
 
 
 def test_a_pr_counts_alike_whichever_key_search_found_it():
-    children = [make_ticket(), make_ticket(key="ACME-2", summary="Ticket two", status="Finalizado", column="done")]
-    elsewhere = replace(PR_ONE, title="[ACME-2] Follow-up", head_ref_name="follow-up")
-    refresh, _, _ = refresh_with(quiet_jira(fetch_children=lambda key: children), found_by("ACME-1", elsewhere))
+    children = [make_ticket(), make_ticket(key="KAME-2", summary="Train with King Kai", status="Finalizado", column="done")]
+    elsewhere = replace(PR_ONE, title="[KAME-2] Follow-up", head_ref_name="follow-up-fusion")
+    refresh, _, _ = refresh_with(quiet_jira(fetch_children=lambda key: children), found_by("KAME-1", elsewhere))
     assert refresh.collect(STATED)["prs"] == [], "a pr whose title and branch name only a done ticket stays off the board when the search of a new key finds it"
     assert refresh.collect(STATED)["prs"] == [], \
         "a pr whose title and branch name only a done ticket stays off the board when the search of a known key finds it"
 
 
 def test_an_epic_jira_no_longer_lists_cannot_break_the_refresh():
-    new = make_epic(key="ACME-200", summary="Epic two")
+    new = make_epic(key="KAME-200", summary="Majin Buu Saga")
     epics, failing = [EPIC], set()
 
     def fetch_children(key):
@@ -360,7 +360,7 @@ def test_an_epic_jira_no_longer_lists_cannot_break_the_refresh():
 
 
 def test_collect():
-    three =replace(PR_THREE, url="https://github.com/acme/renamed/pull/3")
+    three =replace(PR_THREE, url="https://github.com/capsulecorp/fusion/pull/3")
     lights = {"team": [light_node(PR_TWO)], "review": [light_node(three), light_node(PR_ONE)], "open": [light_node(PR_ONE)]}
     details = {1: PR_ONE, 2: PR_TWO, 3: three}
     queries, asked = [], []
@@ -377,11 +377,11 @@ def test_collect():
         return [replace(details[number], updated_at=current[number]["updatedAt"]) for _, number in items]
     asked_jira, viewed = [], []
     tickets = types.SimpleNamespace(
-        fetch_ticket=lambda key: viewed.append(key) or Ticket(key=key, summary="Ticket seven", status="En proceso"),
-        fetch_my_tickets=lambda details: [Ticket(key="ACME-9", summary="Ticket nine", status="En proceso", detail=details(["ACME-9"])["ACME-9"])],
-        fetch_kanban=lambda settings, details: [Ticket(key="ACME-8", summary="Ticket eight", status="En revisión", assignee="Ana",
-                                                       detail=details(["ACME-8"])["ACME-8"])],
-        fetch_ticket_detail=lambda key: replace(TICKET_DETAIL, description=f"{key} detail", links=[{"key": "ACME-50"}]),
+        fetch_ticket=lambda key: viewed.append(key) or Ticket(key=key, summary="Raid the Red Ribbon", status="En proceso"),
+        fetch_my_tickets=lambda details: [Ticket(key="KAME-9", summary="Outlast Perfect Cell", status="En proceso", detail=details(["KAME-9"])["KAME-9"])],
+        fetch_kanban=lambda settings, details: [Ticket(key="KAME-8", summary="Stop Dr. Gero", status="En revisión", assignee="Chichi",
+                                                       detail=details(["KAME-8"])["KAME-8"])],
+        fetch_ticket_detail=lambda key: replace(TICKET_DETAIL, description=f"{key} detail", links=[{"key": "KAME-50"}]),
         fetch_updated=lambda key: f"{key} updated",
         changed_since=lambda keys, minutes, linked_to=(): asked_jira.append((sorted(keys), sorted(linked_to))) or set(),
         fetch_epics=lambda settings: [EPIC], fetch_children=lambda key: [replace(t, prs=[]) for t in TICKETS])
@@ -396,18 +396,18 @@ def test_collect():
     def conflicts_of(items):
         items = list(items)
         conflicted.append(items)
-        return [["app.py"] for _ in items]
+        return [["radar.py"] for _ in items]
     pull_requests = types.SimpleNamespace(search_prs=search, fetch_prs=details_of, fetch_pr_states=lambda urls: {},
                                           fetch_failed_checks=failed_checks_of, fetch_conflicts=conflicts_of, search_terms=github.search_terms)
     refresh, store, _ = refresh_with(tickets, pull_requests)
     found = refresh.collect(STATED)
-    assert "is:pr is:open archived:false org:acme author:alice author:bob" in queries, "the team's prs come from one search naming every author"
-    assert "is:pr is:open archived:false org:acme user-review-requested:@me" in queries, "review requests and ticket keys are searched too"
-    assert "is:pr is:open archived:false org:acme ACME-100 OR ACME-1" in queries, "review requests and ticket keys are searched too"
+    assert "is:pr is:open archived:false org:capsulecorp author:bulma author:goku" in queries, "the team's prs come from one search naming every author"
+    assert "is:pr is:open archived:false org:capsulecorp user-review-requested:@me" in queries, "review requests and ticket keys are searched too"
+    assert "is:pr is:open archived:false org:capsulecorp KAME-100 OR KAME-1" in queries, "review requests and ticket keys are searched too"
     assert not any("is:merged" in query for query in queries), "merged prs are not searched: nothing on the board reads them"
     assert "attention" not in found, "the board has no attention box"
     assert len(asked) == 1, "every pr on the board is fetched once, in one go"
-    assert sorted(asked[0]) == [("acme/app", 1), ("acme/billing-reconciliation-service", 2), ("acme/renamed", 3)], \
+    assert sorted(asked[0]) == [("capsulecorp/fusion", 3), ("capsulecorp/hyperbolic-time-chamber-portal", 2), ("capsulecorp/radar", 1)], \
         "every pr on the board is fetched once, in one go"
     assert [pr.number for pr in found["review_prs"]] == [3, 1], "review requests keep their order"
     assert sorted(store.read("state")["histories"]) == sorted([PR_ONE.url, PR_TWO.url, three.url]), \
@@ -418,19 +418,19 @@ def test_collect():
     assert all(t.updated == f"{t.key} updated" for t in active), "active tickets take their update time from the update cache"
     assert sorted(store.read("updated")["found"]) == sorted(t.key for t in active), \
         "active tickets take their update time from the update cache"
-    assert found["my_tickets"][0].detail.description == "ACME-9 detail", "my tickets take their details from their own cache"
-    assert list(store.read("my_tickets")["found"]) == ["ACME-9"], "my tickets take their details from their own cache"
-    assert found["kanban"][0].detail.description == "ACME-8 detail", "the kanban board's tickets take their details from their own cache"
-    assert list(store.read("kanban")["found"]) == ["ACME-8"], "the kanban board's tickets take their details from their own cache"
-    refresh.ticket("ACME-7")
+    assert found["my_tickets"][0].detail.description == "KAME-9 detail", "my tickets take their details from their own cache"
+    assert list(store.read("my_tickets")["found"]) == ["KAME-9"], "my tickets take their details from their own cache"
+    assert found["kanban"][0].detail.description == "KAME-8 detail", "the kanban board's tickets take their details from their own cache"
+    assert list(store.read("kanban")["found"]) == ["KAME-8"], "the kanban board's tickets take their details from their own cache"
+    refresh.ticket("KAME-7")
     asked.clear()
     again = refresh.collect(STATED)
-    refresh.ticket("ACME-7")
-    assert viewed == ["ACME-7", "ACME-7"], "a refresh forgets the tickets v fetched, so the next v shows Jira as it is now"
-    assert sorted(asked_jira) == sorted([(sorted(t.key for t in active), []), (["ACME-9"], ["ACME-9"]), (["ACME-8"], ["ACME-8"])]), \
+    refresh.ticket("KAME-7")
+    assert viewed == ["KAME-7", "KAME-7"], "a refresh forgets the tickets v fetched, so the next v shows Jira as it is now"
+    assert sorted(asked_jira) == sorted([(sorted(t.key for t in active), []), (["KAME-9"], ["KAME-9"]), (["KAME-8"], ["KAME-8"])]), \
         "the next refresh asks jira what changed, and about the tickets linked to mine and to the kanban board's"
     assert isinstance(again["my_tickets"][0].detail, TicketDetail), "my ticket details read back from the cache are entities"
-    assert again["my_tickets"][0].detail.description == "ACME-9 detail", "my ticket details read back from the cache are entities"
+    assert again["my_tickets"][0].detail.description == "KAME-9 detail", "my ticket details read back from the cache are entities"
     assert isinstance(again["kanban"][0].detail, TicketDetail), "the kanban board's ticket details read back from the cache are entities"
     assert asked in ([], [[]]), "an unchanged pr is not fetched again"
     lights["open"] = [light_node(PR_ONE, updated="2026-10-25T08:00:00Z")]
@@ -439,13 +439,13 @@ def test_collect():
     lights["team"] = [light_node(PR_TWO, ci="FAILURE")]
     asked.clear()
     found = refresh.collect(STATED)
-    assert asked == [[("acme/app", 1)]], "only the pr updated since the last refresh is fetched again"
+    assert asked == [[("capsulecorp/radar", 1)]], "only the pr updated since the last refresh is fetched again"
     assert {pr.number: pr.ci for pr in found["prs"]} == {1: "passing", 2: "failing"}, "ci comes from the search even when the detail is reused"
     assert {pr.number: pr.failed_checks for pr in found["prs"]} == {1: [], 2: [{"name": "rspec", "url": "https://ci/rspec"}]}, \
         "the failed checks are asked on every refresh, even when the detail is reused"
-    assert checked[-1] == [("acme/billing-reconciliation-service", 2)], "only the prs whose ci failed are asked for their failed checks"
-    assert {pr.number: pr.conflicts for pr in found["prs"]} == {1: ["app.py"], 2: []}, "the files a pr conflicts in are asked on every refresh"
-    assert sorted(conflicted[-1]) == [("acme/app", "main", PR_ONE.head_ref_oid), ("acme/renamed", "main", three.head_ref_oid)], \
+    assert checked[-1] == [("capsulecorp/hyperbolic-time-chamber-portal", 2)], "only the prs whose ci failed are asked for their failed checks"
+    assert {pr.number: pr.conflicts for pr in found["prs"]} == {1: ["radar.py"], 2: []}, "the files a pr conflicts in are asked on every refresh"
+    assert sorted(conflicted[-1]) == [("capsulecorp/fusion", "main", three.head_ref_oid), ("capsulecorp/radar", "main", PR_ONE.head_ref_oid)], \
         "only the prs in conflict are asked for their conflicting files"
 
 
@@ -456,13 +456,13 @@ def test_ticket():
         asked.append(key)
         if len(asked) == 1:
             raise RuntimeError("acli timed out")
-        return Ticket(key=key, summary="Ticket one", status="En proceso")
+        return Ticket(key=key, summary="Find the dragon balls", status="En proceso")
 
     refresh, _, _ = refresh_with(types.SimpleNamespace(fetch_ticket=fetch_ticket))
     try:
-        refresh.ticket("ACME-1")
+        refresh.ticket("KAME-1")
     except RuntimeError:
         pass
-    first, again = refresh.ticket("ACME-1"), refresh.ticket("ACME-1")
-    assert first == again == Ticket(key="ACME-1", summary="Ticket one", status="En proceso"), "a ticket comes from the tickets port"
-    assert asked == ["ACME-1", "ACME-1"], "a failed fetch is not kept, and a fetched ticket is asked of Jira once until the next refresh"
+    first, again = refresh.ticket("KAME-1"), refresh.ticket("KAME-1")
+    assert first == again == Ticket(key="KAME-1", summary="Find the dragon balls", status="En proceso"), "a ticket comes from the tickets port"
+    assert asked == ["KAME-1", "KAME-1"], "a failed fetch is not kept, and a fetched ticket is asked of Jira once until the next refresh"

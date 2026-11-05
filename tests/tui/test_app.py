@@ -49,12 +49,12 @@ async def main(cache):
         assert titles == ["[1] jira tickets 1", "[2] team prs 2", "[3] changes 1", "details", "[5] factory 0", "[4] epics 1"], \
             "the boxes are numbered from 1, jira tickets, team prs and changes beside the details, and epics sits under the factory"
         assert not app.query("#panel-mine_prs") and not app.query("#panel-mine_tickets"), "the tui has no my prs nor my tickets box"
-        assert "Ticket one" in detail(), "the board starts on the jira tickets box"
+        assert "Find the dragon balls" in detail(), "the board starts on the jira tickets box"
         prompts = [app.query_one("#list-prs", OptionList).get_option_at_index(i).prompt for i in range(5)]
         assert [p.plain for p in prompts[2:4]] == ["", "── ready to merge (1) ──"], "a blank line separates the groups"
         assert str(prompts[0].style) == f"bold {theme.THEMES['default']['fg']}", "group headers stand out in bold, in the text colour"
         await pilot.click("#list-prs", offset=(2, 4))
-        assert "Second change" in detail(), "click in the team prs box shows that PR"
+        assert "Charge the Spirit Bomb" in detail(), "click in the team prs box shows that PR"
         await pilot.click("#list-changes", offset=(2, 0))
         assert "New PR" in detail(), "click in the changes box shows that change"
         await pilot.press("enter")
@@ -62,22 +62,22 @@ async def main(cache):
         opened.clear()
         await pilot.press("2")
         assert focused("prs"), "2 focuses the team prs box"
-        assert "Second change" in detail(), "2 focuses the team prs box"
+        assert "Charge the Spirit Bomb" in detail(), "2 focuses the team prs box"
         await pilot.press("k")
-        assert "[ACME-1] First change" in detail(), "k moves up, detail keeps the ticket prefix"
+        assert "[KAME-1] Charge the Kamehameha" in detail(), "k moves up, detail keeps the ticket prefix"
         await pilot.press("j")
-        assert "Second change" in detail(), "j moves to next PR"
+        assert "Charge the Spirit Bomb" in detail(), "j moves to next PR"
         assert str(app.query_one("#list-prs", OptionList).get_option_at_index(4).prompt).rstrip().endswith(" brs"), "long repo shown as alias"
         await pilot.press("enter")
         assert opened == [PR_TWO.url], "enter opens the PR"
         await pilot.click("#list-prs", offset=(2, 1))
-        assert "First change" in detail(), "click on a row selects it"
+        assert "Charge the Kamehameha" in detail(), "click on a row selects it"
         await pilot.click("#detail", offset=(10, 2))
         assert opened[-1] == PR_ONE.url, "click on a detail link opens it"
         await pilot.press("slash")
         assert app.focused is app.query_one("#top #filter"), "slash focuses the one filter, in the header"
         assert not app.query(".panel Input"), "the boxes have no filter of their own"
-        await pilot.press(*"second")
+        await pilot.press(*"spirit")
         listed = lambda key: [o.id for o in (app.query_one(f"#list-{key}", OptionList).get_option_at_index(i)
                                              for i in range(app.query_one(f"#list-{key}", OptionList).option_count)) if not o.disabled]
         assert len(listed("prs")) == 1, "the filter narrows every box"
@@ -90,15 +90,15 @@ async def main(cache):
         assert focused("prs"), "escape clears the filter"
         await pilot.press("1")
         assert focused("kanban"), "1 focuses the kanban box"
-        assert "Ticket one" in detail(), "1 focuses the kanban box"
+        assert "Find the dragon balls" in detail(), "1 focuses the kanban box"
         await pilot.press("4")
         assert focused("epics"), "4 focuses the epics box"
-        assert "Epic one" in detail(), "4 focuses the epics box"
+        assert "Frieza Saga" in detail(), "4 focuses the epics box"
         await pilot.press("3")
         assert focused("changes"), "3 focuses the changes box"
         await pilot.press("4")
         await pilot.press("y")
-        assert copied == ["ACME-100"], "y copies the epic key"
+        assert copied == ["KAME-100"], "y copies the epic key"
         now[0] += 15
         await pilot.press("r")
         await app.workers.wait_for_complete()
@@ -113,10 +113,10 @@ async def main(cache):
         assert focused("epics"), "refresh keeps the focused box"
         await pilot.press("1")
         await pilot.pause()
-        assert focused("kanban") and "Ticket one" in detail(), "1 focuses the kanban box after a refresh"
-        assert "app#1" in detail(), "a kanban ticket shows its PRs"
+        assert focused("kanban") and "Find the dragon balls" in detail(), "1 focuses the kanban box after a refresh"
+        assert "radar#1" in detail(), "a kanban ticket shows its PRs"
         await pilot.press("enter")
-        assert opened[-1] == "https://acme.atlassian.net/browse/ACME-1", "enter opens the ticket in Jira"
+        assert opened[-1] == "https://capsulecorp.atlassian.net/browse/KAME-1", "enter opens the ticket in Jira"
         await pilot.press("c")
         await pilot.pause()
         popup = app.screen
@@ -124,13 +124,13 @@ async def main(cache):
         prompts = [str(listing.get_option_at_index(i).prompt) for i in range(listing.option_count)]
         assert isinstance(popup, app_module.ReviewScreen), "c opens the ticket's description and comments"
         assert len(prompts) == 2, "c opens the ticket's description and comments"
-        assert prompts[0].splitlines()[:2] == ["description", "Bob"], "c opens the ticket's description and comments"
-        assert prompts[1].splitlines() == ["comment", "Carol", "Looks good"], "c opens the ticket's description and comments"
-        assert "ACME-1 · Ticket one" in str(popup.query_one("#review").border_title), "the ticket popup is titled with the key and summary"
-        assert "Use the new reason column." in str(popup.query_one(".comment", Static).render()), \
+        assert prompts[0].splitlines()[:2] == ["description", "Goku"], "c opens the ticket's description and comments"
+        assert prompts[1].splitlines() == ["comment", "Vegeta", "Over 9000, looks good"], "c opens the ticket's description and comments"
+        assert "KAME-1 · Find the dragon balls" in str(popup.query_one("#review").border_title), "the ticket popup is titled with the key and summary"
+        assert "Gather all seven dragon balls." in str(popup.query_one(".comment", Static).render()), \
             "the ticket popup shows the whole description"
         await pilot.press("j", "enter")
-        assert opened[-1] == "https://acme.atlassian.net/browse/ACME-1?focusedCommentId=10", "enter on a ticket comment opens that comment in Jira"
+        assert opened[-1] == "https://capsulecorp.atlassian.net/browse/KAME-1?focusedCommentId=10", "enter on a ticket comment opens that comment in Jira"
 
 
 @pytest.mark.usefixtures("aliases")
@@ -212,11 +212,11 @@ async def filtering_keeps_the_row(cache):
     app = magi_app(cache, load=lambda: boards.pop(0), clock=lambda: now[0])
     async with started(app) as pilot:
         await pilot.click("#list-prs", offset=(2, 4))
-        await pilot.press("slash", *"change")
+        await pilot.press("slash", *"charge")
         assert app.entry(app.query_one("#list-prs", OptionList)).url == PR_TWO.url, "a filter that still shows the row keeps it"
         await pilot.press("escape")
         assert app.current().url == PR_TWO.url, "clearing the filter keeps the row"
-        await pilot.press("slash", *"second", "enter")
+        await pilot.press("slash", *"spirit", "enter")
         now[0] += 31
         await pilot.press("r")
         await app.workers.wait_for_complete()
@@ -441,7 +441,7 @@ def test_digits_reach_the_five_boxes():
 
 
 async def fitted_description(cache, lines, resized=None):
-    ticket = Ticket(key="ACME-1", summary="Ticket one", status="En proceso", assignee="Ana",
+    ticket = Ticket(key="KAME-1", summary="Find the dragon balls", status="En proceso", assignee="Chichi",
                     detail=make_ticket_detail(description="\n".join(f"line {n}" for n in range(1, lines + 1))))
     async with started(magi_app(cache, load=lambda: {**board([]), "kanban": [ticket]}), size=(160, 50)) as pilot:
         await pilot.press("1")
@@ -470,7 +470,7 @@ def test_details_show_a_short_description_whole(cache):
 
 
 def snug_ticket(width, height):
-    two = Ticket(key="ACME-2", summary="Ticket two", status="En proceso", detail=make_ticket_detail(links=[], comments=[], description="x"))
+    two = Ticket(key="KAME-2", summary="Train with King Kai", status="En proceso", detail=make_ticket_detail(links=[], comments=[], description="x"))
     # The heading is the detail without its one-row placeholder description; short lines, then one as wide as the box, fill the rest to its last row.
     heading = len(Content.from_markup(entries.ticket_entry(two, [], STATED).detail).wrap(width)) - 1
     description = "\n".join([*(f"line {n}" for n in range(height - heading - 1)), "w" * width])
@@ -478,8 +478,8 @@ def snug_ticket(width, height):
 
 
 async def snug_after_crowded(cache):
-    crowded = Ticket(key="ACME-1", summary="Ticket one", status="En proceso", detail=make_ticket_detail(
-        links=[{"relation": "relates to", "key": f"ACME-{n}", "summary": "Other", "status": "En proceso"} for n in range(60)]))
+    crowded = Ticket(key="KAME-1", summary="Find the dragon balls", status="En proceso", detail=make_ticket_detail(
+        links=[{"relation": "relates to", "key": f"KAME-{n}", "summary": "Other universe", "status": "En proceso"} for n in range(60)]))
     async with started(magi_app(cache, load=lambda: {**board([]), "kanban": [crowded]}), size=(160, 50)) as pilot:
         await pilot.press("1")
         await pilot.pause()
@@ -498,7 +498,7 @@ def test_details_fit_at_the_box_width_whatever_the_last_detail_scrolled(cache):
 
 
 async def ticket_row(cache):
-    ticket = Ticket(key="ACME-2", summary="Second ticket", status="En proceso", assignee="Ana")
+    ticket = Ticket(key="KAME-2", summary="Climb Korin Tower", status="En proceso", assignee="Chichi")
     async with started(magi_app(cache, load=lambda: {**board([PR_TWO]), "kanban": [ticket]})) as pilot:
         listed = pilot.app.query_one("#list-kanban", OptionList)
         row = next(listed.get_option_at_index(i).prompt.plain for i in range(listed.option_count) if listed.get_option_at_index(i).id)
@@ -506,4 +506,4 @@ async def ticket_row(cache):
 
 
 def test_short_labels_leave_room_for_the_summary(cache):
-    assert "Second" in asyncio.run(ticket_row(cache)), "the label column takes only the room its longest label needs, so the summary shows"
+    assert "Climb" in asyncio.run(ticket_row(cache)), "the label column takes only the room its longest label needs, so the summary shows"

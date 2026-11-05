@@ -8,9 +8,9 @@ from magi.domain.entities import Epic, Ticket, TicketDetail
 
 ADF = {"type": "doc", "content": [
     {"type": "heading", "attrs": {"level": 2}, "content": [{"type": "text", "text": "Context"}]},
-    {"type": "paragraph", "content": [{"type": "text", "text": "Use "}, {"type": "text", "text": "reason", "marks": [{"type": "code"}]},
+    {"type": "paragraph", "content": [{"type": "text", "text": "Use "}, {"type": "text", "text": "ki", "marks": [{"type": "code"}]},
                                       {"type": "text", "text": " only."}, {"type": "hardBreak"}, {"type": "text", "text": "Ask "},
-                                      {"type": "mention", "attrs": {"text": "@Bob"}}]},
+                                      {"type": "mention", "attrs": {"text": "@Goku"}}]},
     {"type": "bulletList", "content": [{"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "one"}]}]},
                                        {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "two"}]}]}]},
     {"type": "table", "content": [
@@ -23,7 +23,7 @@ ADF = {"type": "doc", "content": [
 
 def test_adf_rendering():
     assert (jira.adf_text(ADF) ==
-            "Context\n\nUse `reason` only.\nAsk @Bob\n\n- one\n- two\n\na | b\n1 | 2\n\n    x = 1\n    y = 2"), "jira rich text reads as plain text"
+            "Context\n\nUse `ki` only.\nAsk @Goku\n\n- one\n- two\n\na | b\n1 | 2\n\n    x = 1\n    y = 2"), "jira rich text reads as plain text"
 
 
 ADF_MORE = {"type": "doc", "content": [
@@ -51,12 +51,12 @@ def test_adf_more_nodes():
 
 
 def test_my_tickets_fetch():
-    items = [{"key": "ACME-6", "fields": {"summary": "Next", "status": {"name": "Tareas por hacer"}}},
-             {"key": "ACME-5", "fields": {"summary": "Review me", "status": {"name": "En revisión"}}},
-             {"key": "OPS-7", "fields": {"summary": "Odd status", "status": {"name": "Blocked"}}},
-             {"key": "ACME-1", "fields": {"summary": "Doing", "status": {"name": "En proceso"}}},
-             {"key": "ACME-3", "fields": {"summary": "Later", "status": {"name": "Backlog"}}},
-             {"key": "ACME-4", "fields": {"summary": "Doing too", "status": {"name": "En proceso"}}}]
+    items = [{"key": "KAME-6", "fields": {"summary": "Next Saga", "status": {"name": "Tareas por hacer"}}},
+             {"key": "KAME-5", "fields": {"summary": "Review my Galick Gun", "status": {"name": "En revisión"}}},
+             {"key": "RED-7", "fields": {"summary": "Odd Red Ribbon status", "status": {"name": "Blocked"}}},
+             {"key": "KAME-1", "fields": {"summary": "Doing push-ups", "status": {"name": "En proceso"}}},
+             {"key": "KAME-3", "fields": {"summary": "Later, wish on Shenron", "status": {"name": "Backlog"}}},
+             {"key": "KAME-4", "fields": {"summary": "Doing sit-ups too", "status": {"name": "En proceso"}}}]
     seen, run_json = [], process.run_json
     process.run_json = lambda cmd: seen.append(cmd) or (items if cmd[3] == "search" else ticket_view(cmd[4]))
     try:
@@ -67,45 +67,45 @@ def test_my_tickets_fetch():
     assert "assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC" in seen[0], \
         "my tickets are every assigned ticket not done, in one search"
     assert sorted(cmd[4] for cmd in seen if cmd[3] == "view") == sorted(i["key"] for i in items), "each ticket's detail comes from one view"
-    assert [t.key for t in tickets] == ["ACME-3", "ACME-6", "ACME-1", "ACME-4", "ACME-5", "OPS-7"], \
+    assert [t.key for t in tickets] == ["KAME-3", "KAME-6", "KAME-1", "KAME-4", "KAME-5", "RED-7"], \
         "my tickets come in board order, each status together, unknown statuses last, latest update first within a status"
-    assert tickets[0] == Ticket(key="ACME-3", summary="Later", status="Backlog", detail=TICKET_DETAIL), "my tickets carry their detail"
+    assert tickets[0] == Ticket(key="KAME-3", summary="Later, wish on Shenron", status="Backlog", detail=TICKET_DETAIL), "my tickets carry their detail"
 
 
 def test_kanban_fetch():
-    items = [{"key": "ACME-6", "fields": {"summary": "Next", "status": {"name": "Tareas por hacer"}, "assignee": None}},
-             {"key": "ACME-5", "fields": {"summary": "Review me", "status": {"name": "En revisión"}, "assignee": {"displayName": "Ana"}}}]
+    items = [{"key": "KAME-6", "fields": {"summary": "Next Saga", "status": {"name": "Tareas por hacer"}, "assignee": None}},
+             {"key": "KAME-5", "fields": {"summary": "Review my Galick Gun", "status": {"name": "En revisión"}, "assignee": {"displayName": "Chichi"}}}]
     seen, run_json = [], process.run_json
     process.run_json = lambda cmd: seen.append(cmd) or (items if cmd[3] == "search" else ticket_view(cmd[4]))
     try:
-        tickets = jira.fetch_kanban(types.SimpleNamespace(jira_project="ACME"),
+        tickets = jira.fetch_kanban(types.SimpleNamespace(jira_project="KAME"),
                                     lambda keys: dict(zip(keys, process.parallel(jira.fetch_ticket_detail, keys))))
     finally:
         process.run_json = run_json
     assert [cmd[3] for cmd in seen].count("search") == 1, "the kanban board's tickets come from one search"
-    assert "project = ACME AND issuetype != Epic AND statusCategory != Done AND status != Backlog ORDER BY Rank ASC" in seen[0], \
+    assert "project = KAME AND issuetype != Epic AND statusCategory != Done AND status != Backlog ORDER BY Rank ASC" in seen[0], \
         "the kanban board holds the project's tickets past the backlog and not done, epics aside, in the board's rank"
-    assert [t.key for t in tickets] == ["ACME-6", "ACME-5"], "the kanban board's tickets keep the board's rank"
-    assert tickets[1] == Ticket(key="ACME-5", summary="Review me", status="En revisión", assignee="Ana", detail=TICKET_DETAIL), \
+    assert [t.key for t in tickets] == ["KAME-6", "KAME-5"], "the kanban board's tickets keep the board's rank"
+    assert tickets[1] == Ticket(key="KAME-5", summary="Review my Galick Gun", status="En revisión", assignee="Chichi", detail=TICKET_DETAIL), \
         "a kanban ticket carries its assignee and its detail"
     assert tickets[0].assignee == "Unassigned", "a kanban ticket nobody has reads as unassigned"
 
 
 def test_fetch_ticket():
-    view = ticket_view("ACME-9")
+    view = ticket_view("KAME-9")
     view["fields"]["status"] = {"name": "En revisión"}
     run_json = process.run_json
     process.run_json = lambda cmd: view
     try:
-        ticket, detail = jira.fetch_ticket("ACME-9"), jira.fetch_ticket_detail("ACME-9")
+        ticket, detail = jira.fetch_ticket("KAME-9"), jira.fetch_ticket_detail("KAME-9")
     finally:
         process.run_json = run_json
-    assert ticket == Ticket(key="ACME-9", summary="S", status="En revisión", detail=detail), \
+    assert ticket == Ticket(key="KAME-9", summary="S", status="En revisión", detail=detail), \
         "a ticket fetched on its own carries its summary, status and detail"
 
 
 def test_sparse_ticket_detail():
-    view = {"key": "OPS-9", "fields": {
+    view = {"key": "RED-9", "fields": {
         "summary": "S", "issuetype": {"name": "Task"}, "priority": None, "labels": [], "creator": None,
         "created": "2026-10-08T16:12:45.341+0200", "updated": "2026-10-21T17:42:10.834+0200", "parent": None, "issuelinks": [],
         "description": None, "comment": {"comments": [{"id": "11", "created": "2026-10-20T10:00:00.000+0200",
@@ -113,7 +113,7 @@ def test_sparse_ticket_detail():
     run_json = process.run_json
     process.run_json = lambda cmd: view
     try:
-        detail = jira.fetch_ticket_detail("OPS-9")
+        detail = jira.fetch_ticket_detail("RED-9")
     finally:
         process.run_json = run_json
     assert (detail == TicketDetail(
@@ -124,22 +124,22 @@ def test_sparse_ticket_detail():
 
 
 def test_settings_used():
-    site = config.Settings(team=["alice"], jira_project="ACME", github_user="me", github_org="acme", jira_url="https://acme.atlassian.net/")
+    site = config.Settings(team=["bulma"], jira_project="KAME", github_user="me", github_org="capsulecorp", jira_url="https://capsulecorp.atlassian.net/")
     seen, run_json = [], process.run_json
-    items = [{"key": "ACME-9", "fields": {"summary": "Newer", "status": {"name": "Rollout"}, "assignee": None}},
-             {"key": "ACME-2", "fields": {"summary": "Older", "status": {"name": "Developing"},
-                                          "assignee": {"displayName": "Ana"}}}]
+    items = [{"key": "KAME-9", "fields": {"summary": "Newer Saga", "status": {"name": "Rollout"}, "assignee": None}},
+             {"key": "KAME-2", "fields": {"summary": "Older Saga", "status": {"name": "Developing"},
+                                          "assignee": {"displayName": "Chichi"}}}]
     process.run_json = lambda cmd: seen.append(cmd) or items
     try:
         epics = jira.fetch_epics(site)
     finally:
         process.run_json = run_json
     jql = seen[0][seen[0].index("--jql") + 1]
-    assert jql == 'project = ACME AND issuetype = Epic AND status in ("Developing", "Rollout") ORDER BY created DESC', \
+    assert jql == 'project = KAME AND issuetype = Epic AND status in ("Developing", "Rollout") ORDER BY created DESC', \
         "epics come from the configured project in Developing or Rollout, newest first"
     assert (epics == [
-          Epic(key="ACME-9", summary="Newer", status="Rollout", owner="Unassigned"),
-          Epic(key="ACME-2", summary="Older", status="Developing", owner="Ana")]), "fetched epics keep Jira's order"
+          Epic(key="KAME-9", summary="Newer Saga", status="Rollout", owner="Unassigned"),
+          Epic(key="KAME-2", summary="Older Saga", status="Developing", owner="Chichi")]), "fetched epics keep Jira's order"
 
 
 def test_changed_since(monkeypatch):

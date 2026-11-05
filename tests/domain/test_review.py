@@ -8,7 +8,7 @@ def test_review_state_reads_the_pr():
     states = {name: review_state(make_pr(**fields)) for name, fields in {
         "draft": {"is_draft": True, "review_decision": "APPROVED"},
         "approved": {"review_decision": "APPROVED"},
-        "changes": {"review_decision": "CHANGES_REQUESTED", "reviews": [{"state": "CHANGES_REQUESTED", "author": {"login": "bob"}}]},
+        "changes": {"review_decision": "CHANGES_REQUESTED", "reviews": [{"state": "CHANGES_REQUESTED", "author": {"login": "goku"}}]},
         "commented": {"reviews": [{"state": "COMMENTED"}]},
         "waiting": {}}.items()}
     assert states == {"draft": ("draft", "Draft"), "approved": ("approved", "Approved"),
@@ -21,12 +21,12 @@ def review(login, state):
 
 
 @pytest.mark.parametrize("decision, reviews, state", [
-    ("REVIEW_REQUIRED", [review("alice", "APPROVED")], "approved"),
-    ("REVIEW_REQUIRED", [review("alice", "APPROVED"), review("bob", "CHANGES_REQUESTED")], "changes"),
-    ("APPROVED", [review("alice", "APPROVED"), review("bob", "CHANGES_REQUESTED")], "changes"),
-    ("REVIEW_REQUIRED", [review("bob", "CHANGES_REQUESTED"), review("bob", "APPROVED")], "approved"),
-    ("REVIEW_REQUIRED", [review("alice", "APPROVED"), review("alice", "COMMENTED")], "approved"),
-    ("REVIEW_REQUIRED", [review("alice", "DISMISSED"), review("bob", "COMMENTED")], "commented")])
+    ("REVIEW_REQUIRED", [review("bulma", "APPROVED")], "approved"),
+    ("REVIEW_REQUIRED", [review("bulma", "APPROVED"), review("goku", "CHANGES_REQUESTED")], "changes"),
+    ("APPROVED", [review("bulma", "APPROVED"), review("goku", "CHANGES_REQUESTED")], "changes"),
+    ("REVIEW_REQUIRED", [review("goku", "CHANGES_REQUESTED"), review("goku", "APPROVED")], "approved"),
+    ("REVIEW_REQUIRED", [review("bulma", "APPROVED"), review("bulma", "COMMENTED")], "approved"),
+    ("REVIEW_REQUIRED", [review("bulma", "DISMISSED"), review("goku", "COMMENTED")], "commented")])
 def test_review_state_counts_each_reviewers_last_verdict(decision, reviews, state):
     assert review_state(make_pr(review_decision=decision, reviews=reviews))[0] == state, \
         "a PR is approved when someone approved and nobody asks for changes, whatever GitHub still requires"
@@ -42,10 +42,10 @@ def test_ready_but_blocked_needs_approval_and_a_blocker():
 
 def test_condition_is_the_worst_open_pr():
     green = make_pr(review_decision="APPROVED", ci="passing", mergeable="MERGEABLE")
-    mine, theirs = {"author": {"login": "alice"}}, {"author": {"login": "bob"}}
+    mine, theirs = {"author": {"login": "bulma"}}, {"author": {"login": "goku"}}
 
     def level(*prs):
-        return CONDITIONS[condition(list(prs), "alice")]
+        return CONDITIONS[condition(list(prs), "bulma")]
     assert level() == "CONDITION GREEN", "a board with no PRs is all good"
     assert level(green, make_pr(is_draft=True, **mine)) == "CONDITION GREEN", "approved, green and clean PRs are all good; drafts do not count"
     assert level(green, make_pr(review_decision="APPROVED", ci="running", mergeable="MERGEABLE")) == "YELLOW ALERT", "a pending CI raises a yellow alert"
@@ -61,7 +61,7 @@ def test_condition_is_the_worst_open_pr():
 
 
 def test_turn_reads_whose_move_a_pr_waits_on():
-    changes = {"state": "CHANGES_REQUESTED", "submittedAt": "2026-10-22T09:00:00Z", "author": {"login": "bob"}}
+    changes = {"state": "CHANGES_REQUESTED", "submittedAt": "2026-10-22T09:00:00Z", "author": {"login": "goku"}}
     green = {"ci": "passing", "mergeable": "MERGEABLE"}
     cases = {
         "draft": ({"is_draft": True, **green}, ("drafts", "draft")),
@@ -104,22 +104,22 @@ def test_turn_reads_whose_move_a_pr_waits_on():
 
 
 def test_pr_events_leave_out_a_review_not_submitted():
-    pr = make_pr(reviews=[{"submittedAt": None, "state": "PENDING", "author": {"login": "alice"}},
-                          {"submittedAt": "2026-10-22T10:00:00Z", "state": "APPROVED", "author": {"login": "bob"}}])
-    assert [event["author"] for event in pr_events(pr)] == [None, "bob"], "a review not submitted yet has no time, so it is no event"
+    pr = make_pr(reviews=[{"submittedAt": None, "state": "PENDING", "author": {"login": "bulma"}},
+                          {"submittedAt": "2026-10-22T10:00:00Z", "state": "APPROVED", "author": {"login": "goku"}}])
+    assert [event["author"] for event in pr_events(pr)] == [None, "goku"], "a review not submitted yet has no time, so it is no event"
 
 
 def test_pr_events_tell_the_comments_of_the_conversation():
-    said = {"author": {"__typename": "User", "login": "carol"}, "body": "Looks good to me", "createdAt": "2026-11-03T11:50:40Z",
-            "url": "https://github.com/acme/app/pull/1#issuecomment-1"}
-    assert {"at": "2026-11-03T11:50:40Z", "state": "COMMENTED", "author": "carol"} in pr_events(make_pr(conversation=[said])), \
+    said = {"author": {"__typename": "User", "login": "vegeta"}, "body": "Over 9000, looks good to me", "createdAt": "2026-11-03T11:50:40Z",
+            "url": "https://github.com/capsulecorp/radar/pull/1#issuecomment-1"}
+    assert {"at": "2026-11-03T11:50:40Z", "state": "COMMENTED", "author": "vegeta"} in pr_events(make_pr(conversation=[said])), \
         "a comment on a pr's conversation is an event, by its author at its time, as a review that only comments is"
 
 
 @pytest.mark.parametrize(("pr", "expected"), [
     (make_pr(ci="failing", mergeable="CONFLICTING"), "needs review"),
     (make_pr(review_decision="APPROVED", ci="failing", mergeable="MERGEABLE"), "ready to merge"),
-    (make_pr(reviews=[{"state": "CHANGES_REQUESTED", "submittedAt": "2026-10-22T09:00:00Z", "author": {"login": "bob"}, "body": ""}],
+    (make_pr(reviews=[{"state": "CHANGES_REQUESTED", "submittedAt": "2026-10-22T09:00:00Z", "author": {"login": "goku"}, "body": ""}],
              ci="failing", mergeable="CONFLICTING", commits=[]), "on the author"),
     (make_pr(is_draft=True, ci="failing"), "drafts")])
 def test_standing_follows_the_review_alone(pr, expected):
@@ -129,7 +129,7 @@ def test_standing_follows_the_review_alone(pr, expected):
 @pytest.mark.parametrize(("pr", "expected"), [
     (make_pr(ci="failing", mergeable="CONFLICTING"), ["CI", "conflict"]),
     (make_pr(ci="passing", mergeable="MERGEABLE"), []),
-    (make_pr(reviews=[{"state": "CHANGES_REQUESTED", "submittedAt": "2026-10-22T09:00:00Z", "author": {"login": "bob"}, "body": ""}],
+    (make_pr(reviews=[{"state": "CHANGES_REQUESTED", "submittedAt": "2026-10-22T09:00:00Z", "author": {"login": "goku"}, "body": ""}],
              ci="failing", mergeable="MERGEABLE", commits=[]), ["changes", "CI"])])
 def test_blockers_name_what_keeps_a_pr_on_its_author(pr, expected):
     assert blockers(pr) == expected, "unanswered changes, red CI and a conflict each block a PR, in that order"
@@ -137,7 +137,7 @@ def test_blockers_name_what_keeps_a_pr_on_its_author(pr, expected):
 
 @pytest.mark.parametrize(("pr", "expected"), [
     (make_pr(ci="failing", mergeable="CONFLICTING"), ("on the author", [("needs review", False), ("CI", True), ("conflict", True)])),
-    (make_pr(reviews=[{"state": "CHANGES_REQUESTED", "submittedAt": "2026-10-22T09:00:00Z", "author": {"login": "bob"}, "body": ""}],
+    (make_pr(reviews=[{"state": "CHANGES_REQUESTED", "submittedAt": "2026-10-22T09:00:00Z", "author": {"login": "goku"}, "body": ""}],
              ci="passing", mergeable="MERGEABLE", commits=[]), ("on the author", [("changes requested", True)]))])
 def test_turn_parts_say_which_block(pr, expected):
     assert turn_parts(pr) == expected, "a blocked PR's label leads with its review, then each blocker; unanswered changes alone block under their own name"

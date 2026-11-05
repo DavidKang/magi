@@ -118,12 +118,12 @@ def test_magi_web_refreshes_with_the_settings_as_they_are_now(cache):
     settings_file(cache)
     teams = []
     run = Run(cache, rounds=4, collect=lambda settings: teams.append(list(settings.team)) or board([PR_ONE]))
-    changes = [lambda: settings_file(cache, {**SETTINGS, "team": ["carol"]}), lambda: cache.with_name("config.json").unlink(),
+    changes = [lambda: settings_file(cache, {**SETTINGS, "team": ["vegeta"]}), lambda: cache.with_name("config.json").unlink(),
                lambda: cache.with_name("config.json").write_text('{"team": [')]
     run.between = lambda: changes.pop(0)()
     run()
-    assert teams[:2] == [["alice", "bob"], ["carol"]], "a team changed with magi config while magi web runs is the one fetched next"
-    assert teams[2:] == [["carol"], ["carol"]], "settings removed or half written keep magi web on the ones it had"
+    assert teams[:2] == [["bulma", "goku"], ["vegeta"]], "a team changed with magi config while magi web runs is the one fetched next"
+    assert teams[2:] == [["vegeta"], ["vegeta"]], "settings removed or half written keep magi web on the ones it had"
 
 
 def test_a_page_not_written_is_told_and_magi_web_runs_on(cache, monkeypatch):

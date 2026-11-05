@@ -10,7 +10,7 @@ from builders import PR_ONE, PR_TWO, TICKET_DETAIL, board, magi_app, make_pr, st
 from magi.domain.entities import Ticket
 from magi.tui import app as app_module
 
-NO_TICKET = make_pr(url="https://github.com/acme/app/pull/3", number=3, title="Bump deps", head_ref_name="deps",
+NO_TICKET = make_pr(url="https://github.com/capsulecorp/radar/pull/3", number=3, title="Bump senzu deps", head_ref_name="senzu-deps",
                     created_at="2026-10-24T10:00:00Z", head_ref_oid="c3")
 
 
@@ -34,26 +34,26 @@ async def ticket_popup(cache):
     async with started(app) as pilot:
         await pilot.press("2", "v")
         await until(pilot, lambda: isinstance(app.screen, app_module.TicketScreen), "v opens the ticket of the selected PR in a popup")
-        assert fetched == ["ACME-1"], "v asks Jira for the ticket the PR names"
-        assert "ACME-1" in str(app.screen.query_one("#ticket").border_title), "the popup title names the ticket"
+        assert fetched == ["KAME-1"], "v asks Jira for the ticket the PR names"
+        assert "KAME-1" in str(app.screen.query_one("#ticket").border_title), "the popup title names the ticket"
         detail = str(app.screen.query_one("#ticket-detail", Static).render())
-        assert "Summary of ACME-1" in detail and "In review" in detail, "the popup shows the ticket detail, as the ticket box does"
+        assert "Summary of KAME-1" in detail and "In review" in detail, "the popup shows the ticket detail, as the ticket box does"
         await pilot.press("c")
         assert isinstance(app.screen, app_module.ReviewScreen), "c in the popup opens the ticket's description and comments"
-        assert "ACME-1" in str(app.screen.query_one("#review").border_title), "c in the popup opens the ticket's comments, not the PR's"
+        assert "KAME-1" in str(app.screen.query_one("#review").border_title), "c in the popup opens the ticket's comments, not the PR's"
         await pilot.press("escape", "escape")
         assert not isinstance(app.screen, (app_module.TicketScreen, app_module.ReviewScreen)), "escape closes the popups"
         await pilot.press("v")
         await until(pilot, lambda: isinstance(app.screen, app_module.TicketScreen), "v opens a ticket already seen")
         await pilot.press("enter", "y")
-        assert opened == ["https://acme.atlassian.net/browse/ACME-1"], "enter in the popup opens the ticket in Jira"
-        assert copied == ["ACME-1"], "y in the popup copies the ticket key"
+        assert opened == ["https://capsulecorp.atlassian.net/browse/KAME-1"], "enter in the popup opens the ticket in Jira"
+        assert copied == ["KAME-1"], "y in the popup copies the ticket key"
         await pilot.press("v")
         assert not isinstance(app.screen, app_module.TicketScreen), "v closes the ticket popup"
         await pilot.press("j", "v")
         await pilot.pause()
         assert any(n.message == "no ticket" for n in app._notifications), "v on a PR without a ticket says so"
-        assert fetched == ["ACME-1", "ACME-1"], "v on a PR without a ticket asks Jira nothing"
+        assert fetched == ["KAME-1", "KAME-1"], "v on a PR without a ticket asks Jira nothing"
 
 
 @pytest.mark.usefixtures("default_theme")
@@ -63,12 +63,12 @@ def test_ticket_popup(cache):
 
 async def failed_ticket(cache):
     def fetch_ticket(key):
-        raise subprocess.CalledProcessError(1, ["acli"], stderr="ACME-1 not found\n")
+        raise subprocess.CalledProcessError(1, ["acli"], stderr="KAME-1 not found\n")
 
     app = magi_app(cache, fetch_ticket=fetch_ticket)
     async with started(app) as pilot:
         await pilot.press("2", "v")
-        await until(pilot, lambda: any(n.message == "ACME-1 not found" for n in app._notifications), "a ticket Jira cannot give says why")
+        await until(pilot, lambda: any(n.message == "KAME-1 not found" for n in app._notifications), "a ticket Jira cannot give says why")
         assert not isinstance(app.screen, app_module.TicketScreen), "a ticket Jira cannot give opens no popup"
 
 
@@ -82,13 +82,13 @@ async def slow_ticket(cache):
     def fetch_ticket(key):
         fetched.append(key)
         release.wait(5)
-        return Ticket(key=key, summary="Bare", status="En proceso", detail=replace(TICKET_DETAIL, description="", comments=[]))
+        return Ticket(key=key, summary="Bare Namekian", status="En proceso", detail=replace(TICKET_DETAIL, description="", comments=[]))
 
     app = magi_app(cache, fetch_ticket=fetch_ticket)
     async with started(app) as pilot:
         try:
             await pilot.press("2", "v", "v", "t")
-            assert fetched == ["ACME-1"], "v while its ticket loads asks Jira nothing more"
+            assert fetched == ["KAME-1"], "v while its ticket loads asks Jira nothing more"
         finally:
             release.set()
         await pilot.pause(0.2)

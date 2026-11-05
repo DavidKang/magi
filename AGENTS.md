@@ -66,6 +66,7 @@ Run pytest as `.venv/bin/python -m pytest`: the venv's `pytest` script may point
 - TUI tests drive the real app with Textual's `run_test` pilot and a fake `load`; they never call `gh` or `acli`.
 - The suite runs in `Europe/Madrid` (`tests/conftest.py`), and `tests/tui/conftest.py` pretends the terminal draws images.
 - Every assert carries a message that states the rule it checks; write new ones the same way.
+- All test data is fake and Dragon Ball Z-themed: its fighters as people (`bulma`, `goku`, `vegeta`), `capsulecorp` as the org, `KAME` as the Jira project, the saga in titles, branches, paths and comments. Never a real person, company, repo, ticket or a comment copied from one; Jira statuses, GitHub enums and other values the code maps stay as the services send them.
 - Behavior changes start with a failing test.
 
 ## Conventions

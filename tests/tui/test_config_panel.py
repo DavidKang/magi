@@ -29,13 +29,13 @@ async def first_run(cache):
         assert not app.check_action("refresh", ()), "config panel hides the board keys on first run"
         assert not app.check_action("pick_theme", ()), "config panel hides the board keys on first run"
         assert app.screen.check_action("save", ()), "config panel hides the board keys on first run"
-        inputs["team"].value = "alice, bob"
+        inputs["team"].value = "bulma, goku"
         await pilot.click("#config-save")
         await pilot.pause()
         assert not path.exists(), "saving with empty fields is refused"
         assert any("Fill in every field" in n.message for n in app._notifications), "saving with empty fields is refused"
-        for key, value in {"jira_project": "ACME", "github_user": "alice", "github_org": "acme",
-                           "jira_url": "https://acme.atlassian.net"}.items():
+        for key, value in {"jira_project": "KAME", "github_user": "bulma", "github_org": "capsulecorp",
+                           "jira_url": "https://capsulecorp.atlassian.net"}.items():
             inputs[key].value = value
         await pilot.pause(0.3)
         await pilot.click("#config-save")
@@ -56,13 +56,13 @@ async def edit(cache):
     async with started(app) as pilot:
         inputs = {i.id.removeprefix("config-"): i for i in app.screen.query(Input)}
         assert app.screen.check_action("cancel", ()), "config command can be cancelled"
-        assert inputs["team"].value == "alice, bob", "config command shows the saved values"
-        assert inputs["jira_project"].value == "ACME", "config command shows the saved values"
-        inputs["team"].value = "alice bob, carol"
+        assert inputs["team"].value == "bulma, goku", "config command shows the saved values"
+        assert inputs["jira_project"].value == "KAME", "config command shows the saved values"
+        inputs["team"].value = "bulma goku, vegeta"
         await pilot.click("#config-save")
         await app.workers.wait_for_complete()
         await pilot.pause()
-        assert json.loads(app.config_path.read_text())["team"] == ["alice", "bob", "carol"], "config command saves the changes"
+        assert json.loads(app.config_path.read_text())["team"] == ["bulma", "goku", "vegeta"], "config command saves the changes"
         assert str(app.query_one("#panel-prs").border_title) == "[2] team prs 1", "config command then opens the board"
 
 
@@ -89,7 +89,7 @@ def test_first_run_cancel(cache):
 async def edit_cancel(cache):
     app = magi_app(cache, edit_config=True)
     async with started(app) as pilot:
-        app.screen.query_one("#config-team", Input).value = "zed"
+        app.screen.query_one("#config-team", Input).value = "krillin"
         await pilot.click("#config-cancel")
         await app.workers.wait_for_complete()
         await pilot.pause()

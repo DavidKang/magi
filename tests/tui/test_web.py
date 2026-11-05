@@ -80,12 +80,12 @@ def test_pr_and_ticket_links_open_in_a_new_tab():
 
 def test_a_change_without_a_link_points_nowhere():
     change = {"at": "2026-10-24T02:04", "tone": "commented", "label": "Moved", "note": None, "aside": None, "told": False, "item": None, "group": None,
-              "subject": {"kind": "ticket", "url": None, "ref": "ACME-1", "title": "ACME-1 Gone"}}
+              "subject": {"kind": "ticket", "url": None, "ref": "KAME-1", "title": "KAME-1 Gone"}}
     found = box(render(bare_board(changes=[change])), "changes")
-    assert "ACME-1 Gone" in found and 'href="None"' not in found, "a change with nothing to open is still read, but links nowhere"
+    assert "KAME-1 Gone" in found and 'href="None"' not in found, "a change with nothing to open is still read, but links nowhere"
 
 def test_a_blocked_kanban_ticket_shows_its_red_pill_on_the_page():
-    blocked = make_ticket(key="ACME-1", status="En proceso", detail=make_ticket_detail(labels=["blocked"]))
+    blocked = make_ticket(key="KAME-1", status="En proceso", detail=make_ticket_detail(labels=["blocked"]))
     found = box(render(bare_board(kanban=[blocked])), "kanban")
     assert re.search(r'<span class="text-bad pill[^"]*" style="--t: var\(--bad\)">blocked</span>', found), \
         "a kanban ticket labelled blocked shows a red blocked pill on the page as in the tui"
@@ -118,7 +118,7 @@ def test_the_web_page_ignores_the_tui_theme(tmp_path):
 
 
 def test_the_web_page_escapes_what_github_and_jira_send():
-    hostile = make_pr(title='<script>alert(1)</script> "quoted"', author={"login": '<b onclick="x">eve</b>'})
+    hostile = make_pr(title='<script>alert(1)</script> "quoted"', author={"login": '<b onclick="x">cell</b>'})
     found = render(bare_board(prs=[hostile], my_tickets=[make_ticket(status="<i>Blocked</i>")]))
     assert "<script>" not in box(found, "prs") and "<b " not in box(found, "prs"), "pr titles and authors never reach the page as markup"
     assert "&lt;script&gt;alert(1)&lt;/script&gt; &quot;quoted&quot;" in box(found, "prs"), "pr titles show as the text they are"
@@ -168,7 +168,7 @@ def test_lcars_frames_the_page_with_a_sidebar_of_numbered_boxes():
 
 
 def test_lcars_cascade_runs_the_boards_numbers():
-    found = render(bare_board(prs=[make_pr(url="https://github.com/acme/app/pull/8231")], my_tickets=[make_ticket(key="ACME-5524")]))
+    found = render(bare_board(prs=[make_pr(url="https://github.com/capsulecorp/radar/pull/8231")], my_tickets=[make_ticket(key="KAME-5524")]))
     cascade = re.findall(r"<span[^>]*>(\d+)</span>", re.search(r'<div class="cascade".*?</div>', found, re.S).group())
     assert {"8231", "5524"} <= set(cascade), "the lcars data cascade runs the board's pr and ticket numbers"
     assert {"47", "1701"} <= set(cascade), "and hides 47 and 1701 among them"
@@ -269,7 +269,7 @@ def votes(found):
 
 def test_nerv_puts_the_board_to_the_magi_vote():
     mine = [make_pr(author={"login": STATED.github_user})]
-    levels = {"green": [], "yellow": [make_pr(author={"login": "bob"})], "red": mine}
+    levels = {"green": [], "yellow": [make_pr(author={"login": "goku"})], "red": mine}
     assert {level: condition(prs, STATED.github_user) for level, prs in levels.items()} == {level: level for level in levels}, \
         "each board sits at its alert level"
     pages = {level: render(bare_board(prs=prs)) for level, prs in levels.items()}
@@ -313,14 +313,14 @@ def test_eva01_counts_its_internal_battery_down_to_the_next_reload():
     assert re.search(r'font-family: "DSEG7"; src: url\(data:font/woff2;base64,[A-Za-z0-9+/=]+\)', calm), \
         "its digits are seven-segment ones, the font carried in the page"
     assert '<i aria-hidden="true">8:88:88</i>' in calm, "unlit segments ghost behind the digits, as on a seven-segment display"
-    levels = {"green": [], "yellow": [make_pr(author={"login": "bob"})], "red": [make_pr(author={"login": STATED.github_user})]}
+    levels = {"green": [], "yellow": [make_pr(author={"login": "goku"})], "red": [make_pr(author={"login": STATED.github_user})]}
     sync = {level: re.search(r"INTERNAL<br>SYNC ([0-9.]+%)", render(bare_board(prs=prs))).group(1) for level, prs in levels.items()}
     assert sync == {"green": "41.3%", "yellow": "41.3%", "red": "400%"}, \
         "the sync ratio reads shinji's first test until the red level, and the 400% of berserk there"
 
 
 def test_cyberpunk_shows_the_board_as_its_wanted_level():
-    levels = {"green": [], "yellow": [make_pr(author={"login": "bob"})], "red": [make_pr(author={"login": STATED.github_user})]}
+    levels = {"green": [], "yellow": [make_pr(author={"login": "goku"})], "red": [make_pr(author={"login": STATED.github_user})]}
     heat = {level: re.search(r'<div class="heat"[^>]*>(.*?)</div>', render(bare_board(prs=prs)), re.S) for level, prs in levels.items()}
     assert {level: found.group(1).count('class="star on"') for level, found in heat.items()} == {"green": 0, "yellow": 2, "red": 5}, \
         "night city's wanted level lights as many of its five stars as the alert label carries: none, two, all five for maxtac"
@@ -366,7 +366,7 @@ def test_the_default_theme_reads_at_wcag_aa_in_github_s_own_typefaces():
 
 
 def test_a_title_keeps_its_ticket_key_apart_from_its_words():
-    found = box(render(bare_board(prs=[make_pr(title="[ACME-12] Fix the <b> tag"), make_pr(number=2, title="Bump the gems")])), "prs")
-    assert '[ACME-12]<span class="words"> Fix the &lt;b&gt; tag</span>' in found, \
+    found = box(render(bare_board(prs=[make_pr(title="[KAME-12] Power the <b> scouter"), make_pr(number=2, title="Bump the senzu gems")])), "prs")
+    assert '[KAME-12]<span class="words"> Power the &lt;b&gt; scouter</span>' in found, \
         "a title's words sit apart from its ticket key, so a theme can set them in white while the key keeps the title's colour"
-    assert '<span class="words">Bump the gems</span>' in found, "a title without a ticket key is all words"
+    assert '<span class="words">Bump the senzu gems</span>' in found, "a title without a ticket key is all words"

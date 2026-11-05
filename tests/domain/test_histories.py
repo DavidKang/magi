@@ -8,7 +8,7 @@ def test_kept_histories():
 
 
 def test_pr_histories():
-    saved = {PR_ONE.url: ["stale"], "https://github.com/acme/app/pull/8": ["merged pr"]}
+    saved = {PR_ONE.url: ["stale"], "https://github.com/capsulecorp/radar/pull/8": ["merged pr"]}
     found = histories.pr_histories([PR_ONE], saved)
-    assert found == {PR_ONE.url: review.pr_events(PR_ONE), "https://github.com/acme/app/pull/8": ["merged pr"]}, \
+    assert found == {PR_ONE.url: review.pr_events(PR_ONE), "https://github.com/capsulecorp/radar/pull/8": ["merged pr"]}, \
         "a pr on the board tells its own history, and one that left keeps the history saved for it"

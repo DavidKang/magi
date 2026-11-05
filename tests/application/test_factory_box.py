@@ -25,18 +25,18 @@ class FakeFactory:
 
 def test_the_factory_lists_each_ticket_beside_its_session():
     at = dt.datetime(2026, 10, 29, 9, 0, tzinfo=dt.timezone.utc)
-    source = FakeFactory([Stage("ACME-1", "ready", "", at), Stage("ACME-2", "waiting-you", "which repo?", at)], [Agent("ACME-1", "done")])
+    source = FakeFactory([Stage("KAME-1", "ready", "", at), Stage("KAME-2", "waiting-you", "which dragon ball?", at)], [Agent("KAME-1", "done")])
     found = Factory(source).collect()
-    assert [(ticket.key, ticket.stage, ticket.agent) for ticket in found] == [("ACME-2", "waiting-you", None), ("ACME-1", "ready", "done")], \
+    assert [(ticket.key, ticket.stage, ticket.agent) for ticket in found] == [("KAME-2", "waiting-you", None), ("KAME-1", "ready", "done")], \
         "the factory reads the stage files and herdr's agents and lists each ticket with its session, the ones needing you first"
 
 
 def test_a_ticket_with_a_session_carries_what_its_agent_last_wrote():
     at = dt.datetime(2026, 10, 29, 9, 0, tzinfo=dt.timezone.utc)
-    source = FakeFactory([Stage("ACME-1", "waiting-you", "", at), Stage("ACME-2", "building", "", at)], [Agent("ACME-1", "blocked", "w1:p1")],
+    source = FakeFactory([Stage("KAME-1", "waiting-you", "", at), Stage("KAME-2", "building", "", at)], [Agent("KAME-1", "blocked", "w1:p1")],
                          {"w1:p1": ["Which repo?"]})
     found = Factory(source).collect()
-    assert [(ticket.key, ticket.output) for ticket in found] == [("ACME-1", ("Which repo?",)), ("ACME-2", ())], \
+    assert [(ticket.key, ticket.output) for ticket in found] == [("KAME-1", ("Which repo?",)), ("KAME-2", ())], \
         "each ticket with a herdr session carries what its agent last wrote, and one without has nothing"
 
 

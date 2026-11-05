@@ -2,9 +2,9 @@ from types import SimpleNamespace
 
 from magi.domain.snoozes import asleep, awake, change_marks
 
-PR = "https://github.com/acme/app/pull/1"
-OTHER = "https://github.com/acme/app/pull/2"
-TICKET = "https://acme.atlassian.net/browse/ACME-1"
+PR = "https://github.com/capsulecorp/radar/pull/1"
+OTHER = "https://github.com/capsulecorp/radar/pull/2"
+TICKET = "https://capsulecorp.atlassian.net/browse/KAME-1"
 NEW = {"at": "2026-10-24T02:04", "label": "New PR", "item": PR, "group": PR}
 PUSHED = {**NEW, "at": "2026-10-24T09:00", "label": "New commits"}
 APPROVED = {**NEW, "at": "2026-10-25T03:00", "label": "Approved"}

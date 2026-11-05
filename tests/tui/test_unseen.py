@@ -24,7 +24,7 @@ def marked(app):
 
 
 async def unseen(cache):
-    storage.write(cache.with_name("seen.json"), {"seen": {"https://github.com/acme/app/pull/99": "2026-10-20T10:00 Merged"}})
+    storage.write(cache.with_name("seen.json"), {"seen": {"https://github.com/capsulecorp/radar/pull/99": "2026-10-20T10:00 Merged"}})
     app = magi_app(cache, load=two_prs)
     async with started(app) as pilot:
         assert marked(app) == {"prs": [True, False], "changes": [True]}, \

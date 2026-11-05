@@ -11,8 +11,8 @@ from magi.domain.factory import FactoryTicket
 from magi.tui import app as app_module
 
 NOW = dt.datetime(2026, 10, 29, 12, 0, tzinfo=dt.timezone.utc)
-TICKETS = [FactoryTicket("ACME-77", "waiting-you", "which repo?", NOW - dt.timedelta(minutes=5), None),
-           FactoryTicket("ACME-78", "ready", "", NOW - dt.timedelta(hours=2), "done", "w2H:p2")]
+TICKETS = [FactoryTicket("KAME-77", "waiting-you", "which dragon ball?", NOW - dt.timedelta(minutes=5), None),
+           FactoryTicket("KAME-78", "ready", "", NOW - dt.timedelta(hours=2), "done", "w2H:p2")]
 BOARD_BOXES = ["kanban", "prs", "changes", "epics", "mine_prs", "mine_tickets"]
 
 
@@ -28,9 +28,9 @@ async def factory_box(cache):
         rows = app.query_one("#list-factory", OptionList)
         shown = [rows.get_option_at_index(i).prompt.plain for i in range(rows.option_count)]
         assert app.current_section == "factory", "5 focuses the factory box"
-        assert len(shown) == 2 and "ACME-77" in shown[0] and "ACME-78" in shown[1], \
+        assert len(shown) == 2 and "KAME-77" in shown[0] and "KAME-78" in shown[1], \
             "the factory box lists one row per factory ticket, in the order the factory gives"
-        assert "which repo?" in str(app.query_one("#detail", Static).render()), "the focused factory row shows its details"
+        assert "which dragon ball?" in str(app.query_one("#detail", Static).render()), "the focused factory row shows its details"
         assert str(app.query_one("#panel-factory").border_title) == "[5] factory 2", "the factory box is numbered 5 and counts its tickets"
         await pilot.press("1")
         assert app.current_section == "kanban", "the board's boxes keep their keys beside the factory"
@@ -63,7 +63,7 @@ async def factory_reread_keeps_the_row(cache):
         app.read_factory()
         await app.workers.wait_for_complete()
         await pilot.pause()
-        assert app.current().copy == "ACME-78", "reading the factory again every few seconds keeps the row you are on"
+        assert app.current().copy == "KAME-78", "reading the factory again every few seconds keeps the row you are on"
 
 
 def counted(*answers):
@@ -106,7 +106,7 @@ async def factory_reread_with_changes_redraws_the_box(cache):
         app.read_factory()
         await app.workers.wait_for_complete()
         await pilot.pause()
-        assert len(calls) == 2 and len(shown_rows(app)) == 1 and "ACME-77" in shown_rows(app)[0], \
+        assert len(calls) == 2 and len(shown_rows(app)) == 1 and "KAME-77" in shown_rows(app)[0], \
             "a factory whose tickets changed is redrawn with its new rows"
 
 
@@ -179,17 +179,17 @@ def test_factory_reread_keeps_the_row(cache):
 
 
 async def factory_redraw_marks_nothing_seen(cache):
-    changed = [TICKETS[0], FactoryTicket("ACME-78", "ready", "merged", NOW - dt.timedelta(hours=2), "done")]
+    changed = [TICKETS[0], FactoryTicket("KAME-78", "ready", "merged", NOW - dt.timedelta(hours=2), "done")]
     factory, _ = counted(TICKETS, changed)
     app = factory_app(cache, factory=factory)
     async with started(app) as pilot:
         await pilot.press("5", "j")
-        first = app.settings.jira_browse + "ACME-77"
+        first = app.settings.jira_browse + "KAME-77"
         app.news[first] = {"at": "2026-10-29T11:00:00", "label": "In review"}
         app.read_factory()
         await app.workers.wait_for_complete()
         await pilot.pause()
-        assert app.current().copy == "ACME-78" and first in app.news, \
+        assert app.current().copy == "KAME-78" and first in app.news, \
             "a factory redraw that keeps you on your row does not mark the first row's news as seen"
 
 
@@ -215,7 +215,7 @@ async def factory_stays_out_of_the_web_page(cache):
     async with started(factory_app(cache)):
         pass
     found = cache.with_name("board.html").read_text()
-    assert "ACME-77" not in found and 'id="factory"' not in found and 'href="#factory"' not in found, \
+    assert "KAME-77" not in found and 'id="factory"' not in found and 'href="#factory"' not in found, \
         "the factory lives only in the tui: magi web's page never lists it"
     assert re.findall(r'<section id="([a-z_]+)"', found) == [*BOARD_BOXES, "details"], \
         "the web page still shows the board's boxes, the same ones as before the factory"
@@ -256,7 +256,7 @@ async def factory_failure_keeps_its_rows(cache):
         app.read_factory()
         await app.workers.wait_for_complete()
         await pilot.pause()
-        assert len(reads) == 2 and len(shown_rows(app)) == 2 and "ACME-77" in shown_rows(app)[0], \
+        assert len(reads) == 2 and len(shown_rows(app)) == 2 and "KAME-77" in shown_rows(app)[0], \
             "a factory that fails after a good read keeps the rows it showed"
 
 
@@ -305,8 +305,8 @@ def test_g_without_a_session_does_nothing(cache, monkeypatch):
 
 
 def test_g_outside_the_factory_does_nothing(cache, monkeypatch):
-    # The epics box's first row is ACME-100: a factory ticket with that key must not make g jump from there.
-    tickets = [FactoryTicket("ACME-100", "building", "", NOW, "working", "w1:p1")]
+    # The epics box's first row is KAME-100: a factory ticket with that key must not make g jump from there.
+    tickets = [FactoryTicket("KAME-100", "building", "", NOW, "working", "w1:p1")]
     assert asyncio.run(g_presses(cache, monkeypatch, "5", "4", "g", tickets=tickets)) == [], "g outside the factory does nothing"
 
 
