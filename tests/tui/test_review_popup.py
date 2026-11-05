@@ -80,7 +80,6 @@ def test_long_diff_lines_wrap(cache):
     asyncio.run(long_diff(cache))
 
 
-
 async def file_comment(cache):
     app = magi_app(cache, load=lambda: board([PR_ONE, replace(PR_TWO, reviews=[], threads=[FILE_THREAD])]))
     async with started(app) as pilot:

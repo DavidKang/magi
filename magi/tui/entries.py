@@ -2,6 +2,7 @@ import re
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from markdown_it import MarkdownIt
 from rich.console import Console
 from rich.syntax import Syntax
 from rich.text import Text
@@ -25,7 +26,10 @@ DIFF_BACKGROUNDS = {"+": "#12261e", "-": "#2d1418"}
 DIFF_SIGNS = {"+": "ok", "-": "bad", " ": "dim"}
 HUNK_HEADER = re.compile(r"@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 CODE_SPAN = re.compile(r"`([^`]+)`")
-LIST_ITEM = re.compile(r"^(\s*)[-*] ")
+# A nested bullet's marker sits after its quotes' and outer items' markers, so the walk passes those to reach it.
+CONTAINER = re.compile(r"[ \t]*(?:>|\d{1,9}[.)](?=[ \t]|$)|([-*+])(?=[ \t]|$))")
+LEADING_BLANKS = re.compile(r"\A\s*\n")
+MARKDOWN = MarkdownIt("commonmark")
 
 
 class Parts(str):
@@ -145,16 +149,46 @@ def state_label(review):
     return colored(rows.TUI_REVIEW_EVENTS.get(review["state"], "blue"), review["state"].lower().replace("_", " "))
 
 
+def bulleted(line, items):
+    at, drawn = 0, ""
+    while items and (marker := CONTAINER.match(line, at)):
+        drawn += line[at:marker.start(1)] + "•" if marker[1] else marker[0]
+        items -= bool(marker[1])
+        at = marker.end()
+    return drawn + line[at:]
+
+
 def body_line(line):
-    parts = CODE_SPAN.split(LIST_ITEM.sub(r"\1• ", line))
-    # The split leaves the code between backticks at the odd places.
+    parts = CODE_SPAN.split(line)
     return "".join(f'[{COLORS["fg"]} on {COLORS["raised"]}]{escape(part)}[/]' if i % 2 else escape(part) for i, part in enumerate(parts))
 
 
-def comment_block(author, at, body, lead=False):
-    """One comment as its author, when it was written and its text, a little markdown drawn; lead marks the pr's own author."""
+def comment_block(author, at, lines, lead=False):
+    """One comment as its author, when it was written and its lines; lead marks the pr's own author."""
     heading = f"[b]{escape(author)}[/b]" + (f' {colored("dim", rows.local_time(at))}' if at else "")
-    return {"text": "\n".join([heading, *map(body_line, body.strip().splitlines())]), "lead": lead}
+    return {"text": "\n".join([heading, *lines]), "lead": lead}
+
+
+def as_written(body):
+    return [escape(line) for line in trimmed(body).splitlines()]
+
+
+def trimmed(body):
+    return LEADING_BLANKS.sub("", body.rstrip())
+
+
+def body_lines(body):
+    """A GitHub comment's lines with a little markdown drawn, its code left as written."""
+    lines = trimmed(body).splitlines()
+    code, items = set(), [0] * len(lines)
+    for token in MARKDOWN.parse("\n".join(lines)):
+        if token.type in ("code_block", "fence"):
+            code.update(range(*token.map))
+        elif token.type == "list_item_open" and token.markup in "-*+":
+            items[token.map[0]] += 1
+    for i, line in enumerate(lines):
+        line = bulleted(line, items[i])
+        yield escape(line) if i in code else body_line(line)
 
 
 def thread_target(thread):
@@ -201,7 +235,7 @@ def note_row(kind, author, body):
 
 def review_items(pr):
     def block(author, at, body):
-        return comment_block(author["login"], at, body, author["login"] == pr.author["login"])
+        return comment_block(author["login"], at, body_lines(body), author["login"] == pr.author["login"])
 
     reviews = [(r["submittedAt"], {"row": review_row(r), "place": f'{escape(r["author"]["login"])} {state_label(r)}', "hunk": None,
                                    "path": None, "comments": [block(r["author"], r["submittedAt"], r["body"])], "url": pr.url})
@@ -232,11 +266,11 @@ def ticket_items(ticket, settings):
         return []
     description = [{"row": note_row("description", detail.creator, detail.description), "hunk": None, "path": None, "url": url,
                     "place": f'{escape(detail.creator)} {colored("blue", "description")}',
-                    "comments": [comment_block(detail.creator, None, detail.description)]}
+                    "comments": [comment_block(detail.creator, None, as_written(detail.description))]}
                    ] if detail.description else []
     return description + [{"row": note_row("comment", c["author"], c["body"]), "hunk": None, "path": None,
                            "place": f'{escape(c["author"])} {colored("blue", "commented")}', "url": f'{url}?focusedCommentId={c["id"]}',
-                           "comments": [comment_block(c["author"], c["created"], c["body"])]}
+                           "comments": [comment_block(c["author"], c["created"], as_written(c["body"]))]}
                           for c in detail.comments]
 
 

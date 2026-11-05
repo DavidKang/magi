@@ -1,7 +1,9 @@
 import datetime as dt
 from dataclasses import replace
 
+from textual.color import Color
 from textual.content import Content
+from textual.style import Style
 
 from builders import CHANGES, FILE_THREAD, NOTE, OUTDATED, PR_ONE, PR_TWO, REPLY, STATED, SUBJECT, THREAD, TICKET_DETAIL, board
 from magi.domain import review
@@ -186,10 +188,12 @@ def test_file_comments():
 
 
 def test_thread_heading():
-    place = entries.review_items(replace(PR_TWO, reviews=[], threads=[THREAD]))[0]["place"]
-    assert Content.from_markup(place).plain == "app/models/order.rb:12", "a thread's heading names its file and line"
-    assert place.startswith(entries.colored("dim", "app/models/")) and "[b]order.rb:12[/b]" in place, \
+    places = [Content.from_markup(item["place"]) for item in entries.review_items(replace(PR_TWO, reviews=[], threads=[THREAD, OUTDATED]))]
+    assert places[0].plain == "app/models/order.rb:12", "a thread's heading names its file and line"
+    styles = {places[0].plain[span.start:span.end]: Style.parse(span.style) for span in places[0].spans}
+    assert (styles["app/models/"].foreground, styles["order.rb:12"].bold) == (Color.parse(theme.COLORS["dim"]), True), \
         "a thread's heading greys its folder and puts its file in bold"
+    assert places[1].plain == "README.md outdated", "a file at the repository's root heads its thread without a folder"
 
 
 def test_comment_blocks():
@@ -198,11 +202,82 @@ def test_comment_blocks():
     assert [Content.from_markup(block["text"]).plain.splitlines()[0] for block in blocks] == \
         ["carol Oct 22 11:05", "bob Oct 22 12:00"], "each comment of a thread is a block headed by its author and time"
     assert [block["lead"] for block in blocks] == [False, True], "the pr's author's comments stand out from the reviewers'"
+
+
+def test_comment_markdown():
     body = Content.from_markup(entries.review_items(replace(PR_TWO, reviews=[], threads=[FILE_THREAD]))[0]["comments"][0]["text"])
     assert body.plain.splitlines()[1:] == ["Too much logic in Cart, try:", "• Cart.build", "• a helper"], \
         "a comment drops the backticks of its code and draws its list items as bullets"
     code = [span for span in body.spans if body.plain[span.start:span.end] == "Cart.build"]
     assert code, "a comment's code reads in a style of its own"
+    nested = Content.from_markup("\n".join(entries.body_lines("- a\n  - b\n    - c `x`"))).plain.splitlines()
+    assert nested == ["• a", "  • b", "    • c x"], "a nested list keeps its bullets at every depth"
+    others = Content.from_markup("\n".join(entries.body_lines("+ a\n\n1. one\n   - `b`"))).plain.splitlines()
+    assert others == ["• a", "", "1. one", "   • b"], "a plus sign starts a bullet too, and a numbered item keeps its number"
+    loose = Content.from_markup("\n".join(entries.body_lines("- a\n\n    - b `x`\n    - c"))).plain.splitlines()
+    assert loose == ["• a", "", "    • b x", "    • c"], "a list nested after a blank line keeps its bullets"
+    rule = Content.from_markup("\n".join(entries.body_lines("a\n\n- - -\n\n- * * *"))).plain.splitlines()
+    assert rule == ["a", "", "- - -", "", "• * * *"], "only a list item's own marker turns into a bullet, never a rule's"
+    inner = Content.from_markup("\n".join(entries.body_lines("-\tfoo\n\n> - `q`\n\n1. - b\n\n- - c"))).plain.splitlines()
+    assert inner == ["•\tfoo", "", "> • q", "", "1. • b", "", "• • c"], \
+        "a bullet shows wherever its item starts: after a tab, in a quote or inside another item"
+    opening = Content.from_markup("\n".join(entries.body_lines("- ```sh\n  ls `x`\n  ```\n-     code `y`"))).plain.splitlines()
+    assert opening == ["• ```sh", "  ls `x`", "  ```", "•     code `y`"], "an item that opens with code shows its bullet and its code as written"
+
+
+def test_comment_code_blocks_read_verbatim():
+    def lines(body):
+        return Content.from_markup("\n".join(entries.body_lines(body))).plain.splitlines()
+
+    fenced = "Try:\n```yaml\n- name: `x`\n```\n- done\n  ```\n  - a\n  ```\n~~~\n* b\n~~~"
+    assert lines(fenced) == ["Try:", "```yaml", "- name: `x`", "```", "• done", "  ```", "  - a", "  ```", "~~~", "* b", "~~~"], \
+        "a comment's fenced code reads exactly as written"
+    assert lines("Run:\n\n    - make `all`\n    * step") == ["Run:", "", "    - make `all`", "    * step"], \
+        "a comment's code indented four spaces after a blank line reads exactly as written"
+    assert lines("    - make `all`\n    x = 1") == ["    - make `all`", "    x = 1"], "a comment that opens with indented code keeps it as written"
+    assert lines("```x``` inline\n- a")[1] == "• a", "three backticks with code on the same line open no code block"
+    assert lines("````\n```ruby\n- a\n```\n````\n- b") == ["````", "```ruby", "- a", "```", "````", "• b"], \
+        "a fence closes only on a fence of its own kind and at least as long"
+    assert lines("```\n~~~\n- a\n```\n- b") == ["```", "~~~", "- a", "```", "• b"], "a fence closes only on a fence of its own kind"
+    assert lines("Run:\n\n    ```\n\n- a") == ["Run:", "", "    ```", "", "• a"], "a fence inside indented code opens no code block"
+    assert lines("```\n```ruby\n- a\n```") == ["```", "```ruby", "- a", "```"], "a fence with words after it closes no code block"
+    assert lines("- Deploy:\n\n      - name: `api`") == ["• Deploy:", "", "      - name: `api`"], \
+        "code indented four spaces past a list item's text reads exactly as written"
+    assert lines("- a\n\nText\n\n    - x") == ["• a", "", "Text", "", "    - x"], "a paragraph ends the list, so indented code after it reads as written"
+    assert lines("- a\n  more\n\n    - b") == ["• a", "  more", "", "    • b"], "an item's continuation line keeps its list going"
+    assert lines("- a\n```\nx\n```\n\n    - b") == ["• a", "```", "x", "```", "", "    - b"], "a fence at the margin ends the list"
+    assert lines("- a\n  - b\n\n  more a\n\n      - name: `api`") == ["• a", "  • b", "", "  more a", "", "      - name: `api`"], \
+        "a paragraph back under the outer item ends the inner one, so code under the outer item reads as written"
+    assert lines("- a\n  - b\n  lazy\n\n      - c") == ["• a", "  • b", "  lazy", "", "      • c"], \
+        "a line right after an item's text carries on that item, however shallow"
+    assert lines("- a\n b\n\n    - c") == ["• a", " b", "", "    • c"], "a line one space in, right after an item's text, carries on that item"
+    assert lines("- a\n\n      code\nText\n\n    - x") == ["• a", "", "      code", "Text", "", "    - x"], \
+        "a line right after an item's code ends the list, since only text carries on"
+    assert lines("- a\n  ```\n  x\n  ```\nText\n\n    - y") == ["• a", "  ```", "  x", "  ```", "Text", "", "    - y"], \
+        "a line right after an item's fenced code ends the list, since only text carries on"
+    assert lines("- a\n# Head\n\n    - `k`") == ["• a", "# Head", "", "    - `k`"], "a heading right after an item ends the list"
+    assert lines("- a\n#123 x\n\n    - b") == ["• a", "#123 x", "", "    • b"], "a hash with no space after it is text, not a heading"
+    assert lines("- a\n> q\n\n    - `x`") == ["• a", "> q", "", "    - `x`"], "a quote at the margin right after an item ends the list"
+    assert lines("- a\n  > q\nlazy\n\n    - `k`") == ["• a", "  > q", "lazy", "", "    • k"], \
+        "a line right after a quote's text carries on the item the quote sits in"
+    assert lines("- a\n  >> # h\nText\n\n    - b")[-1] == "    - b", "a heading in a nested quote has no text to carry on"
+    assert lines("# h\n    - b") == ["# h", "    - b"], "code may follow a heading with no blank line between"
+    assert lines("- a\n  > code:\n  >\n  >     - x `y`") == ["• a", "  > code:", "  >", "  >     - x `y`"], "code inside a quote reads as written"
+    assert lines("Note\n ```\n- x\n ```\n\n    code `x`") == ["Note", " ```", "- x", " ```", "", "    code `x`"], \
+        "a list inside fenced code starts no list after the fence"
+
+
+def test_ticket_text_reads_as_written():
+    detail = replace(TICKET_DETAIL, description="- Deploy:\n      - name: `api`",
+                     comments=[{**TICKET_DETAIL.comments[0], "body": "* step `one`"}])
+    items = entries.ticket_items(Ticket(key="ACME-1", summary="Ticket one", status="En proceso", detail=detail), STATED)
+    assert [Content.from_markup(item["comments"][0]["text"]).plain.splitlines()[1:] for item in items] == \
+        [["- Deploy:", "      - name: `api`"], ["* step `one`"]], "jira text is not markdown, so a ticket's description and comments read as written"
+    odd = replace(TICKET_DETAIL, description="  \n    x = 1\n    y = 2", comments=[{**TICKET_DETAIL.comments[0], "body": "see [/x] and [b]y"}])
+    items = entries.ticket_items(Ticket(key="ACME-1", summary="Ticket one", status="En proceso", detail=odd), STATED)
+    texts = [Content.from_markup(item["comments"][0]["text"]).plain.splitlines()[1:] for item in items]
+    assert texts[0] == ["    x = 1", "    y = 2"], "jira text drops its blank first lines and keeps the indent of the code that opens it"
+    assert texts[1] == ["see [/x] and [b]y"], "jira text with square brackets reads as written, never as markup"
 
 
 def test_conversation_comments():
@@ -217,6 +292,9 @@ def test_conversation_comments():
     assert items[0]["url"] == NOTE["url"], "enter on a conversation comment opens that comment"
     assert "comments 5 · 1 thread · c to open" in Content.from_markup(entries.pr_entry(pr, {}, STATED).detail).plain, \
         "the detail counts conversation comments too"
+    two = replace(PR_TWO, reviews=[], threads=[THREAD, OUTDATED])
+    assert "comments 3 · 2 threads · c to open" in Content.from_markup(entries.pr_entry(two, {}, STATED).detail).plain, \
+        "the detail names how many threads the comments sit in"
     plain = replace(PR_TWO, reviews=[CHANGES], conversation=[NOTE])
     assert "comments 2 · c to open" in Content.from_markup(entries.pr_entry(plain, {}, STATED).detail).plain, \
         "a pr without threads counts its comments and names no thread"
