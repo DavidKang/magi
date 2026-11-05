@@ -17,7 +17,7 @@ PR_FIELDS = f"""number title url updatedAt headRefName headRefOid isDraft create
   reviews(first: 100) {{ nodes {{ author {{ login }} body state submittedAt }} }}
   commits(last: 100) {{ nodes {{ commit {{ committedDate }} }} }}
   {HEAD_CI}
-  reviewThreads(first: 100) {{ nodes {{ isResolved isOutdated path line
+  reviewThreads(first: 100) {{ nodes {{ isResolved isOutdated path line subjectType
     comments(first: 50) {{ nodes {{ author {{ login }} body createdAt diffHunk url }} }} }} }}
   comments(first: 100) {{ nodes {{ author {{ __typename login }} body createdAt url }} }}"""
 # Small batches in parallel: GitHub resolves the aliases of one query roughly in sequence.

@@ -127,7 +127,7 @@ async def main(cache):
         assert prompts[0].splitlines()[:2] == ["description", "Bob"], "c opens the ticket's description and comments"
         assert prompts[1].splitlines() == ["comment", "Carol", "Looks good"], "c opens the ticket's description and comments"
         assert "ACME-1 · Ticket one" in str(popup.query_one("#review").border_title), "the ticket popup is titled with the key and summary"
-        assert "Use the new reason column." in str(popup.query_one("#review-comments", Static).render()), \
+        assert "Use the new reason column." in str(popup.query_one(".comment", Static).render()), \
             "the ticket popup shows the whole description"
         await pilot.press("j", "enter")
         assert opened[-1] == "https://acme.atlassian.net/browse/ACME-1?focusedCommentId=10", "enter on a ticket comment opens that comment in Jira"

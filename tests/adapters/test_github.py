@@ -214,3 +214,4 @@ def test_pr_fetch():
     assert pr.threads[0]["comments"][0]["author"] == {"login": "ghost"}, "a deleted account reads as ghost"
     assert all(re.search(rf"\b{name}\b", query) for name in ("login", "body", "createdAt", "diffHunk", "url")), \
         "pr fetch asks for every comment field the popup shows"
+    assert re.search(r"\bsubjectType\b", query), "pr fetch asks whether a thread comments a line or the whole file"

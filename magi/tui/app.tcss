@@ -61,6 +61,8 @@ TicketScreen { align: center middle; background: $tk-veil; }
 #review-diff-box { height: auto; max-height: 60%; border: round $tk-line; background: $tk-bg; overflow-x: hidden; scrollbar-gutter: stable; }
 #review-diff { width: auto; }
 #review-comments-box { height: 1fr; margin-top: 1; }
+.comment { max-width: 100; border-left: wide $tk-line; padding-left: 1; margin-bottom: 1; }
+.comment.lead { border-left: wide $tk-accent; }
 .framed .panel { border: none; padding: 0; margin-bottom: 1; }
 .framed #panes .panel:last-child, .framed #aside .panel:last-child { margin-bottom: 0; }
 .framed Board { padding: 0 1; }

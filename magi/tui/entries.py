@@ -24,6 +24,8 @@ KEY_HINTS = (OPEN_HINT, MORE_HINT)
 DIFF_BACKGROUNDS = {"+": "#12261e", "-": "#2d1418"}
 DIFF_SIGNS = {"+": "ok", "-": "bad", " ": "dim"}
 HUNK_HEADER = re.compile(r"@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@")
+CODE_SPAN = re.compile(r"`([^`]+)`")
+LIST_ITEM = re.compile(r"^(\s*)[-*] ")
 
 
 class Parts(str):
@@ -109,7 +111,7 @@ def pr_entry(pr, by_key, settings, asked=False):
     lines += [field("ticket", f'{link(t["url"], t["key"])} {colored("dim", f"({t["status"]})")} {escape(t["summary"])}')
               for t in row["tickets"]] or [field("ticket", "—")]
     items = review_items(pr)
-    lines += comments_field(len(items)) if items else []
+    lines += comments_field(sum(len(item["comments"]) for item in items), len(pr.threads)) if items else []
     lines += ["", separator("activity"), *activity(row["events"])]
     return Entry(cells, "\n".join(lines), pr.url, pr.url,
                  f'{pr.repo} {rows.tui_repo(pr)} {pr.number} {pr.title} {row["author"]}',
@@ -143,18 +145,35 @@ def state_label(review):
     return colored(rows.TUI_REVIEW_EVENTS.get(review["state"], "blue"), review["state"].lower().replace("_", " "))
 
 
-def indented(body):
-    return [f"  {escape(line)}" for line in body.strip().splitlines()]
+def body_line(line):
+    parts = CODE_SPAN.split(LIST_ITEM.sub(r"\1• ", line))
+    # The split leaves the code between backticks at the odd places.
+    return "".join(f'[{COLORS["fg"]} on {COLORS["raised"]}]{escape(part)}[/]' if i % 2 else escape(part) for i, part in enumerate(parts))
+
+
+def comment_block(author, at, body, lead=False):
+    """One comment as its author, when it was written and its text, a little markdown drawn; lead marks the pr's own author."""
+    heading = f"[b]{escape(author)}[/b]" + (f' {colored("dim", rows.local_time(at))}' if at else "")
+    return {"text": "\n".join([heading, *map(body_line, body.strip().splitlines())]), "lead": lead}
+
+
+def thread_target(thread):
+    # GitHub gives a comment on a whole file the line 1.
+    if thread.get("subjectType") == "FILE":
+        return " · file"
+    return f':{thread["line"]}' if thread["line"] else ""
 
 
 def thread_place(thread):
-    place = f'{thread["path"]}:{thread["line"]}' if thread["line"] else thread["path"]
-    return colored("blue", place) + (f' {colored("warn", "outdated")}' if thread["isOutdated"] else "")
+    path = Path(thread["path"])
+    folder = colored("dim", f"{path.parent}/") if path.parent != Path(".") else ""
+    return (f'{folder}[b]{escape(path.name + thread_target(thread))}[/b]'
+            + (f' {colored("warn", "outdated")}' if thread["isOutdated"] else ""))
 
 
 def thread_row(thread):
     first, count = thread["comments"][0], len(thread["comments"])
-    name = Path(thread["path"]).name + (f':{thread["line"]}' if thread["line"] else "")
+    name = Path(thread["path"]).name + thread_target(thread)
     row = Text(name, COLORS["blue"])
     row.append(" · outdated" if thread["isOutdated"] else "", COLORS["warn"])
     row.append("\n" + first["author"]["login"])
@@ -181,29 +200,29 @@ def note_row(kind, author, body):
 
 
 def review_items(pr):
+    def block(author, at, body):
+        return comment_block(author["login"], at, body, author["login"] == pr.author["login"])
+
     reviews = [(r["submittedAt"], {"row": review_row(r), "place": f'{escape(r["author"]["login"])} {state_label(r)}', "hunk": None,
-                                   "path": None, "comments": indented(r["body"]), "url": pr.url})
+                                   "path": None, "comments": [block(r["author"], r["submittedAt"], r["body"])], "url": pr.url})
                for r in pr.reviews if r["body"].strip()]
     notes = [(c["createdAt"], {"row": note_row("comment", c["author"]["login"], c["body"]), "place": f'{escape(c["author"]["login"])} {colored("blue", "commented")}',
-                               "hunk": None, "path": None, "url": c["url"],
-                               "comments": [colored("dim", rows.local_time(c["createdAt"])), *indented(c["body"])]})
+                               "hunk": None, "path": None, "url": c["url"], "comments": [block(c["author"], c["createdAt"], c["body"])]})
              for c in pr.conversation]
     items = [item for _, item in sorted(reviews + notes, key=lambda pair: pair[0])]
     for thread in pr.threads:
-        comments = []
-        for comment in thread["comments"]:
-            comments += ["" if comments else None,
-                         f'[b]{escape(comment["author"]["login"])}[/b] {colored("dim", rows.local_time(comment["createdAt"]))}',
-                         *indented(comment["body"])]
-        items.append({"row": thread_row(thread), "place": thread_place(thread), "hunk": thread["comments"][0]["diffHunk"],
-                      "path": thread["path"], "comments": [line for line in comments if line is not None],
-                      "url": thread["comments"][0].get("url", pr.url)})
+        first = thread["comments"][0]
+        # A comment on a whole file comes with an empty hunk.
+        items.append({"row": thread_row(thread), "place": thread_place(thread), "hunk": first["diffHunk"] or None, "path": thread["path"],
+                      "comments": [block(c["author"], c["createdAt"], c["body"]) for c in thread["comments"]],
+                      "url": first.get("url", pr.url)})
     return items
 
 
-def comments_field(count):
+def comments_field(count, threads=0):
     style = f"{COLORS['accent']} underline @click=app.open_review(0)"
-    return [field("comments", f"[{style}]{count}[/][{style}]{OPEN_HINT}[/]")]
+    label = f"{count}" + (f" · {threads} thread{'s' if threads > 1 else ''}" if threads else "")
+    return [field("comments", f"[{style}]{label}[/][{style}]{OPEN_HINT}[/]")]
 
 
 def ticket_items(ticket, settings):
@@ -212,11 +231,12 @@ def ticket_items(ticket, settings):
     if not detail:
         return []
     description = [{"row": note_row("description", detail.creator, detail.description), "hunk": None, "path": None, "url": url,
-                    "place": f'{escape(detail.creator)} {colored("blue", "description")}', "comments": indented(detail.description)}
+                    "place": f'{escape(detail.creator)} {colored("blue", "description")}',
+                    "comments": [comment_block(detail.creator, None, detail.description)]}
                    ] if detail.description else []
     return description + [{"row": note_row("comment", c["author"], c["body"]), "hunk": None, "path": None,
                            "place": f'{escape(c["author"])} {colored("blue", "commented")}', "url": f'{url}?focusedCommentId={c["id"]}',
-                           "comments": [colored("dim", rows.local_time(c["created"])), *indented(c["body"])]}
+                           "comments": [comment_block(c["author"], c["created"], c["body"])]}
                           for c in detail.comments]
 
 

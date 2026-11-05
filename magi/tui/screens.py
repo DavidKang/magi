@@ -98,8 +98,7 @@ class ReviewScreen(ModalScreen):
                     yield Static(id="review-place")
                     with DiffBox(id="review-diff-box"):
                         yield Static(id="review-diff")
-                    with VerticalScroll(id="review-comments-box"):
-                        yield Static(id="review-comments")
+                    yield VerticalScroll(id="review-comments-box")
         yield Footer()
 
     def on_mount(self):
@@ -118,8 +117,10 @@ class ReviewScreen(ModalScreen):
         box = self.query_one("#review-diff-box")
         box.display = item["hunk"] is not None
         self.call_after_refresh(self.show_diff)
-        self.query_one("#review-comments", Static).update("\n".join(item["comments"]))
-        self.query_one("#review-comments-box").scroll_home(animate=False)
+        comments = self.query_one("#review-comments-box")
+        comments.remove_children()
+        comments.mount_all(Static(block["text"], classes="comment lead" if block["lead"] else "comment") for block in item["comments"])
+        comments.scroll_home(animate=False)
 
     def show_diff(self):
         item, box = self.current(), self.query_one("#review-diff-box")

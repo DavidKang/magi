@@ -4,7 +4,7 @@ from dataclasses import replace
 import pytest
 from textual.widgets import OptionList, Static
 
-from builders import CHANGES, HUNK, OUTDATED, PR_ONE, PR_TWO, THREAD, board, magi_app, started
+from builders import CHANGES, FILE_THREAD, HUNK, OUTDATED, PR_ONE, PR_TWO, THREAD, board, magi_app, started
 from magi.tui import app as app_module
 
 
@@ -14,6 +14,7 @@ async def review_popup(cache):
     app = magi_app(cache, load=lambda: board([PR_ONE, pr_two]), opener=opened.append, copier=copied.append)
     async with started(app) as pilot:
         text = lambda selector: str(app.screen.query_one(selector, Static).render())
+        comments = lambda: "\n".join(str(block.render()) for block in app.screen.query(".comment"))
         await pilot.press("2", "j", "c")
         assert isinstance(app.screen, app_module.ReviewScreen), "c opens the review comments of the selected PR"
         assert not app.check_action("pick_theme", ()), "the review popup blocks the theme key"
@@ -21,13 +22,15 @@ async def review_popup(cache):
         assert "brs#2" in str(app.screen.query_one("#review").border_title), "the popup title names the PR"
         assert any(b.key_display == "j/k" for b in app.screen.query_one(OptionList)._bindings.key_to_bindings.get("j", [])), \
             "the popup footer explains how to move"
-        assert "Please split this" in text("#review-comments"), "a review shows its body without a diff"
+        assert "Please split this" in comments(), "a review shows its body without a diff"
         assert not app.screen.query_one("#review-diff-box").display, "a review shows its body without a diff"
         await pilot.press("j")
         assert "app/models/order.rb:12" in text("#review-place"), "j moves to the next thread and shows its file and line"
         assert app.screen.query_one("#review-diff-box").display, "the thread shows its diff"
         assert ".sum { |item|" in text("#review-diff"), "the thread shows its diff"
-        assert text("#review-comments").index("Rename qty") < text("#review-comments").index("Done"), "the thread shows every comment in order"
+        assert comments().index("Rename qty") < comments().index("Done"), "the thread shows every comment in order"
+        assert [block.has_class("lead") for block in app.screen.query(".comment")] == [False, True], \
+            "the pr's author's comments stand out from the reviewers'"
         await pilot.press("enter")
         assert opened[-1] == THREAD["comments"][0]["url"], "enter opens the thread on GitHub"
         await pilot.press("y")
@@ -75,3 +78,31 @@ async def long_diff(cache):
 @pytest.mark.usefixtures("default_theme")
 def test_long_diff_lines_wrap(cache):
     asyncio.run(long_diff(cache))
+
+
+
+async def file_comment(cache):
+    app = magi_app(cache, load=lambda: board([PR_ONE, replace(PR_TWO, reviews=[], threads=[FILE_THREAD])]))
+    async with started(app) as pilot:
+        await pilot.press("2", "j", "c")
+        await pilot.pause()
+        assert not app.screen.query_one("#review-diff-box").display, "a comment on a whole file shows no empty diff box"
+
+
+@pytest.mark.usefixtures("default_theme")
+def test_file_comment_has_no_diff(cache):
+    asyncio.run(file_comment(cache))
+
+
+async def long_comment(cache):
+    thread = {**THREAD, "comments": [{**THREAD["comments"][0], "body": "word " * 80}]}
+    app = magi_app(cache, load=lambda: board([PR_ONE, replace(PR_TWO, reviews=[], threads=[thread])]))
+    async with started(app, size=(200, 40)) as pilot:
+        await pilot.press("2", "j", "c")
+        await pilot.pause()
+        assert app.screen.query_one(".comment").size.width <= 100, "a long comment wraps at a readable width on a wide terminal"
+
+
+@pytest.mark.usefixtures("default_theme")
+def test_long_comment_wraps_at_a_readable_width(cache):
+    asyncio.run(long_comment(cache))

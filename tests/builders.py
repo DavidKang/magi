@@ -151,6 +151,9 @@ NOTE = {"author": {"__typename": "User", "login": "alice"}, "body": "Nice work, 
         "url": "https://github.com/acme/app/pull/2#issuecomment-1"}
 REPLY = {**NOTE, "author": {"__typename": "User", "login": "bob"}, "body": "Thanks!", "createdAt": "2026-10-22T09:30:00Z",
          "url": "https://github.com/acme/app/pull/2#issuecomment-2"}
+FILE_THREAD = {"isResolved": False, "isOutdated": False, "path": "app/models/cart.rb", "line": 1, "subjectType": "FILE",
+               "comments": [{"author": {"login": "carol"}, "body": "Too much logic in `Cart`, try:\n- `Cart.build`\n- a helper",
+                             "createdAt": "2026-10-22T12:00:00Z", "diffHunk": "", "url": "https://github.com/acme/app/pull/2#discussion_r4"}]}
 CHANGES = {"submittedAt": "2026-10-22T09:00:00Z", "state": "CHANGES_REQUESTED", "body": "Please split this", "author": {"login": "carol"}}
 
 

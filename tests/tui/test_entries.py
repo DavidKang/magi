@@ -3,7 +3,7 @@ from dataclasses import replace
 
 from textual.content import Content
 
-from builders import CHANGES, NOTE, OUTDATED, PR_ONE, PR_TWO, REPLY, STATED, SUBJECT, THREAD, TICKET_DETAIL, board
+from builders import CHANGES, FILE_THREAD, NOTE, OUTDATED, PR_ONE, PR_TWO, REPLY, STATED, SUBJECT, THREAD, TICKET_DETAIL, board
 from magi.domain import review
 from magi.domain.ages import days_since
 from magi.domain.entities import Ticket
@@ -157,7 +157,7 @@ def test_pr_comments():
     review = {"submittedAt": "2026-10-22T09:00:00Z", "state": "CHANGES_REQUESTED", "body": "Please split this", "author": {"login": "carol"}}
     pr = replace(PR_TWO, reviews=[*PR_TWO.reviews, review], commits=[{"committedDate": "2026-10-23T08:00:00Z"}], threads=[THREAD])
     detail = Content.from_markup(entries.pr_entry(pr, {}, STATED).detail).plain
-    assert "comments 2 · c to open" in detail, "pr detail counts the comments and says how to open them"
+    assert "comments 3 · 1 thread · c to open" in detail, "pr detail counts every comment, replies included, and its threads"
     assert (all(text not in detail for text in
             ("Please split this", "app/models/order.rb", ".sum { |item|", "Rename qty to quantity"))), \
         "pr detail leaves the comments themselves to the popup"
@@ -177,6 +177,34 @@ def test_review_rows():
     assert "Typo" in rows[2], "each thread in the list previews its first comment"
 
 
+def test_file_comments():
+    item = entries.review_items(replace(PR_TWO, reviews=[], threads=[FILE_THREAD]))[0]
+    assert str(item["row"]).splitlines()[0] == "cart.rb · file", "a comment on a whole file says so in the list instead of a line"
+    place = Content.from_markup(item["place"]).plain
+    assert place == "app/models/cart.rb · file", "a comment on a whole file says so in its heading instead of a line"
+    assert item["hunk"] is None, "a comment on a whole file has no diff to show"
+
+
+def test_thread_heading():
+    place = entries.review_items(replace(PR_TWO, reviews=[], threads=[THREAD]))[0]["place"]
+    assert Content.from_markup(place).plain == "app/models/order.rb:12", "a thread's heading names its file and line"
+    assert place.startswith(entries.colored("dim", "app/models/")) and "[b]order.rb:12[/b]" in place, \
+        "a thread's heading greys its folder and puts its file in bold"
+
+
+def test_comment_blocks():
+    thread = entries.review_items(replace(PR_TWO, reviews=[], threads=[THREAD]))[0]
+    blocks = thread["comments"]
+    assert [Content.from_markup(block["text"]).plain.splitlines()[0] for block in blocks] == \
+        ["carol Oct 22 11:05", "bob Oct 22 12:00"], "each comment of a thread is a block headed by its author and time"
+    assert [block["lead"] for block in blocks] == [False, True], "the pr's author's comments stand out from the reviewers'"
+    body = Content.from_markup(entries.review_items(replace(PR_TWO, reviews=[], threads=[FILE_THREAD]))[0]["comments"][0]["text"])
+    assert body.plain.splitlines()[1:] == ["Too much logic in Cart, try:", "• Cart.build", "• a helper"], \
+        "a comment drops the backticks of its code and draws its list items as bullets"
+    code = [span for span in body.spans if body.plain[span.start:span.end] == "Cart.build"]
+    assert code, "a comment's code reads in a style of its own"
+
+
 def test_conversation_comments():
     pr = replace(PR_TWO, reviews=[CHANGES], threads=[THREAD], conversation=[NOTE, REPLY])
     items = entries.review_items(pr)
@@ -184,11 +212,14 @@ def test_conversation_comments():
         "conversation comments sit with the reviews by date, before the code threads"
     assert str(items[0]["row"]).splitlines()[1:] == ["alice", "Nice work, this reads well"], "a conversation comment shows its author and text"
     assert "alice commented" in Content.from_markup(items[0]["place"]).plain, "a conversation comment shows its author and text"
-    assert "Nice work, this reads well" in Content.from_markup("\n".join(items[0]["comments"])).plain, \
+    assert "Nice work, this reads well" in Content.from_markup(items[0]["comments"][0]["text"]).plain, \
         "a conversation comment shows its author and text"
     assert items[0]["url"] == NOTE["url"], "enter on a conversation comment opens that comment"
-    assert "comments 4 · c to open" in Content.from_markup(entries.pr_entry(pr, {}, STATED).detail).plain, \
+    assert "comments 5 · 1 thread · c to open" in Content.from_markup(entries.pr_entry(pr, {}, STATED).detail).plain, \
         "the detail counts conversation comments too"
+    plain = replace(PR_TWO, reviews=[CHANGES], conversation=[NOTE])
+    assert "comments 2 · c to open" in Content.from_markup(entries.pr_entry(plain, {}, STATED).detail).plain, \
+        "a pr without threads counts its comments and names no thread"
 
 
 def test_pr_detail_status_and_activity():
